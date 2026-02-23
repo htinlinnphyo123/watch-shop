@@ -91,6 +91,25 @@ const formatDate = (dateString) => {
                                  <span class="text-gray-900 font-medium">{{ product.warranty_period }} Months</span>
                              </div>
                          </div>
+
+                         <!-- Specifications Grid -->
+                         <div class="w-full mt-6 pt-6 border-t border-gray-100">
+                             <h3 class="text-md font-bold text-gray-900 mb-4">Specifications</h3>
+                             <div class="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
+                                 <div v-if="product.watch_type" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Watch Type</span><span class="text-gray-900 font-medium">{{ product.watch_type }}</span></div>
+                                 <div v-if="product.gender" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Gender</span><span class="text-gray-900 font-medium">{{ product.gender }}</span></div>
+                                 <div v-if="product.movement" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Movement</span><span class="text-gray-900 font-medium">{{ product.movement }}</span></div>
+                                 <div v-if="product.glass" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Glass</span><span class="text-gray-900 font-medium">{{ product.glass }}</span></div>
+                                 <div v-if="product.water_resistant" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Water Res.</span><span class="text-gray-900 font-medium">{{ product.water_resistant }}</span></div>
+                                 <div v-if="product.shape" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Shape</span><span class="text-gray-900 font-medium">{{ product.shape }}</span></div>
+                                 <div v-if="product.dial_size" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Dial Size</span><span class="text-gray-900 font-medium">{{ product.dial_size }}</span></div>
+                                 <div v-if="product.dial_color" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Dial Color</span><span class="text-gray-900 font-medium">{{ product.dial_color }}</span></div>
+                                 <div v-if="product.band" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Band Material</span><span class="text-gray-900 font-medium">{{ product.band }}</span></div>
+                                 <div v-if="product.band_color" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Band Color</span><span class="text-gray-900 font-medium">{{ product.band_color }}</span></div>
+                                 <div v-if="product.band_size" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Band Size</span><span class="text-gray-900 font-medium">{{ product.band_size }}</span></div>
+                                 <div v-if="product.couple" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Couple Watch</span><span class="text-gray-900 font-medium">{{ product.couple }}</span></div>
+                             </div>
+                         </div>
                      </div>
                  </div>
                  

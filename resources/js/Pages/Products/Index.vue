@@ -71,6 +71,18 @@ const form = useForm({
     image: null,
     barcode: '', // Optional, will generate if empty
     currency: 'MMK',
+    watch_type: '',
+    glass: '',
+    water_resistant: '',
+    shape: '',
+    couple: '',
+    dial_size: '',
+    dial_color: '',
+    band: '',
+    band_size: '',
+    band_color: '',
+    movement: '',
+    gender: '',
 });
 
 const isModalOpen = ref(false);
@@ -90,6 +102,18 @@ const openModal = (product = null) => {
         form.description = product.description;
         form.barcode = product.barcode;
         form.currency = product.currency || 'MMK';
+        form.watch_type = product.watch_type || '';
+        form.glass = product.glass || '';
+        form.water_resistant = product.water_resistant || '';
+        form.shape = product.shape || '';
+        form.couple = product.couple || '';
+        form.dial_size = product.dial_size || '';
+        form.dial_color = product.dial_color || '';
+        form.band = product.band || '';
+        form.band_size = product.band_size || '';
+        form.band_color = product.band_color || '';
+        form.movement = product.movement || '';
+        form.gender = product.gender || '';
         form.image = null;
     } else {
         form.reset();
@@ -321,8 +345,63 @@ const deleteProduct = (product) => {
                          <TextInput type="number" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900" v-model="form.warranty_period" required />
                     </div>
 
+                    <!-- Detailed Specifications Dropdown or Inputs -->
+                    <div class="border-t border-gray-200 pt-4 mt-4">
+                        <h3 class="text-md font-bold text-gray-900 mb-4">Detailed Specifications</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <div>
+                                <InputLabel value="Watch Type" class="text-gray-700 text-xs" />
+                                <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.watch_type" placeholder="e.g. PRX, T-Race" />
+                            </div>
+                            <div>
+                                <InputLabel value="Gender" class="text-gray-700 text-xs" />
+                                <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.gender" placeholder="e.g. Men, Women" />
+                            </div>
+                            <div>
+                                <InputLabel value="Couple Watch?" class="text-gray-700 text-xs" />
+                                <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.couple" placeholder="Yes / No" />
+                            </div>
+                            <div>
+                                <InputLabel value="Movement" class="text-gray-700 text-xs" />
+                                <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.movement" placeholder="e.g. Quartz, Powermatic" />
+                            </div>
+                            <div>
+                                <InputLabel value="Glass" class="text-gray-700 text-xs" />
+                                <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.glass" placeholder="e.g. Sapphire" />
+                            </div>
+                            <div>
+                                <InputLabel value="Water Resistant" class="text-gray-700 text-xs" />
+                                <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.water_resistant" placeholder="e.g. 100m" />
+                            </div>
+                            <div>
+                                <InputLabel value="Shape" class="text-gray-700 text-xs" />
+                                <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.shape" placeholder="e.g. Round, Tonneau" />
+                            </div>
+                            <div>
+                                <InputLabel value="Dial Size" class="text-gray-700 text-xs" />
+                                <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.dial_size" placeholder="e.g. 40mm" />
+                            </div>
+                            <div>
+                                <InputLabel value="Dial Color" class="text-gray-700 text-xs" />
+                                <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.dial_color" placeholder="e.g. Black, Blue" />
+                            </div>
+                            <div>
+                                <InputLabel value="Band Material" class="text-gray-700 text-xs" />
+                                <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.band" placeholder="e.g. Steel, Rubber" />
+                            </div>
+                            <div>
+                                <InputLabel value="Band Size" class="text-gray-700 text-xs" />
+                                <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.band_size" placeholder="e.g. 20mm" />
+                            </div>
+                            <div>
+                                <InputLabel value="Band Color" class="text-gray-700 text-xs" />
+                                <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.band_color" placeholder="e.g. Silver, Gold" />
+                            </div>
+                        </div>
+                    </div>
+
                     <div>
-                        <InputLabel value="Description" class="text-gray-700" />
+                        <InputLabel value="Description / Internal Notes" class="text-gray-700" />
                         <textarea v-model="form.description" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500 rounded-md shadow-sm" rows="3"></textarea>
                     </div>
 

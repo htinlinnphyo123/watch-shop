@@ -20,6 +20,7 @@ const props = defineProps({
     },
 });
 
+const searchInput = ref(null);
 const search = ref('');
 const cart = ref([]);
 const isCheckoutModalOpen = ref(false);
@@ -85,6 +86,43 @@ const filteredProducts = computed(() => {
 const subTotal = computed(() => {
     return cart.value.reduce((sum, item) => sum + getMmkPrice(item.product), 0);
 });
+
+// Barcode Scanning Logic
+const handleBarcodeScan = () => {
+    if (!search.value) return;
+    const scanValue = search.value.trim().toLowerCase();
+    
+    // 1. Check for exact Serial Number match
+    for (const product of props.products) {
+        if (product.items) {
+            const matchedItem = product.items.find(i => i.serial_number.toLowerCase() === scanValue);
+            if (matchedItem) {
+                // Check if already in cart
+                if (cart.value.find(c => c.serial_number === matchedItem.serial_number)) {
+                    alert('Item is already in the cart!');
+                    search.value = '';
+                    return;
+                }
+                // Add exact item directly
+                cart.value.push({
+                    product: product,
+                    serial_number: matchedItem.serial_number,
+                    item_id: matchedItem.id
+                });
+                search.value = '';
+                return;
+            }
+        }
+    }
+
+    // 2. Check for exact Product Barcode match
+    const matchedProduct = props.products.find(p => p.barcode && p.barcode.toLowerCase() === scanValue);
+    if (matchedProduct) {
+        addToCart(matchedProduct); // This will open the modal to select the serial
+        search.value = '';
+        return;
+    }
+};
 
 // Calculate Discount
 const discount = computed(() => {
@@ -164,9 +202,11 @@ const submitCheckout = () => {
             <div class="w-full md:w-2/3 p-6 overflow-y-auto bg-gray-100 transition-colors">
                 <div class="mb-6 flex gap-4">
                     <input 
+                        ref="searchInput"
                         v-model="search" 
+                        @keyup.enter="handleBarcodeScan"
                         type="text" 
-                        placeholder="Search usage: Name, Model, Barcode..." 
+                        placeholder="Search usage: Name, Model, or SCAN BARCODE..." 
                         class="flex-1 bg-white border-gray-300 text-gray-900 rounded-lg focus:ring-gold-500 focus:border-gold-500 p-4 shadow-sm"
                         autofocus
                     />

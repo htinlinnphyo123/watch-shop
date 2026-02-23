@@ -34,6 +34,18 @@ class ProductController extends Controller
             'image' => 'nullable|image',
             'barcode' => 'nullable|string',
             'currency' => 'nullable|in:MMK,USD,THB',
+            'watch_type' => 'nullable|string',
+            'glass' => 'nullable|string',
+            'water_resistant' => 'nullable|string',
+            'shape' => 'nullable|string',
+            'couple' => 'nullable|string',
+            'dial_size' => 'nullable|string',
+            'dial_color' => 'nullable|string',
+            'band' => 'nullable|string',
+            'band_size' => 'nullable|string',
+            'band_color' => 'nullable|string',
+            'movement' => 'nullable|string',
+            'gender' => 'nullable|string',
         ]);
 
         if ($request->hasFile('image')) {
@@ -63,6 +75,18 @@ class ProductController extends Controller
             'image' => 'nullable|image',
             'barcode' => 'nullable|string',
             'currency' => 'nullable|in:MMK,USD,THB',
+            'watch_type' => 'nullable|string',
+            'glass' => 'nullable|string',
+            'water_resistant' => 'nullable|string',
+            'shape' => 'nullable|string',
+            'couple' => 'nullable|string',
+            'dial_size' => 'nullable|string',
+            'dial_color' => 'nullable|string',
+            'band' => 'nullable|string',
+            'band_size' => 'nullable|string',
+            'band_color' => 'nullable|string',
+            'movement' => 'nullable|string',
+            'gender' => 'nullable|string',
         ]);
 
         if ($request->hasFile('image')) {
