@@ -34,6 +34,7 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            'settings' => fn () => \App\Models\Setting::pluck('value', 'key')->toArray(),
         ];
     }
 }

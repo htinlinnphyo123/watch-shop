@@ -37,6 +37,7 @@ const form = useForm({
     description: '',
     image: null,
     barcode: '', // Optional, will generate if empty
+    currency: 'MMK',
 });
 
 const isModalOpen = ref(false);
@@ -55,10 +56,12 @@ const openModal = (product = null) => {
         form.warranty_period = product.warranty_period;
         form.description = product.description;
         form.barcode = product.barcode;
+        form.currency = product.currency || 'MMK';
         form.image = null;
     } else {
         form.reset();
         form.image = null;
+        form.currency = 'MMK';
     }
     isModalOpen.value = true;
 };
@@ -116,7 +119,8 @@ const deleteProduct = (product) => {
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name / Model</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price Details</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
                         <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
@@ -134,7 +138,12 @@ const deleteProduct = (product) => {
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-600">{{ product.brand?.name }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-600">{{ product.category?.name }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-gold-600 font-bold">{{ parseInt(product.price).toLocaleString() }} Ks</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-gray-900 font-bold">{{ parseInt(product.price).toLocaleString() }} {{ product.currency }}</div>
+                            <div v-if="product.currency !== 'MMK'" class="text-xs text-gold-600 font-bold mt-1">
+                                ≈ {{ (parseInt(product.price) * parseFloat($page.props.settings[product.currency.toLowerCase() + '_rate'] || 1)).toLocaleString() }} MMK
+                            </div>
+                        </td>
                          <td class="px-6 py-4 whitespace-nowrap">
                              <Link v-if="product.id" :href="route('products.show', product.id)" class="text-blue-600 hover:text-blue-800 underline text-sm">
                                  Manage Stock
@@ -232,11 +241,22 @@ const deleteProduct = (product) => {
 
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <InputLabel value="Price (MMK)" class="text-gray-700" />
+                            <InputLabel value="Currency" class="text-gray-700" />
+                            <select v-model="form.currency" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500 rounded-md shadow-sm">
+                                <option value="MMK">MMK (Myanmar Kyat)</option>
+                                <option value="USD">USD (US Dollar)</option>
+                                <option value="THB">THB (Thai Baht)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <InputLabel :value="'Price (' + form.currency + ')'" class="text-gray-700" />
                             <TextInput type="number" step="0.01" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900" v-model="form.price" required />
                         </div>
                         <div>
-                            <InputLabel value="Cost Price (MMK)" class="text-gray-700" />
+                            <InputLabel :value="'Cost Price (' + form.currency + ')'" class="text-gray-700" />
                             <TextInput type="number" step="0.01" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900" v-model="form.cost_price" />
                         </div>
                     </div>

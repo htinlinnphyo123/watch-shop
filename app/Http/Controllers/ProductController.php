@@ -33,6 +33,7 @@ class ProductController extends Controller
             'description' => 'nullable|string',
             'image' => 'nullable|image',
             'barcode' => 'nullable|string',
+            'currency' => 'nullable|in:MMK,USD,THB',
         ]);
 
         if ($request->hasFile('image')) {
@@ -61,6 +62,7 @@ class ProductController extends Controller
             'description' => 'nullable|string',
             'image' => 'nullable|image',
             'barcode' => 'nullable|string',
+            'currency' => 'nullable|in:MMK,USD,THB',
         ]);
 
         if ($request->hasFile('image')) {
