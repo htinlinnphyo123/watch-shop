@@ -66,7 +66,7 @@ const formatDate = (dateString) => {
                          <h1 class="text-2xl font-bold text-gray-900 text-center">{{ product.name }}</h1>
                          <p class="text-gold-600 font-bold text-xl mt-2">{{ parseInt(product.price).toLocaleString() }} {{ product.currency }}</p>
                          <p v-if="product.currency !== 'MMK'" class="text-sm text-gray-500 font-bold mt-1">
-                             ≈ {{ (parseInt(product.price) * parseFloat($page.props.settings[product.currency.toLowerCase() + '_rate'] || 1)).toLocaleString() }} MMK
+                             ≈ {{ (parseFloat(product.price) * parseFloat($page.props.settings[product.currency.toLowerCase() + '_rate'] || 1)).toLocaleString() }} MMK
                          </p>
                          
                          <div class="w-full mt-6 space-y-3 text-sm">

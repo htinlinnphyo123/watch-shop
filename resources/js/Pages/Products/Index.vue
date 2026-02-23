@@ -1,7 +1,7 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { Head, useForm, router, Link } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { Head, useForm, router, Link, usePage } from '@inertiajs/vue3';
+import { ref, computed } from 'vue';
 import Modal from '@/Components/Modal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
@@ -25,6 +25,39 @@ const props = defineProps({
 });
 
 console.log('Products Data:', props.products);
+
+const page = usePage();
+const displayCurrency = ref('MMK'); // Default view
+
+// Helper to calculate the displayed price in the selected displayCurrency
+const getDisplayPrice = (product) => {
+    if (!product) return 0;
+    
+    // First, convert product's base price to MMK (if it isn't already)
+    let productMmkRate = 1;
+    if (product.currency && product.currency !== 'MMK') {
+        productMmkRate = parseFloat(page.props.settings[product.currency.toLowerCase() + '_rate'] || 1);
+    }
+    const mmkPrice = parseFloat(product.price) * productMmkRate;
+
+    // Second, convert from MMK to the target display currency
+    if (displayCurrency.value === 'MMK') {
+        return mmkPrice;
+    } else {
+        const targetRate = parseFloat(page.props.settings[displayCurrency.value.toLowerCase() + '_rate'] || 1);
+        if (targetRate > 0) {
+             return mmkPrice / targetRate;
+        }
+        return mmkPrice; // Fallback
+    }
+};
+
+const formatPrice = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: displayCurrency.value === 'MMK' ? 0 : 2,
+        maximumFractionDigits: displayCurrency.value === 'MMK' ? 0 : 2
+    }).format(amount);
+};
 
 const form = useForm({
     brand_id: '',
@@ -106,9 +139,28 @@ const deleteProduct = (product) => {
 
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-gray-900">Watches</h1>
-            <PrimaryButton @click="openModal()" class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold">
-                Add Watch
-            </PrimaryButton>
+            
+            <div class="flex items-center gap-4">
+                <!-- Currency Toggle -->
+                <div class="bg-gray-200 p-1 rounded-lg flex items-center shadow-inner">
+                    <button 
+                        v-for="currency in ['MMK', 'USD', 'THB']" :key="currency"
+                        @click="displayCurrency = currency"
+                        :class="[
+                            'px-4 py-1.5 rounded-md text-sm font-bold transition-all duration-200',
+                            displayCurrency === currency 
+                                ? 'bg-white text-gold-600 shadow-sm' 
+                                : 'text-gray-500 hover:text-gray-700'
+                        ]"
+                    >
+                        {{ currency }}
+                    </button>
+                </div>
+
+                <PrimaryButton @click="openModal()" class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold">
+                    Add Watch
+                </PrimaryButton>
+            </div>
         </div>
 
         <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
@@ -139,9 +191,12 @@ const deleteProduct = (product) => {
                         <td class="px-6 py-4 whitespace-nowrap text-gray-600">{{ product.brand?.name }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-600">{{ product.category?.name }}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-gray-900 font-bold">{{ parseInt(product.price).toLocaleString() }} {{ product.currency }}</div>
-                            <div v-if="product.currency !== 'MMK'" class="text-xs text-gold-600 font-bold mt-1">
-                                ≈ {{ (parseInt(product.price) * parseFloat($page.props.settings[product.currency.toLowerCase() + '_rate'] || 1)).toLocaleString() }} MMK
+                            <div class="text-gray-900 font-bold text-lg">
+                                {{ formatPrice(getDisplayPrice(product)) }} 
+                                <span class="text-sm text-gray-500">{{ displayCurrency }}</span>
+                            </div>
+                            <div class="text-xs text-gray-400 mt-0.5">
+                                Base: {{ parseInt(product.price).toLocaleString() }} {{ product.currency }}
                             </div>
                         </td>
                          <td class="px-6 py-4 whitespace-nowrap">

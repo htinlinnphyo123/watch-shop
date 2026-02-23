@@ -1,6 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -26,6 +26,40 @@ const isCheckoutModalOpen = ref(false);
 const isSerialModalOpen = ref(false);
 const selectedProduct = ref(null);
 
+const page = usePage();
+const displayCurrency = ref('MMK'); // Default view
+
+const getMmkPrice = (product) => {
+    if (!product) return 0;
+    let rate = 1;
+    if (product.currency && product.currency !== 'MMK') {
+        rate = parseFloat(page.props.settings[product.currency.toLowerCase() + '_rate'] || 1);
+    }
+    return parseFloat(product.price) * rate;
+};
+
+// Helper to calculate the displayed price in the selected displayCurrency
+const getDisplayPrice = (product) => {
+    const mmkPrice = getMmkPrice(product);
+
+    if (displayCurrency.value === 'MMK') {
+        return mmkPrice;
+    } else {
+        const targetRate = parseFloat(page.props.settings[displayCurrency.value.toLowerCase() + '_rate'] || 1);
+        if (targetRate > 0) {
+             return mmkPrice / targetRate;
+        }
+        return mmkPrice; // Fallback
+    }
+};
+
+const formatPrice = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: displayCurrency.value === 'MMK' ? 0 : 2,
+        maximumFractionDigits: displayCurrency.value === 'MMK' ? 0 : 2
+    }).format(amount);
+};
+
 const checkoutForm = useForm({
     customer_id: '',
     payment_method: 'cash',
@@ -49,7 +83,7 @@ const filteredProducts = computed(() => {
 
 // Calculate Subtotal
 const subTotal = computed(() => {
-    return cart.value.reduce((sum, item) => sum + parseFloat(item.product.price), 0);
+    return cart.value.reduce((sum, item) => sum + getMmkPrice(item.product), 0);
 });
 
 // Calculate Discount
@@ -128,14 +162,30 @@ const submitCheckout = () => {
         <div class="flex h-[calc(100vh-64px)] -m-6"> 
             <!-- Left: Product Grid -->
             <div class="w-full md:w-2/3 p-6 overflow-y-auto bg-gray-100 transition-colors">
-                <div class="mb-6">
+                <div class="mb-6 flex gap-4">
                     <input 
                         v-model="search" 
                         type="text" 
                         placeholder="Search usage: Name, Model, Barcode..." 
-                        class="w-full bg-white border-gray-300 text-gray-900 rounded-lg focus:ring-gold-500 focus:border-gold-500 p-4 shadow-sm"
+                        class="flex-1 bg-white border-gray-300 text-gray-900 rounded-lg focus:ring-gold-500 focus:border-gold-500 p-4 shadow-sm"
                         autofocus
                     />
+
+                    <!-- Currency Toggle -->
+                    <div class="bg-gray-200 p-1 rounded-lg flex items-center shadow-inner self-stretch px-2 shrink-0">
+                        <button 
+                            v-for="currency in ['MMK', 'USD', 'THB']" :key="currency"
+                            @click="displayCurrency = currency"
+                            :class="[
+                                'h-full px-5 rounded-md text-sm font-bold transition-all duration-200',
+                                displayCurrency === currency 
+                                    ? 'bg-white text-gold-600 shadow-sm' 
+                                    : 'text-gray-500 hover:text-gray-700'
+                            ]"
+                        >
+                            {{ currency }}
+                        </button>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -157,7 +207,10 @@ const submitCheckout = () => {
                             <h3 class="text-gray-900 font-bold truncate group-hover:text-gold-600">{{ product.name }}</h3>
                             <p class="text-gray-500 text-xs">{{ product.model_number }}</p>
                             <div class="mt-2 flex justify-between items-end">
-                                <span class="text-gold-600 font-bold">{{ parseInt(product.price).toLocaleString() }} Ks</span>
+                                <span class="text-gold-600 font-bold">
+                                    {{ formatPrice(getDisplayPrice(product)) }} 
+                                    <span class="text-xs text-gray-500 font-normal">{{ displayCurrency }}</span>
+                                </span>
                                 <span class="text-[10px] text-gray-500">{{ product.category?.name }}</span>
                             </div>
                         </div>
@@ -188,7 +241,7 @@ const submitCheckout = () => {
                             <div class="text-xs text-gray-500">SN: <span class="font-mono text-gold-600">{{ item.serial_number }}</span></div>
                         </div>
                         <div class="text-right">
-                            <div class="text-gold-600 font-bold">{{ parseInt(item.product.price).toLocaleString() }} Ks</div>
+                            <div class="text-gold-600 font-bold">{{ getMmkPrice(item.product).toLocaleString() }} Ks</div>
                             <button @click="removeFromCart(index)" class="text-red-500 hover:text-red-700 text-xs hover:underline mt-1">Remove</button>
                         </div>
                     </div>

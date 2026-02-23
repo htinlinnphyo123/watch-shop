@@ -31,31 +31,78 @@ class POSController extends Controller
     {
         $request->validate([
             'customer_id' => 'nullable|exists:customers,id',
-            'items' => 'required|array',
-            'items.*.id' => 'required|exists:products,id',
-            'items.*.quantity' => 'required|integer|min:1',
+            'cart' => 'required|array',
+            'cart.*.product_id' => 'required|exists:products,id',
+            'cart.*.serial_number' => 'required|exists:product_items,serial_number',
         ]);
 
-        // Simple checkout logic (mockup)
         try {
             DB::beginTransaction();
+            
+            $settings = \App\Models\Setting::pluck('value', 'key')->toArray();
+            $subtotal = 0;
+            $orderItemsData = [];
+            $productItemIds = [];
+
+            foreach ($request->cart as $cartItem) {
+                $product = Product::find($cartItem['product_id']);
+                $productItem = \App\Models\ProductItem::where('serial_number', $cartItem['serial_number'])
+                    ->where('product_id', $product->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$productItem || $productItem->status !== 'available') {
+                    throw new \Exception("Serial number {$cartItem['serial_number']} is no longer available.");
+                }
+
+                $rate = 1;
+                if ($product->currency && $product->currency !== 'MMK') {
+                    $rateKey = strtolower($product->currency) . '_rate';
+                    $rate = floatval($settings[$rateKey] ?? 1);
+                }
+                
+                $mmkPrice = floatval($product->price) * $rate;
+                $subtotal += $mmkPrice;
+
+                $orderItemsData[] = [
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'price' => $mmkPrice,
+                ];
+
+                $productItemIds[] = $productItem->id;
+            }
+
+            // Apply Discount
+            $total_amount = $subtotal;
+            if ($request->customer_id) {
+                $customer = Customer::with('group')->find($request->customer_id);
+                if ($customer && $customer->group) {
+                    $discount = $subtotal * ($customer->group->percentage / 100);
+                    $total_amount -= $discount;
+                }
+            }
             
             $order = Order::create([
                 'user_id' => auth()->id(),
                 'customer_id' => $request->customer_id,
-                'total_amount' => 0, // Calculate loop
+                'total_amount' => $total_amount,
                 'status' => 'completed',
-                'order_number' => 'ORD-' . time(),
+                'order_number' => 'ORD-' . strtoupper(uniqid()),
             ]);
 
-            // Logic to calculate total and create items would go here
-            // For now, just a placeholder success
+            foreach ($orderItemsData as $item) {
+                $order->items()->create($item);
+            }
+
+            // Mark items as sold
+            \App\Models\ProductItem::whereIn('id', $productItemIds)->update(['status' => 'sold']);
 
             DB::commit();
             return redirect()->route('orders.show', $order);
         } catch (\Exception $e) {
             DB::rollBack();
-            return redirect()->back()->withErrors(['error' => 'Checkout failed']);
+            return redirect()->back()->withErrors(['error' => 'Checkout failed: ' . $e->getMessage()]);
         }
     }
 }
