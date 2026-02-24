@@ -59,7 +59,7 @@ return new class extends Migration
 
         Schema::create('product_items', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('product_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('product_id')->nullable()->constrained()->nullOnDelete();
             $table->string('serial_number')->unique();
             $table->enum('status', ['available', 'sold', 'reserved'])->default('available');
             $table->timestamps();
@@ -88,7 +88,7 @@ return new class extends Migration
         Schema::create('order_items', function (Blueprint $table) {
             $table->id();
             $table->foreignId('order_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('product_id')->constrained()->nullOnDelete();
+            $table->foreignId('product_id')->nullable()->constrained()->nullOnDelete();
             $table->integer('quantity');
             $table->decimal('price', 12, 2);
             $table->timestamps();
