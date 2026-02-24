@@ -1,6 +1,6 @@
 <script setup>
 import AdminLayout from "@/Layouts/AdminLayout.vue";
-import { Head, useForm, router, Link } from "@inertiajs/vue3";
+import { Head, useForm, router, Link, usePage } from "@inertiajs/vue3";
 import { ref } from "vue";
 import Modal from "@/Components/Modal.vue";
 import InputLabel from "@/Components/InputLabel.vue";
@@ -26,6 +26,43 @@ const props = defineProps({
 
 console.log("Products Data:", props.products);
 
+const page = usePage();
+const displayCurrency = ref("MMK"); // Default view
+
+// Helper to calculate the displayed price in the selected displayCurrency
+const getDisplayPrice = (product) => {
+  if (!product) return 0;
+
+  // First, convert product's base price to MMK (if it isn't already)
+  let productMmkRate = 1;
+  if (product.currency && product.currency !== "MMK") {
+    productMmkRate = parseFloat(
+      page.props.settings[product.currency.toLowerCase() + "_rate"] || 1,
+    );
+  }
+  const mmkPrice = parseFloat(product.price) * productMmkRate;
+
+  // Second, convert from MMK to the target display currency
+  if (displayCurrency.value === "MMK") {
+    return mmkPrice;
+  } else {
+    const targetRate = parseFloat(
+      page.props.settings[displayCurrency.value.toLowerCase() + "_rate"] || 1,
+    );
+    if (targetRate > 0) {
+      return mmkPrice / targetRate;
+    }
+    return mmkPrice; // Fallback
+  }
+};
+
+const formatPrice = (amount) => {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: displayCurrency.value === "MMK" ? 0 : 2,
+    maximumFractionDigits: displayCurrency.value === "MMK" ? 0 : 2,
+  }).format(amount);
+};
+
 const form = useForm({
   brand_id: "",
   category_id: "",
@@ -38,6 +75,18 @@ const form = useForm({
   image: null,
   barcode: "", // Optional, will generate if empty
   currency: "MMK",
+  watch_type: "",
+  glass: "",
+  water_resistant: "",
+  shape: "",
+  couple: "",
+  dial_size: "",
+  dial_color: "",
+  band: "",
+  band_size: "",
+  band_color: "",
+  movement: "",
+  gender: "",
 });
 
 const isModalOpen = ref(false);
@@ -57,6 +106,18 @@ const openModal = (product = null) => {
     form.description = product.description;
     form.barcode = product.barcode;
     form.currency = product.currency || "MMK";
+    form.watch_type = product.watch_type || "";
+    form.glass = product.glass || "";
+    form.water_resistant = product.water_resistant || "";
+    form.shape = product.shape || "";
+    form.couple = product.couple || "";
+    form.dial_size = product.dial_size || "";
+    form.dial_color = product.dial_color || "";
+    form.band = product.band || "";
+    form.band_size = product.band_size || "";
+    form.band_color = product.band_color || "";
+    form.movement = product.movement || "";
+    form.gender = product.gender || "";
     form.image = null;
   } else {
     form.reset();
@@ -110,12 +171,32 @@ const deleteProduct = (product) => {
 
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-3xl font-bold text-gray-900">Watches</h1>
-      <PrimaryButton
-        @click="openModal()"
-        class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold"
-      >
-        Add Watch
-      </PrimaryButton>
+
+      <div class="flex items-center gap-4">
+        <!-- Currency Toggle -->
+        <div class="bg-gray-200 p-1 rounded-lg flex items-center shadow-inner">
+          <button
+            v-for="currency in ['MMK', 'USD', 'THB']"
+            :key="currency"
+            @click="displayCurrency = currency"
+            :class="[
+              'px-4 py-1.5 rounded-md text-sm font-bold transition-all duration-200',
+              displayCurrency === currency
+                ? 'bg-white text-gold-600 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700',
+            ]"
+          >
+            {{ currency }}
+          </button>
+        </div>
+
+        <PrimaryButton
+          @click="openModal()"
+          class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold"
+        >
+          Add Watch
+        </PrimaryButton>
+      </div>
     </div>
 
     <div
@@ -207,26 +288,12 @@ const deleteProduct = (product) => {
               {{ product.category?.name }}
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
-              <div class="text-gray-900 font-bold">
-                {{ parseInt(product.price).toLocaleString() }}
-                {{ product.currency }}
+              <div class="text-gray-900 font-bold text-lg">
+                {{ formatPrice(getDisplayPrice(product)) }}
+                <span class="text-sm text-gray-500">{{ displayCurrency }}</span>
               </div>
-              <div
-                v-if="product.currency !== 'MMK'"
-                class="text-xs text-gold-600 font-bold mt-1"
-              >
-                ≈
-                {{
-                  (
-                    parseInt(product.price) *
-                    parseFloat(
-                      $page.props.settings[
-                        product.currency.toLowerCase() + "_rate"
-                      ] || 1,
-                    )
-                  ).toLocaleString()
-                }}
-                MMK
+              <div class="text-xs text-gray-400 mt-0.5">
+                Base: {{ parseInt(product.price).toLocaleString() }} {{ product.currency }}
               </div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
@@ -459,6 +526,61 @@ const deleteProduct = (product) => {
               v-model="form.warranty_period"
               required
             />
+          </div>
+
+          <!-- Detailed Specifications Dropdown or Inputs -->
+          <div class="border-t border-gray-200 pt-4 mt-4">
+              <h3 class="text-md font-bold text-gray-900 mb-4">Detailed Specifications</h3>
+              <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div>
+                      <InputLabel value="Watch Type" class="text-gray-700 text-xs" />
+                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.watch_type" placeholder="e.g. PRX, T-Race" />
+                  </div>
+                  <div>
+                      <InputLabel value="Gender" class="text-gray-700 text-xs" />
+                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.gender" placeholder="e.g. Men, Women" />
+                  </div>
+                  <div>
+                      <InputLabel value="Couple Watch?" class="text-gray-700 text-xs" />
+                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.couple" placeholder="Yes / No" />
+                  </div>
+                  <div>
+                      <InputLabel value="Movement" class="text-gray-700 text-xs" />
+                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.movement" placeholder="e.g. Quartz, Powermatic" />
+                  </div>
+                  <div>
+                      <InputLabel value="Glass" class="text-gray-700 text-xs" />
+                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.glass" placeholder="e.g. Sapphire" />
+                  </div>
+                  <div>
+                      <InputLabel value="Water Resistant" class="text-gray-700 text-xs" />
+                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.water_resistant" placeholder="e.g. 100m" />
+                  </div>
+                  <div>
+                      <InputLabel value="Shape" class="text-gray-700 text-xs" />
+                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.shape" placeholder="e.g. Round, Tonneau" />
+                  </div>
+                  <div>
+                      <InputLabel value="Dial Size" class="text-gray-700 text-xs" />
+                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.dial_size" placeholder="e.g. 40mm" />
+                  </div>
+                  <div>
+                      <InputLabel value="Dial Color" class="text-gray-700 text-xs" />
+                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.dial_color" placeholder="e.g. Black, Blue" />
+                  </div>
+                  <div>
+                      <InputLabel value="Band Material" class="text-gray-700 text-xs" />
+                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.band" placeholder="e.g. Steel, Rubber" />
+                  </div>
+                  <div>
+                      <InputLabel value="Band Size" class="text-gray-700 text-xs" />
+                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.band_size" placeholder="e.g. 20mm" />
+                  </div>
+                  <div>
+                      <InputLabel value="Band Color" class="text-gray-700 text-xs" />
+                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.band_color" placeholder="e.g. Silver, Gold" />
+                  </div>
+              </div>
           </div>
 
           <div>

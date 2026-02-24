@@ -7,3 +7,6 @@ vendor
 /public/build
 /public/storage
 /storage/*.key
+/.vscode
+/.idea
+/bootstrap/cache
