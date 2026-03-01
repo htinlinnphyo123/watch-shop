@@ -124,14 +124,45 @@ const handleBarcodeScan = () => {
     }
 };
 
+// Get active customer group
+const getActiveCustomerGroup = () => {
+    if (!checkoutForm.customer_id) return null;
+    const customer = props.customers.find(c => c.id == checkoutForm.customer_id);
+    return customer ? customer.group : null;
+};
+
+// Check if a product has a custom discount for the active group
+const hasCustomDiscount = (product) => {
+    const group = getActiveCustomerGroup();
+    if (!group) return false;
+    const override = product.customer_groups?.find(cg => cg.id === group.id);
+    return override && override.pivot.percentage !== null && override.pivot.percentage !== '';
+};
+
+// Get the actual discount percentage for a product
+const getItemDiscountPercentage = (product) => {
+    const group = getActiveCustomerGroup();
+    if (!group) return 0;
+    
+    const override = product.customer_groups?.find(cg => cg.id === group.id);
+    const percentage = (override && override.pivot.percentage !== null && override.pivot.percentage !== '') 
+        ? override.pivot.percentage 
+        : group.percentage;
+        
+    return parseFloat(percentage) || 0;
+};
+
 // Calculate Discount
 const discount = computed(() => {
-    if (!checkoutForm.customer_id) return 0;
-    const customer = props.customers.find(c => c.id == checkoutForm.customer_id);
-    if (customer && customer.group) {
-        return subTotal.value * (parseFloat(customer.group.percentage) / 100);
-    }
-    return 0;
+    return cart.value.reduce((totalDiscount, item) => {
+        const product = item.product;
+        const percentage = getItemDiscountPercentage(product);
+        
+        if (percentage > 0) {
+            return totalDiscount + (getMmkPrice(product) * (percentage / 100));
+        }
+        return totalDiscount;
+    }, 0);
 });
 
 // Calculate Total
@@ -275,14 +306,28 @@ const submitCheckout = () => {
                 </div>
 
                 <div class="flex-1 overflow-y-auto p-4 space-y-3 bg-white">
-                    <div v-for="(item, index) in cart" :key="index" class="bg-gray-50 p-3 rounded border border-gray-200 flex justify-between shadow-sm">
-                        <div>
-                            <div class="text-gray-900 font-medium">{{ item.product.name }}</div>
-                            <div class="text-xs text-gray-500">SN: <span class="font-mono text-gold-600">{{ item.serial_number }}</span></div>
-                        </div>
-                        <div class="text-right">
-                            <div class="text-gold-600 font-bold">{{ getMmkPrice(item.product).toLocaleString() }} Ks</div>
-                            <button @click="removeFromCart(index)" class="text-red-500 hover:text-red-700 text-xs hover:underline mt-1">Remove</button>
+                    <div v-for="(item, index) in cart" :key="index" class="bg-gray-50 p-3 rounded border border-gray-200 flex flex-col shadow-sm">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <div class="text-gray-900 font-medium">{{ item.product.name }}</div>
+                                <div class="text-xs text-gray-500">SN: <span class="font-mono text-gold-600">{{ item.serial_number }}</span></div>
+                            </div>
+                            <div class="text-right flex flex-col items-end">
+                                <template v-if="getItemDiscountPercentage(item.product) > 0">
+                                    <div class="text-gray-400 line-through text-[10px]">{{ getMmkPrice(item.product).toLocaleString() }} Ks</div>
+                                    <div class="text-gold-600 font-bold leading-tight">
+                                        {{ (getMmkPrice(item.product) * (1 - getItemDiscountPercentage(item.product) / 100)).toLocaleString() }} Ks
+                                    </div>
+                                    <div class="text-[10px] text-green-600 font-medium mt-0.5 whitespace-nowrap bg-green-50 px-1.5 py-0.5 rounded border border-green-100">
+                                        -{{ getItemDiscountPercentage(item.product) }}%
+                                        <span v-if="hasCustomDiscount(item.product)">(Custom)</span>
+                                    </div>
+                                </template>
+                                <template v-else>
+                                    <div class="text-gold-600 font-bold">{{ getMmkPrice(item.product).toLocaleString() }} Ks</div>
+                                </template>
+                                <button @click="removeFromCart(index)" class="text-red-500 hover:text-red-700 text-[10px] hover:underline mt-2">Remove</button>
+                            </div>
                         </div>
                     </div>
                     <div v-if="cart.length === 0" class="text-center text-gray-500 mt-10">Cart is empty</div>

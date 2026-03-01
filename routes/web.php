@@ -40,6 +40,7 @@ Route::middleware('auth')->group(function () {
         Route::resource('users', \App\Http\Controllers\UserController::class);
         Route::resource('customer-groups', \App\Http\Controllers\CustomerGroupController::class);
         Route::resource('banners', \App\Http\Controllers\BannerController::class);
+        Route::resource('top-level-discounts', \App\Http\Controllers\TopLevelDiscountController::class);
         Route::get('settings', [\App\Http\Controllers\SettingController::class, 'index'])->name('settings.index');
         Route::put('settings', [\App\Http\Controllers\SettingController::class, 'update'])->name('settings.update');
     });

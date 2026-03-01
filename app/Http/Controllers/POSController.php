@@ -16,7 +16,7 @@ class POSController extends Controller
     public function index()
     {
         return Inertia::render('POS/Index', [
-            'products' => Product::with(['brand', 'category', 'items' => function($q) {
+            'products' => Product::with(['brand', 'category', 'customerGroups', 'items' => function($q) {
                 $q->where('status', 'available');
             }])->whereHas('items', function($q) {
                 $q->where('status', 'available');
@@ -44,8 +44,14 @@ class POSController extends Controller
             $orderItemsData = [];
             $productItemIds = [];
 
+            $customerGroup = null;
+            if ($request->customer_id) {
+                $customer = Customer::with('group')->find($request->customer_id);
+                $customerGroup = $customer ? $customer->group : null;
+            }
+
             foreach ($request->cart as $cartItem) {
-                $product = Product::find($cartItem['product_id']);
+                $product = Product::with('customerGroups')->find($cartItem['product_id']);
                 $productItem = \App\Models\ProductItem::where('serial_number', $cartItem['serial_number'])
                     ->where('product_id', $product->id)
                     ->lockForUpdate()
@@ -62,26 +68,29 @@ class POSController extends Controller
                 }
                 
                 $mmkPrice = floatval($product->price) * $rate;
-                $subtotal += $mmkPrice;
+
+                $finalItemPrice = $mmkPrice;
+                if ($customerGroup) {
+                    $override = $product->customerGroups->where('id', $customerGroup->id)->first();
+                    $percentage = $override ? $override->pivot->percentage : $customerGroup->percentage;
+                    if ($percentage > 0) {
+                        $finalItemPrice = $mmkPrice - ($mmkPrice * ($percentage / 100));
+                    }
+                }
+
+                $subtotal += $finalItemPrice;
 
                 $orderItemsData[] = [
                     'product_id' => $product->id,
                     'quantity' => 1,
-                    'price' => $mmkPrice,
+                    'price' => $finalItemPrice,
                 ];
 
                 $productItemIds[] = $productItem->id;
             }
 
-            // Apply Discount
+            // Subtotal now has discounts included
             $total_amount = $subtotal;
-            if ($request->customer_id) {
-                $customer = Customer::with('group')->find($request->customer_id);
-                if ($customer && $customer->group) {
-                    $discount = $subtotal * ($customer->group->percentage / 100);
-                    $total_amount -= $discount;
-                }
-            }
             
             $order = Order::create([
                 'user_id' => auth()->id(),

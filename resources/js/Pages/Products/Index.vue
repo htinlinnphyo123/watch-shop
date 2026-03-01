@@ -22,6 +22,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  customer_groups: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 console.log("Products Data:", props.products);
@@ -63,6 +67,16 @@ const formatPrice = (amount) => {
   }).format(amount);
 };
 
+const getCustomerGroupName = (id) => {
+  const group = props.customer_groups.find((g) => g.id === id);
+  return group ? group.name : "Unknown Group";
+};
+
+const getGroupDefaultPercentage = (id) => {
+  const group = props.customer_groups.find((g) => g.id === id);
+  return group ? group.percentage : 0;
+};
+
 const form = useForm({
   brand_id: "",
   category_id: "",
@@ -87,6 +101,7 @@ const form = useForm({
   band_color: "",
   movement: "",
   gender: "",
+  customer_group_discounts: [],
 });
 
 const isModalOpen = ref(false);
@@ -118,9 +133,20 @@ const openModal = (product = null) => {
     form.band_color = product.band_color || "";
     form.movement = product.movement || "";
     form.gender = product.gender || "";
+    form.customer_group_discounts = props.customer_groups.map(group => {
+       const existing = product.customer_groups?.find(cg => cg.id === group.id);
+       return {
+          group_id: group.id,
+          percentage: existing ? existing.pivot.percentage : ""
+       };
+    });
     form.image = null;
   } else {
     form.reset();
+    form.customer_group_discounts = props.customer_groups.map(group => ({
+       group_id: group.id,
+       percentage: ""
+    }));
     form.image = null;
     form.currency = "MMK";
   }
@@ -579,6 +605,19 @@ const deleteProduct = (product) => {
                   <div>
                       <InputLabel value="Band Color" class="text-gray-700 text-xs" />
                       <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.band_color" placeholder="e.g. Silver, Gold" />
+                  </div>
+              </div>
+          </div>
+
+          <!-- Customer Group Discounts -->
+          <div class="border-t border-gray-200 pt-4 mt-4" v-if="props.customer_groups.length > 0">
+              <h3 class="text-md font-bold text-gray-900 mb-4">Specific Discounts by Group (%)</h3>
+              <p class="text-xs text-gray-500 mb-4">Leave empty to use the default group discount.</p>
+              <div class="grid grid-cols-2 gap-4">
+                  <div v-for="(discount, index) in form.customer_group_discounts" :key="index">
+                      <InputLabel :value="getCustomerGroupName(discount.group_id)" class="text-gray-700 text-sm" />
+                      <TextInput type="number" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="discount.percentage" :placeholder="getGroupDefaultPercentage(discount.group_id) + '% (Default)'" />
+                      <InputError class="mt-2" :message="form.errors['customer_group_discounts.' + index + '.percentage']" />
                   </div>
               </div>
           </div>

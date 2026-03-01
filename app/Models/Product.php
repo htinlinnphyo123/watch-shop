@@ -29,4 +29,9 @@ class Product extends Model
     {
         return $this->hasMany(ProductItem::class);
     }
+
+    public function customerGroups()
+    {
+        return $this->belongsToMany(CustomerGroup::class)->withPivot('percentage')->withTimestamps();
+    }
 }

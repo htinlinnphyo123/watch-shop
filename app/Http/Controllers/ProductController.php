@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\CustomerGroup;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -14,9 +15,10 @@ class ProductController extends Controller
     public function index()
     {
         return Inertia::render('Products/Index', [
-            'products' => Product::with(['brand', 'category'])->paginate(10),
+            'products' => Product::with(['brand', 'category', 'customerGroups'])->paginate(10),
             'brands' => Brand::all(),
             'categories' => Category::all(),
+            'customer_groups' => CustomerGroup::all(),
         ]);
     }
 
@@ -46,6 +48,9 @@ class ProductController extends Controller
             'band_color' => 'nullable|string',
             'movement' => 'nullable|string',
             'gender' => 'nullable|string',
+            'customer_group_discounts' => 'nullable|array',
+            'customer_group_discounts.*.group_id' => 'required|exists:customer_groups,id',
+            'customer_group_discounts.*.percentage' => 'nullable|numeric|min:0|max:100',
         ]);
 
         if ($request->hasFile('image')) {
@@ -56,7 +61,18 @@ class ProductController extends Controller
              $validated['barcode'] = 'W-' . strtoupper(uniqid());
         }
 
-        Product::create($validated);
+        $productData = collect($validated)->except('customer_group_discounts')->toArray();
+        $product = Product::create($productData);
+
+        if ($request->has('customer_group_discounts') && is_array($request->customer_group_discounts)) {
+            $syncData = [];
+            foreach ($request->customer_group_discounts as $discount) {
+                if (isset($discount['percentage']) && $discount['percentage'] !== '') {
+                    $syncData[$discount['group_id']] = ['percentage' => $discount['percentage']];
+                }
+            }
+            $product->customerGroups()->sync($syncData);
+        }
 
         return redirect()->back();
     }
@@ -87,6 +103,9 @@ class ProductController extends Controller
             'band_color' => 'nullable|string',
             'movement' => 'nullable|string',
             'gender' => 'nullable|string',
+            'customer_group_discounts' => 'nullable|array',
+            'customer_group_discounts.*.group_id' => 'required|exists:customer_groups,id',
+            'customer_group_discounts.*.percentage' => 'nullable|numeric|min:0|max:100',
         ]);
 
         if ($request->hasFile('image')) {
@@ -96,7 +115,18 @@ class ProductController extends Controller
             $validated['image'] = $request->file('image')->store('products', 'public');
         }
 
-        $product->update($validated);
+        $productData = collect($validated)->except('customer_group_discounts')->toArray();
+        $product->update($productData);
+
+        if ($request->has('customer_group_discounts') && is_array($request->customer_group_discounts)) {
+            $syncData = [];
+            foreach ($request->customer_group_discounts as $discount) {
+                if (isset($discount['percentage']) && $discount['percentage'] !== '') {
+                    $syncData[$discount['group_id']] = ['percentage' => $discount['percentage']];
+                }
+            }
+            $product->customerGroups()->sync($syncData);
+        }
 
         return redirect()->back();
     }
