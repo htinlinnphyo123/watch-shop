@@ -13,6 +13,7 @@ class Product extends Model
 
     protected $casts = [
         'specifications' => 'array',
+        'images' => 'array',
     ];
 
     public function brand()

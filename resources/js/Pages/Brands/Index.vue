@@ -20,12 +20,15 @@ const form = useForm({
     name: '',
     website: '',
     logo: null,
+    bg_logo: null,
 });
 
 const isModalOpen = ref(false);
 const editingBrand = ref(null);
 const logoInput = ref(null);
+const bgLogoInput = ref(null);
 const previewImage = ref(null);
+const previewBgImage = ref(null);
 
 const onFileChange = (e) => {
     const file = e.target.files[0];
@@ -42,15 +45,33 @@ const onFileChange = (e) => {
     }
 };
 
+const onBgFileChange = (e) => {
+    const file = e.target.files[0];
+    form.bg_logo = file;
+    
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            previewBgImage.value = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    } else {
+        previewBgImage.value = null;
+    }
+};
+
 const openModal = (brand = null) => {
     editingBrand.value = brand;
     previewImage.value = null;
+    previewBgImage.value = null;
     if (brand) {
-        form.name = brand.name;
-        form.website = brand.website;
+        form.name = brand.name || '';
+        form.website = brand.website || '';
         form.logo = null; // Don't carry over file object
+        form.bg_logo = null;
     } else {
         form.reset();
+        form.website = '';
     }
     isModalOpen.value = true;
 };
@@ -60,7 +81,9 @@ const closeModal = () => {
     form.reset();
     editingBrand.value = null;
     previewImage.value = null;
+    previewBgImage.value = null;
     if (logoInput.value) logoInput.value.value = null;
+    if (bgLogoInput.value) bgLogoInput.value.value = null;
 };
 
 const submit = () => {
@@ -70,7 +93,9 @@ const submit = () => {
             name: form.name,
             website: form.website,
             logo: form.logo,
+            bg_logo: form.bg_logo,
         }, {
+            forceFormData: true,
             onSuccess: () => closeModal(),
         });
     } else {
@@ -107,6 +132,7 @@ const deleteBrand = (brand) => {
                 <thead class="bg-gray-50">
                     <tr>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logo</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Background Logo</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Website</th>
                         <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -115,8 +141,12 @@ const deleteBrand = (brand) => {
                 <tbody class="bg-white divide-y divide-gray-200">
                     <tr v-for="brand in brands.data" :key="brand.id" class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <img v-if="brand.logo" :src="'/storage/' + brand.logo" class="h-10 w-10 rounded-full object-cover border border-gray-200" />
+                            <img v-if="brand.logo" :src="$page.props.storage_url + '/' + brand.logo" class="h-10 w-10 rounded-full object-cover border border-gray-200" />
                             <div v-else class="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs">No Img</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <img v-if="brand.bg_logo" :src="$page.props.storage_url + '/' + brand.bg_logo" class="h-10 w-24 rounded object-cover border border-gray-200" />
+                            <div v-else class="h-10 w-16 rounded bg-gray-100 flex items-center justify-center text-gray-400 text-xs">None</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">{{ brand.name }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gold-600 text-sm">
@@ -208,7 +238,7 @@ const deleteBrand = (brand) => {
                             <p class="text-xs text-green-600 mt-1">New image selected</p>
                         </div>
                         <div v-else-if="editingBrand && editingBrand.logo" class="mt-2 mb-4">
-                             <img :src="'/storage/' + editingBrand.logo" class="h-20 w-20 rounded-full object-cover border border-gray-300" />
+                             <img :src="$page.props.storage_url + '/' + editingBrand.logo" class="h-20 w-20 rounded-full object-cover border border-gray-300" />
                              <p class="text-xs text-gray-500 mt-1">Current Logo</p>
                         </div>
 
@@ -220,6 +250,29 @@ const deleteBrand = (brand) => {
                             ref="logoInput"
                         />
                         <InputError class="mt-2" :message="form.errors.logo" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="bg_logo" value="Background Logo (Frontend)" class="text-gray-700" />
+                        
+                        <!-- Image Preview -->
+                        <div v-if="previewBgImage" class="mt-2 mb-4">
+                            <img :src="previewBgImage" class="h-20 w-32 rounded object-cover border border-gray-300" />
+                            <p class="text-xs text-green-600 mt-1">New background image selected</p>
+                        </div>
+                        <div v-else-if="editingBrand && editingBrand.bg_logo" class="mt-2 mb-4">
+                             <img :src="$page.props.storage_url + '/' + editingBrand.bg_logo" class="h-20 w-32 rounded object-cover border border-gray-300" />
+                             <p class="text-xs text-gray-500 mt-1">Current Background Logo</p>
+                        </div>
+
+                        <input 
+                            type="file" 
+                            @change="onBgFileChange"
+                            class="mt-1 block w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-200 file:text-gray-700 hover:file:bg-gray-300"
+                            accept="image/*"
+                            ref="bgLogoInput"
+                        />
+                        <InputError class="mt-2" :message="form.errors.bg_logo" />
                     </div>
 
                     <div class="mt-6 flex justify-end">

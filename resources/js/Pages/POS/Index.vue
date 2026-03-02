@@ -267,7 +267,7 @@ const submitCheckout = () => {
                         class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden cursor-pointer hover:border-gold-500 transition-all group"
                     >
                         <div class="h-32 bg-gray-200 relative">
-                             <img v-if="product.image" :src="'/storage/' + product.image" class="w-full h-full object-cover" />
+                             <img v-if="product.image" :src="$page.props.storage_url + '/' + product.image" class="w-full h-full object-cover" />
                              <div v-else class="w-full h-full flex items-center justify-center text-gray-500 text-xs">No Image</div>
                              
                              <div class="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">

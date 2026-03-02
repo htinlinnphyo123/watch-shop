@@ -35,6 +35,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
             'settings' => fn () => \App\Models\Setting::pluck('value', 'key')->toArray(),
+            'storage_url' => rtrim(str_replace('/__PLACEHOLDER__', '', \Illuminate\Support\Facades\Storage::disk('public')->url('__PLACEHOLDER__')), '/'),
         ];
     }
 }

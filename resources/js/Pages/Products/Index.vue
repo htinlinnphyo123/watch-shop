@@ -86,8 +86,7 @@ const form = useForm({
   cost_price: "",
   warranty_period: "12", // default 12 months
   description: "",
-  image: null,
-  barcode: "", // Optional, will generate if empty
+  barcode: "",
   currency: "MMK",
   watch_type: "",
   glass: "",
@@ -102,11 +101,32 @@ const form = useForm({
   movement: "",
   gender: "",
   customer_group_discounts: [],
+  images: [],
+  remove_images: [],
 });
 
 const isModalOpen = ref(false);
 const editingProduct = ref(null);
 const imageInput = ref(null);
+const imagesInput = ref(null);
+const previewImages = ref([]);
+
+const handleMultipleImages = (e) => {
+    form.images = Array.from(e.target.files);
+    previewImages.value = [];
+    form.images.forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            previewImages.value.push(e.target.result);
+        };
+        reader.readAsDataURL(file);
+    });
+};
+
+const markImageForRemoval = (imgPath, index) => {
+    form.remove_images.push(imgPath);
+    editingProduct.value.images.splice(index, 1);
+};
 
 const openModal = (product = null) => {
   editingProduct.value = product;
@@ -140,15 +160,19 @@ const openModal = (product = null) => {
           percentage: existing ? existing.pivot.percentage : ""
        };
     });
-    form.image = null;
+    form.images = [];
+    form.remove_images = [];
+    previewImages.value = [];
   } else {
     form.reset();
     form.customer_group_discounts = props.customer_groups.map(group => ({
        group_id: group.id,
        percentage: ""
     }));
-    form.image = null;
+    form.images = [];
+    form.remove_images = [];
     form.currency = "MMK";
+    previewImages.value = [];
   }
   isModalOpen.value = true;
 };
@@ -157,7 +181,9 @@ const closeModal = () => {
   isModalOpen.value = false;
   form.reset();
   editingProduct.value = null;
+  previewImages.value = [];
   if (imageInput.value) imageInput.value.value = null;
+  if (imagesInput.value) imagesInput.value.value = null;
 };
 
 const submit = () => {
@@ -167,9 +193,9 @@ const submit = () => {
       {
         _method: "put",
         ...form.data(),
-        image: form.image,
       },
       {
+        forceFormData: true,
         onSuccess: () => closeModal(),
       },
     );
@@ -269,12 +295,6 @@ const deleteProduct = (product) => {
             </th>
             <th
               scope="col"
-              class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-            >
-              Stock
-            </th>
-            <th
-              scope="col"
               class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
             >
               Actions
@@ -288,9 +308,10 @@ const deleteProduct = (product) => {
             class="hover:bg-gray-50 transition-colors"
           >
             <td class="px-6 py-4 whitespace-nowrap">
+              <!-- Primary old image or first gallery image -->
               <img
-                v-if="product.image"
-                :src="'/storage/' + product.image"
+                v-if="product.image || (product.images && product.images.length > 0)"
+                :src="$page.props.storage_url + '/' + (product.image || product.images[0])"
                 class="h-12 w-12 rounded object-cover border border-gray-200"
               />
               <div
@@ -298,6 +319,9 @@ const deleteProduct = (product) => {
                 class="h-12 w-12 rounded bg-gray-100 flex items-center justify-center text-gray-400 text-xs"
               >
                 No Img
+              </div>
+              <div v-if="product.images && product.images.length > 1" class="text-[10px] text-gray-400 mt-1 text-center">
+                  +{{ product.images.length - (product.image ? 0 : 1) }} more
               </div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
@@ -631,15 +655,45 @@ const deleteProduct = (product) => {
             ></textarea>
           </div>
 
-          <div>
-            <InputLabel value="Image" class="text-gray-700" />
-            <input
-              type="file"
-              @input="form.image = $event.target.files[0]"
-              class="mt-1 block w-full text-gray-500"
-              accept="image/*"
-              ref="imageInput"
-            />
+          <div class="border-t border-gray-200 pt-4 mt-4">
+              <h3 class="text-md font-bold text-gray-900 mb-2">Watch Photos</h3>
+              
+              <!-- Existing Gallery -->
+              <div v-if="editingProduct && editingProduct.images && editingProduct.images.length > 0" class="flex gap-2 mb-4 overflow-x-auto pb-2">
+                  <div v-for="(img, idx) in editingProduct.images" :key="idx" class="relative shrink-0">
+                      <img :src="$page.props.storage_url + '/' + img" class="h-20 w-20 object-cover rounded border border-gray-300" />
+                      <button @click.prevent="markImageForRemoval(img, idx)" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-700 text-xs shadow">
+                          &times;
+                      </button>
+                  </div>
+              </div>
+
+              <!-- Old Legacy Single Image -->
+              <div v-if="editingProduct && editingProduct.image" class="mb-4">
+                  <p class="text-xs text-gray-400 mb-1">Legacy Main Image</p>
+                  <img :src="$page.props.storage_url + '/' + editingProduct.image" class="h-20 w-20 object-cover rounded border border-gray-300" />
+              </div>
+
+              <div>
+                <InputLabel value="Upload Multiple Images" class="text-gray-700" />
+                <input
+                  type="file"
+                  @change="handleMultipleImages"
+                  class="mt-1 block w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gold-500 file:text-dark-900 hover:file:bg-gold-600"
+                  accept="image/*"
+                  multiple
+                  ref="imagesInput"
+                />
+                <p class="text-xs text-gray-400 mt-2">You can select multiple photos at once. They will be added to the gallery.</p>
+                
+                <!-- NEW PREVIEW -->
+                <div v-if="previewImages.length > 0" class="mt-4 border-t border-gray-100 pt-3">
+                    <p class="text-xs text-green-600 font-bold mb-2">New Images to be added:</p>
+                    <div class="flex gap-2 overflow-x-auto pb-2">
+                        <img v-for="(preview, idx) in previewImages" :key="'new-'+idx" :src="preview" class="h-16 w-16 object-cover rounded shadow-sm border border-green-300" />
+                    </div>
+                </div>
+              </div>
           </div>
 
           <div class="mt-6 flex justify-end">

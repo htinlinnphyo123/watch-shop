@@ -51,12 +51,22 @@ class ProductController extends Controller
             'customer_group_discounts' => 'nullable|array',
             'customer_group_discounts.*.group_id' => 'required|exists:customer_groups,id',
             'customer_group_discounts.*.percentage' => 'nullable|numeric|min:0|max:100',
+            'images' => 'nullable|array',
+            'images.*' => 'image|max:2048',
         ]);
 
         if ($request->hasFile('image')) {
             $validated['image'] = $request->file('image')->store('products', 'public');
         }
         
+        if ($request->hasFile('images')) {
+            $uploadedImages = [];
+            foreach ($request->file('images') as $file) {
+                $uploadedImages[] = $file->store('products/gallery', 'public');
+            }
+            $validated['images'] = $uploadedImages;
+        }
+
         if (empty($validated['barcode'])) {
              $validated['barcode'] = 'W-' . strtoupper(uniqid());
         }
@@ -106,6 +116,8 @@ class ProductController extends Controller
             'customer_group_discounts' => 'nullable|array',
             'customer_group_discounts.*.group_id' => 'required|exists:customer_groups,id',
             'customer_group_discounts.*.percentage' => 'nullable|numeric|min:0|max:100',
+            'images' => 'nullable|array',
+            'images.*' => 'image|max:2048',
         ]);
 
         if ($request->hasFile('image')) {
@@ -115,7 +127,27 @@ class ProductController extends Controller
             $validated['image'] = $request->file('image')->store('products', 'public');
         }
 
-        $productData = collect($validated)->except('customer_group_discounts')->toArray();
+        // Handle gallery images
+        if ($request->hasFile('images')) {
+            $uploadedImages = $product->images ? $product->images : [];
+            foreach ($request->file('images') as $file) {
+                $uploadedImages[] = $file->store('products/gallery', 'public');
+            }
+            $validated['images'] = $uploadedImages;
+        }
+
+        if ($request->has('remove_images')) {
+            $uploadedImages = isset($validated['images']) ? $validated['images'] : ($product->images ?? []);
+            foreach ($request->input('remove_images', []) as $imgToRemove) {
+                if (($key = array_search($imgToRemove, $uploadedImages)) !== false) {
+                    unset($uploadedImages[$key]);
+                    Storage::disk('public')->delete($imgToRemove);
+                }
+            }
+            $validated['images'] = array_values($uploadedImages);
+        }
+
+        $productData = collect($validated)->except(['customer_group_discounts', 'remove_images'])->toArray();
         $product->update($productData);
 
         if ($request->has('customer_group_discounts') && is_array($request->customer_group_discounts)) {
@@ -135,6 +167,11 @@ class ProductController extends Controller
     {
         if ($product->image) {
             Storage::disk('public')->delete($product->image);
+        }
+        if ($product->images && is_array($product->images)) {
+            foreach ($product->images as $img) {
+                Storage::disk('public')->delete($img);
+            }
         }
         $product->delete();
         return redirect()->back();

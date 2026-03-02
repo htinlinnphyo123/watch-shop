@@ -122,7 +122,7 @@ const deleteBanner = (banner) => {
                 <tbody class="bg-white divide-y divide-gray-200">
                     <tr v-for="banner in banners.data" :key="banner.id" class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <img :src="'/storage/' + banner.image" class="h-16 w-32 object-cover rounded border border-gray-200" />
+                            <img :src="$page.props.storage_url + '/' + banner.image" class="h-16 w-32 object-cover rounded border border-gray-200" />
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">{{ banner.title || '-' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gold-600 text-sm">
@@ -240,7 +240,7 @@ const deleteBanner = (banner) => {
                             <p class="text-xs text-green-600 mt-1">New image selected</p>
                         </div>
                         <div v-else-if="editingBanner && editingBanner.image" class="mt-2 mb-4">
-                             <img :src="'/storage/' + editingBanner.image" class="h-32 w-full object-cover rounded border border-gray-300" />
+                             <img :src="$page.props.storage_url + '/' + editingBanner.image" class="h-32 w-full object-cover rounded border border-gray-300" />
                              <p class="text-xs text-gray-500 mt-1">Current Image</p>
                         </div>
 
