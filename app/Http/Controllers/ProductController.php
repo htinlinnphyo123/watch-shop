@@ -53,6 +53,10 @@ class ProductController extends Controller
             'customer_group_discounts.*.percentage' => 'nullable|numeric|min:0|max:100',
             'images' => 'nullable|array',
             'images.*' => 'image|max:2048',
+            'is_featured' => 'boolean',
+            'is_banner' => 'boolean',
+            'is_admin_choice' => 'boolean',
+            'special_discount' => 'boolean',
         ]);
 
         if ($request->hasFile('image')) {
@@ -118,6 +122,10 @@ class ProductController extends Controller
             'customer_group_discounts.*.percentage' => 'nullable|numeric|min:0|max:100',
             'images' => 'nullable|array',
             'images.*' => 'image|max:2048',
+            'is_featured' => 'boolean',
+            'is_banner' => 'boolean',
+            'is_admin_choice' => 'boolean',
+            'special_discount' => 'boolean',
         ]);
 
         if ($request->hasFile('image')) {

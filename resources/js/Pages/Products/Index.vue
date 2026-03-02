@@ -103,6 +103,10 @@ const form = useForm({
   customer_group_discounts: [],
   images: [],
   remove_images: [],
+  is_featured: false,
+  is_banner: false,
+  is_admin_choice: false,
+  special_discount: false,
 });
 
 const isModalOpen = ref(false);
@@ -163,6 +167,10 @@ const openModal = (product = null) => {
     form.images = [];
     form.remove_images = [];
     previewImages.value = [];
+    form.is_featured = !!product.is_featured;
+    form.is_banner = !!product.is_banner;
+    form.is_admin_choice = !!product.is_admin_choice;
+    form.special_discount = !!product.special_discount;
   } else {
     form.reset();
     form.customer_group_discounts = props.customer_groups.map(group => ({
@@ -172,6 +180,10 @@ const openModal = (product = null) => {
     form.images = [];
     form.remove_images = [];
     form.currency = "MMK";
+    form.is_featured = false;
+    form.is_banner = false;
+    form.is_admin_choice = false;
+    form.special_discount = false;
     previewImages.value = [];
   }
   isModalOpen.value = true;
@@ -642,6 +654,29 @@ const deleteProduct = (product) => {
                       <InputLabel :value="getCustomerGroupName(discount.group_id)" class="text-gray-700 text-sm" />
                       <TextInput type="number" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="discount.percentage" :placeholder="getGroupDefaultPercentage(discount.group_id) + '% (Default)'" />
                       <InputError class="mt-2" :message="form.errors['customer_group_discounts.' + index + '.percentage']" />
+                  </div>
+              </div>
+          </div>
+
+          <!-- Status Options -->
+          <div class="border-t border-gray-200 pt-4 mt-4">
+              <h3 class="text-md font-bold text-gray-900 mb-4">Product Status & Placement</h3>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div class="flex items-center">
+                      <input type="checkbox" id="is_featured" v-model="form.is_featured" class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50" />
+                      <label for="is_featured" class="ml-2 block text-sm text-gray-900">Featured Product</label>
+                  </div>
+                  <div class="flex items-center">
+                      <input type="checkbox" id="is_banner" v-model="form.is_banner" class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50" />
+                      <label for="is_banner" class="ml-2 block text-sm text-gray-900">Show in Banner</label>
+                  </div>
+                  <div class="flex items-center">
+                      <input type="checkbox" id="is_admin_choice" v-model="form.is_admin_choice" class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50" />
+                      <label for="is_admin_choice" class="ml-2 block text-sm text-gray-900">Admin's Choice</label>
+                  </div>
+                  <div class="flex items-center">
+                      <input type="checkbox" id="special_discount" v-model="form.special_discount" class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50" />
+                      <label for="special_discount" class="ml-2 block text-sm text-gray-900">Special Discount List</label>
                   </div>
               </div>
           </div>

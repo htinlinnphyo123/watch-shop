@@ -14,6 +14,10 @@ class Product extends Model
     protected $casts = [
         'specifications' => 'array',
         'images' => 'array',
+        'is_featured' => 'boolean',
+        'is_banner' => 'boolean',
+        'is_admin_choice' => 'boolean',
+        'special_discount' => 'boolean',
     ];
 
     public function brand()

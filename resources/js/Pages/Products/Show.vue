@@ -60,9 +60,12 @@ const formatDate = (dateString) => {
                  <!-- Product Info -->
                  <div class="md:w-1/3 bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
                      <div class="flex flex-col items-center">
-                          <div v-if="product.images" v-for="image in product.images" :key="image">
-                            <img :src="$page.props.storage_url + '/' + image" class="w-full h-64 object-cover rounded mb-4 shadow-sm" />
-                          </div>
+                         <div v-if="product.images && product.images.length > 0" class="w-full grid gap-4 mb-4">
+                             <img v-for="image in product.images" :key="image" :src="$page.props.storage_url + '/' + image" class="w-full h-64 object-cover rounded shadow-sm" />
+                         </div>
+                         <div v-else-if="product.image" class="w-full mb-4">
+                             <img :src="$page.props.storage_url + '/' + product.image" class="w-full h-64 object-cover rounded shadow-sm" />
+                         </div>
                          <div v-else class="w-full h-64 bg-gray-100 rounded mb-4 flex items-center justify-center text-gray-400">No Image</div>
                          
                          <h1 class="text-2xl font-bold text-gray-900 text-center">{{ product.name }}</h1>
