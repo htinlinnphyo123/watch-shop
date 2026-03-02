@@ -10,7 +10,7 @@ class CategoryController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Category::with(['parent', 'children']);
+        $query = Category::with(['parent', 'children'])->withCount('products');
 
         if ($request->has('parent_id') && $request->parent_id !== 'all') {
             if ($request->parent_id === 'top_level') {

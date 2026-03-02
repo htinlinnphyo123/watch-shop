@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\Collection;
 use App\Models\CustomerGroup;
 use App\Models\Product;
 use Illuminate\Http\Request;
@@ -12,13 +13,12 @@ use Inertia\Inertia;
 
 class ProductController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $specFields = [
-            'watch_type', 'gender', 'movement', 'glass', 'water_resistant', 'shape', 
-            'dial_size', 'dial_color', 'dial_markings', 'band', 'band_color', 'band_size',
-            'lug_width', 'strap_buckle', 'case_material', 'case_color', 'case_thickness', 
-            'case_finish', 'battery_type', 'couple'
+            'dial_size', 'dial_color', 'strap_size', 'strap_color', 'strap_material', 
+            'strap_style', 'gender', 'movement', 'quick_release', 'clasp_type', 
+            'origin', 'case_shape', 'water_resistant', 'crystal'
         ];
 
         $specOptions = [];
@@ -29,10 +29,50 @@ class ProductController extends Controller
                 ->pluck($field);
         }
 
+        $query = Product::with(['brand', 'categories', 'customerGroups'])
+            ->withCount(['items as available_stock_count' => function ($q) {
+                $q->where('status', 'available');
+            }]);
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('model_number', 'like', "%{$search}%")
+                  ->orWhere('barcode', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('category_id')) {
+            $query->whereHas('categories', function ($q) use ($request) {
+                $q->where('categories.id', $request->category_id);
+            });
+        }
+
+        if ($request->filled('collection_id')) {
+            $query->where('collection_id', $request->collection_id);
+        }
+
+        if ($request->filled('min_price')) {
+            $query->where('price', '>=', $request->min_price);
+        }
+
+        if ($request->filled('max_price')) {
+            $query->where('price', '<=', $request->max_price);
+        }
+
+        if ($request->filled('in_stock') && $request->in_stock === 'true') {
+            $query->whereHas('items', function ($q) {
+                $q->where('status', 'available');
+            });
+        }
+
         return Inertia::render('Products/Index', [
-            'products' => Product::with(['brand', 'categories', 'customerGroups'])->paginate(10),
+            'products' => $query->paginate(10)->withQueryString(),
+            'filters' => $request->only(['search', 'category_id', 'collection_id', 'min_price', 'max_price', 'in_stock']),
             'brands' => Brand::all(),
             'categories' => Category::all(),
+            'collections' => Collection::all(),
             'customer_groups' => CustomerGroup::all(),
             'specOptions' => $specOptions,
         ]);
@@ -43,6 +83,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'name' => 'required',
             'brand_id' => 'required|exists:brands,id',
+            'collection_id' => 'nullable|exists:collections,id',
             'category_ids' => 'required|array',
             'category_ids.*' => 'exists:categories,id',
             'price' => 'required|numeric',
@@ -53,35 +94,20 @@ class ProductController extends Controller
             'image' => 'nullable|image',
             'barcode' => 'nullable|string',
             'currency' => 'nullable|in:MMK,USD,THB',
-            'watch_type' => 'nullable|string',
-            'glass' => 'nullable|string',
+            'crystal' => 'nullable|string',
             'water_resistant' => 'nullable|string',
-            'shape' => 'nullable|string',
-            'couple' => 'nullable|string',
+            'case_shape' => 'nullable|string',
             'dial_size' => 'nullable|string',
             'dial_color' => 'nullable|string',
-            'band' => 'nullable|string',
-            'band_size' => 'nullable|string',
-            'band_color' => 'nullable|string',
+            'strap_material' => 'nullable|string',
+            'strap_size' => 'nullable|string',
+            'strap_color' => 'nullable|string',
             'movement' => 'nullable|string',
             'gender' => 'nullable|string',
-            'customer_group_discounts' => 'nullable|array',
-            'customer_group_discounts.*.group_id' => 'required|exists:customer_groups,id',
-            'customer_group_discounts.*.percentage' => 'nullable|numeric|min:0|max:100',
-            'images' => 'nullable|array',
-            'images.*' => 'image|max:2048',
-            'is_featured' => 'boolean',
-            'is_banner' => 'boolean',
-            'is_admin_choice' => 'boolean',
-            'special_discount' => 'boolean',
-            'case_thickness' => 'nullable|string',
-            'case_material' => 'nullable|string',
-            'case_color' => 'nullable|string',
-            'case_finish' => 'nullable|string',
-            'dial_markings' => 'nullable|string',
-            'lug_width' => 'nullable|string',
-            'strap_buckle' => 'nullable|string',
-            'battery_type' => 'nullable|string',
+            'strap_style' => 'nullable|string',
+            'quick_release' => 'nullable|string',
+            'clasp_type' => 'nullable|string',
+            'origin' => 'nullable|string',
         ]);
 
         if ($request->hasFile('image')) {
@@ -125,6 +151,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'name' => 'required',
             'brand_id' => 'required|exists:brands,id',
+            'collection_id' => 'nullable|exists:collections,id',
             'category_ids' => 'required|array',
             'category_ids.*' => 'exists:categories,id',
             'price' => 'required|numeric',
@@ -135,18 +162,20 @@ class ProductController extends Controller
             'image' => 'nullable|image',
             'barcode' => 'nullable|string',
             'currency' => 'nullable|in:MMK,USD,THB',
-            'watch_type' => 'nullable|string',
-            'glass' => 'nullable|string',
+            'crystal' => 'nullable|string',
             'water_resistant' => 'nullable|string',
-            'shape' => 'nullable|string',
-            'couple' => 'nullable|string',
+            'case_shape' => 'nullable|string',
             'dial_size' => 'nullable|string',
             'dial_color' => 'nullable|string',
-            'band' => 'nullable|string',
-            'band_size' => 'nullable|string',
-            'band_color' => 'nullable|string',
+            'strap_material' => 'nullable|string',
+            'strap_size' => 'nullable|string',
+            'strap_color' => 'nullable|string',
             'movement' => 'nullable|string',
             'gender' => 'nullable|string',
+            'strap_style' => 'nullable|string',
+            'quick_release' => 'nullable|string',
+            'clasp_type' => 'nullable|string',
+            'origin' => 'nullable|string',
             'customer_group_discounts' => 'nullable|array',
             'customer_group_discounts.*.group_id' => 'required|exists:customer_groups,id',
             'customer_group_discounts.*.percentage' => 'nullable|numeric|min:0|max:100',
@@ -156,14 +185,6 @@ class ProductController extends Controller
             'is_banner' => 'boolean',
             'is_admin_choice' => 'boolean',
             'special_discount' => 'boolean',
-            'case_thickness' => 'nullable|string',
-            'case_material' => 'nullable|string',
-            'case_color' => 'nullable|string',
-            'case_finish' => 'nullable|string',
-            'dial_markings' => 'nullable|string',
-            'lug_width' => 'nullable|string',
-            'strap_buckle' => 'nullable|string',
-            'battery_type' => 'nullable|string',
         ]);
 
         if ($request->hasFile('image')) {

@@ -1,7 +1,7 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, useForm, Link } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import Modal from '@/Components/Modal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
@@ -10,14 +10,10 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import DangerButton from '@/Components/DangerButton.vue';
 
-const props = defineProps({
-    categories: {
-        type: Object,
-        default: () => ({ data: [], links: [] }),
-    },
-import { ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import debounce from 'lodash/debounce';
+
+const props = defineProps({
     categories: {
         type: Object,
         default: () => ({ data: [], links: [] }),
@@ -126,6 +122,7 @@ const deleteCategory = (category) => {
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parent Category</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Slug</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Watches</th>
                         <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
@@ -135,13 +132,16 @@ const deleteCategory = (category) => {
                         <td class="px-6 py-4 whitespace-nowrap text-gray-600 font-medium">{{ category.parent?.name || '-' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ category.slug }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ category.description }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gold-600 font-bold text-sm">
+                            {{ category.products_count || 0 }}
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                             <button @click="openModal(category)" class="text-gold-600 hover:text-gold-800">Edit</button>
                             <button @click="deleteCategory(category)" class="text-red-600 hover:text-red-800">Delete</button>
                         </td>
                     </tr>
                     <tr v-if="!categories?.data?.length">
-                        <td colspan="5" class="px-6 py-4 text-center text-gray-500">No categories found.</td>
+                        <td colspan="6" class="px-6 py-4 text-center text-gray-500">No categories found.</td>
                     </tr>
                 </tbody>
             </table>

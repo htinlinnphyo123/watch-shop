@@ -182,8 +182,9 @@ const formatDate = (dateString) => {
                             <h3 class="text-lg font-bold text-gray-900">Stock Inventory</h3>
                             <span class="text-gold-600 font-bold">{{ (items || []).filter(i => i.status === 'available').length }} Available</span>
                         </div>
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
                                 <tr>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial Number</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">System Code</th>
@@ -195,28 +196,29 @@ const formatDate = (dateString) => {
                             <tbody class="bg-white divide-y divide-gray-200">
                                 <tr v-for="item in items" :key="item.id" class="hover:bg-gray-50 transition-colors">
                                     <template v-if="editingItemId === item.id">
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <input type="text" v-model="editForm.serial_number" class="w-full text-sm border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500" />
+                                        <td class="px-4 py-4 whitespace-nowrap">
+                                            <input type="text" v-model="editForm.serial_number" class="w-full min-w-[130px] text-sm border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500" />
                                             <InputError :message="editForm.errors.serial_number" class="mt-1" />
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <input type="text" v-model="editForm.system_unique_id" class="w-full text-sm border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500" placeholder="System Code" />
+                                        <td class="px-4 py-4 whitespace-nowrap">
+                                            <input type="text" v-model="editForm.system_unique_id" class="w-full min-w-[120px] text-sm border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500" placeholder="System Code" />
                                             <InputError :message="editForm.errors.system_unique_id" class="mt-1" />
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <select v-model="editForm.status" class="w-full text-sm border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500">
+                                        <td class="px-4 py-4 whitespace-nowrap">
+                                            <select v-model="editForm.status" class="w-full min-w-[110px] text-sm border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500">
                                                 <option value="available">Available</option>
                                                 <option value="sold">Sold</option>
                                                 <option value="reserved">Reserved</option>
                                                 <option value="returned">Returned</option>
                                                 <option value="lost">Lost</option>
+                                                <option value="damaged">Damaged</option>
                                             </select>
                                             <InputError :message="editForm.errors.status" class="mt-1" />
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">-</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                                            <button @click="saveEdit(item)" class="text-green-600 hover:text-green-800" :disabled="editForm.processing">Save</button>
-                                            <button @click="cancelEdit()" class="text-gray-500 hover:text-gray-700">Cancel</button>
+                                        <td class="px-4 py-4 whitespace-nowrap text-gray-500 text-sm">-</td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                                            <button @click="saveEdit(item)" class="inline-flex items-center px-3 py-1.5 bg-green-500 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-600 focus:bg-green-600 active:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition ease-in-out duration-150" :disabled="editForm.processing">Save</button>
+                                            <button @click="cancelEdit()" class="inline-flex items-center px-3 py-1.5 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-25 transition ease-in-out duration-150">Cancel</button>
                                         </td>
                                     </template>
                                     <template v-else>
@@ -228,7 +230,8 @@ const formatDate = (dateString) => {
                                                     'bg-green-100 text-green-800': item.status === 'available',
                                                     'bg-red-100 text-red-800': item.status === 'sold',
                                                     'bg-yellow-100 text-yellow-800': item.status === 'reserved' || item.status === 'returned',
-                                                    'bg-gray-100 text-gray-800': item.status === 'lost'
+                                                    'bg-gray-100 text-gray-800': item.status === 'lost',
+                                                    'bg-orange-100 text-orange-800': item.status === 'damaged'
                                                 }">
                                                 {{ item.status }}
                                             </span>
@@ -241,10 +244,11 @@ const formatDate = (dateString) => {
                                     </template>
                                 </tr>
                                 <tr v-if="items.length === 0">
-                                    <td colspan="4" class="px-6 py-4 text-center text-gray-500">No stock items added yet.</td>
+                                    <td colspan="5" class="px-6 py-4 text-center text-gray-500">No stock items added yet.</td>
                                 </tr>
-                            </tbody>
-                        </table>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                  </div>
              </div>

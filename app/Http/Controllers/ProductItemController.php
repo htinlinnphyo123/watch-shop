@@ -12,7 +12,7 @@ class ProductItemController extends Controller
     {
         $validated = $request->validate([
             'serial_number' => 'required|unique:product_items,serial_number',
-            'status' => 'required|in:available,sold,reserved',
+            'status' => 'required|in:available,sold,reserved,returned,lost,damaged',
         ]);
 
         $validated['system_unique_id'] = $this->generateUniqueSystemId();
@@ -38,7 +38,7 @@ class ProductItemController extends Controller
     {
         $validated = $request->validate([
             'serial_number' => 'required|unique:product_items,serial_number,' . $item->id,
-            'status' => 'required|in:available,sold,reserved,returned,lost',
+            'status' => 'required|in:available,sold,reserved,returned,lost,damaged',
             'system_unique_id' => 'nullable|string|size:12|unique:product_items,system_unique_id,' . $item->id,
         ]);
 
