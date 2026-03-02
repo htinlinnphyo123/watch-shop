@@ -33,6 +33,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('brands', \App\Http\Controllers\BrandController::class);
     Route::resource('products', \App\Http\Controllers\ProductController::class);
     Route::post('/products/{product}/items', [\App\Http\Controllers\ProductItemController::class, 'store'])->name('products.items.store');
+    Route::put('/items/{item}', [\App\Http\Controllers\ProductItemController::class, 'update'])->name('items.update');
     Route::delete('/items/{item}', [\App\Http\Controllers\ProductItemController::class, 'destroy'])->name('items.destroy');
     
     // Admin Only Routes

@@ -45,14 +45,16 @@ class BannerController extends Controller
             'is_active' => 'boolean',
         ]);
 
+        $dataToUpdate = collect($validated)->except('image')->toArray();
+
         if ($request->hasFile('image')) {
             if ($banner->image) {
                 Storage::disk('public')->delete($banner->image);
             }
-            $validated['image'] = $request->file('image')->store('banners', 'public');
+            $dataToUpdate['image'] = $request->file('image')->store('banners', 'public');
         }
 
-        $banner->update($validated);
+        $banner->update($dataToUpdate);
 
         return redirect()->back();
     }

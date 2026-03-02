@@ -15,20 +15,45 @@ const props = defineProps({
         type: Object,
         default: () => ({ data: [], links: [] }),
     },
+import { ref, watch } from 'vue';
+import { router } from '@inertiajs/vue3';
+import debounce from 'lodash/debounce';
+    categories: {
+        type: Object,
+        default: () => ({ data: [], links: [] }),
+    },
+    all_categories: {
+        type: Array,
+        default: () => [],
+    },
+    filters: {
+        type: Object,
+        default: () => ({}),
+    }
 });
 
 const form = useForm({
     name: '',
+    parent_id: '',
     description: '',
 });
 
 const isModalOpen = ref(false);
 const editingCategory = ref(null);
+const parentFilter = ref(props.filters.parent_id || 'all');
+
+watch(parentFilter, debounce((value) => {
+    router.get(route('categories.index'), { parent_id: value }, {
+        preserveState: true,
+        replace: true,
+    });
+}, 300));
 
 const openModal = (category = null) => {
     editingCategory.value = category;
     if (category) {
         form.name = category.name;
+        form.parent_id = category.parent_id || '';
         form.description = category.description;
     } else {
         form.reset();
@@ -71,9 +96,26 @@ const deleteCategory = (category) => {
 
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-gray-900">Categories</h1>
-            <PrimaryButton @click="openModal()" class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold">
-                Add Category
-            </PrimaryButton>
+            <div class="flex gap-4">
+                <select
+                    v-model="parentFilter"
+                    class="block w-48 bg-white border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500 rounded-md shadow-sm text-sm font-medium"
+                >
+                    <option value="all">All Categories</option>
+                    <option value="top_level">Parent / Top Level Only</option>
+                    <option
+                        v-for="cat in all_categories"
+                        :key="cat.id"
+                        :value="cat.id"
+                    >
+                        Subcategories of: {{ cat.name }}
+                    </option>
+                </select>
+
+                <PrimaryButton @click="openModal()" class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold">
+                    Add Category
+                </PrimaryButton>
+            </div>
         </div>
 
         <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
@@ -81,6 +123,7 @@ const deleteCategory = (category) => {
                 <thead class="bg-gray-50">
                     <tr>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parent Category</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Slug</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                         <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -89,6 +132,7 @@ const deleteCategory = (category) => {
                 <tbody class="bg-white divide-y divide-gray-200">
                     <tr v-for="category in categories.data" :key="category.id" class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">{{ category.name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-600 font-medium">{{ category.parent?.name || '-' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ category.slug }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ category.description }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
@@ -97,7 +141,7 @@ const deleteCategory = (category) => {
                         </td>
                     </tr>
                     <tr v-if="!categories?.data?.length">
-                        <td colspan="4" class="px-6 py-4 text-center text-gray-500">No categories found.</td>
+                        <td colspan="5" class="px-6 py-4 text-center text-gray-500">No categories found.</td>
                     </tr>
                 </tbody>
             </table>
@@ -155,6 +199,25 @@ const deleteCategory = (category) => {
                             autofocus
                         />
                         <InputError class="mt-2" :message="form.errors.name" />
+                    </div>
+
+                    <div>
+                        <InputLabel value="Parent Category (Optional)" class="text-gray-700" />
+                        <select
+                            v-model="form.parent_id"
+                            class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500 rounded-md shadow-sm"
+                        >
+                            <option value="">None (Top Level)</option>
+                            <option
+                                v-for="cat in all_categories"
+                                :key="cat.id"
+                                :value="cat.id"
+                                :disabled="editingCategory && editingCategory.id === cat.id"
+                            >
+                                {{ cat.name }}
+                            </option>
+                        </select>
+                        <InputError class="mt-2" :message="form.errors.parent_id" />
                     </div>
 
                     <div>

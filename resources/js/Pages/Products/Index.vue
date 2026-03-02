@@ -26,6 +26,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  specOptions: {
+    type: Object,
+    default: () => ({}),
+  },
 });
 
 console.log("Products Data:", props.products);
@@ -79,7 +83,7 @@ const getGroupDefaultPercentage = (id) => {
 
 const form = useForm({
   brand_id: "",
-  category_id: "",
+  category_ids: [],
   name: "",
   model_number: "",
   price: "",
@@ -100,6 +104,14 @@ const form = useForm({
   band_color: "",
   movement: "",
   gender: "",
+  case_thickness: "",
+  case_material: "",
+  case_color: "",
+  case_finish: "",
+  dial_markings: "",
+  lug_width: "",
+  strap_buckle: "",
+  battery_type: "",
   customer_group_discounts: [],
   images: [],
   remove_images: [],
@@ -136,7 +148,7 @@ const openModal = (product = null) => {
   editingProduct.value = product;
   if (product) {
     form.brand_id = product.brand_id;
-    form.category_id = product.category_id;
+    form.category_ids = product.categories ? product.categories.map(c => c.id) : [];
     form.name = product.name;
     form.model_number = product.model_number;
     form.price = product.price;
@@ -157,6 +169,14 @@ const openModal = (product = null) => {
     form.band_color = product.band_color || "";
     form.movement = product.movement || "";
     form.gender = product.gender || "";
+    form.case_thickness = product.case_thickness || "";
+    form.case_material = product.case_material || "";
+    form.case_color = product.case_color || "";
+    form.case_finish = product.case_finish || "";
+    form.dial_markings = product.dial_markings || "";
+    form.lug_width = product.lug_width || "";
+    form.strap_buckle = product.strap_buckle || "";
+    form.battery_type = product.battery_type || "";
     form.customer_group_discounts = props.customer_groups.map(group => {
        const existing = product.customer_groups?.find(cg => cg.id === group.id);
        return {
@@ -184,6 +204,14 @@ const openModal = (product = null) => {
     form.is_banner = false;
     form.is_admin_choice = false;
     form.special_discount = false;
+    form.case_thickness = "";
+    form.case_material = "";
+    form.case_color = "";
+    form.case_finish = "";
+    form.dial_markings = "";
+    form.lug_width = "";
+    form.strap_buckle = "";
+    form.battery_type = "";
     previewImages.value = [];
   }
   isModalOpen.value = true;
@@ -192,6 +220,7 @@ const openModal = (product = null) => {
 const closeModal = () => {
   isModalOpen.value = false;
   form.reset();
+  form.category_ids = [];
   editingProduct.value = null;
   previewImages.value = [];
   if (imageInput.value) imageInput.value.value = null;
@@ -347,7 +376,12 @@ const deleteProduct = (product) => {
               {{ product.brand?.name }}
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-gray-600">
-              {{ product.category?.name }}
+              <div v-if="product.categories && product.categories.length" class="flex flex-wrap gap-1">
+                <span v-for="cat in product.categories" :key="cat.id" class="px-2 py-0.5 bg-gray-100 rounded text-xs">
+                    {{ cat.name }}
+                </span>
+              </div>
+              <span v-else class="text-xs text-gray-400">No Category</span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
               <div class="text-gray-900 font-bold text-lg">
@@ -483,12 +517,12 @@ const deleteProduct = (product) => {
               <InputError class="mt-2" :message="form.errors.brand_id" />
             </div>
             <div>
-              <InputLabel value="Category" class="text-gray-700" />
+              <InputLabel value="Categories" class="text-gray-700" />
               <select
-                v-model="form.category_id"
-                class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500 rounded-md shadow-sm"
+                multiple
+                v-model="form.category_ids"
+                class="mt-1 block w-full bg-gray-50 border border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500 rounded-md shadow-sm h-32"
               >
-                <option value="" disabled>Select Category</option>
                 <option
                   v-for="category in categories"
                   :key="category.id"
@@ -497,7 +531,8 @@ const deleteProduct = (product) => {
                   {{ category.name }}
                 </option>
               </select>
-              <InputError class="mt-2" :message="form.errors.category_id" />
+              <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple categories.</p>
+              <InputError class="mt-2" :message="form.errors.category_ids" />
             </div>
           </div>
 
@@ -596,51 +631,143 @@ const deleteProduct = (product) => {
               <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
                       <InputLabel value="Watch Type" class="text-gray-700 text-xs" />
-                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.watch_type" placeholder="e.g. PRX, T-Race" />
+                      <TextInput type="text" list="watch_type_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.watch_type" placeholder="e.g. PRX, T-Race" />
+                      <datalist id="watch_type_options">
+                          <option v-for="opt in specOptions.watch_type" :key="opt" :value="opt"></option>
+                      </datalist>
                   </div>
                   <div>
                       <InputLabel value="Gender" class="text-gray-700 text-xs" />
-                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.gender" placeholder="e.g. Men, Women" />
+                      <TextInput type="text" list="gender_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.gender" placeholder="e.g. Men, Women" />
+                      <datalist id="gender_options">
+                          <option v-for="opt in specOptions.gender" :key="opt" :value="opt"></option>
+                      </datalist>
                   </div>
                   <div>
                       <InputLabel value="Couple Watch?" class="text-gray-700 text-xs" />
-                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.couple" placeholder="Yes / No" />
+                      <TextInput type="text" list="couple_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.couple" placeholder="Yes / No" />
+                      <datalist id="couple_options">
+                          <option v-for="opt in specOptions.couple" :key="opt" :value="opt"></option>
+                      </datalist>
                   </div>
                   <div>
                       <InputLabel value="Movement" class="text-gray-700 text-xs" />
-                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.movement" placeholder="e.g. Quartz, Powermatic" />
+                      <TextInput type="text" list="movement_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.movement" placeholder="e.g. Quartz, Powermatic" />
+                      <datalist id="movement_options">
+                          <option v-for="opt in specOptions.movement" :key="opt" :value="opt"></option>
+                      </datalist>
                   </div>
                   <div>
                       <InputLabel value="Glass" class="text-gray-700 text-xs" />
-                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.glass" placeholder="e.g. Sapphire" />
+                      <TextInput type="text" list="glass_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.glass" placeholder="e.g. Sapphire" />
+                      <datalist id="glass_options">
+                          <option v-for="opt in specOptions.glass" :key="opt" :value="opt"></option>
+                      </datalist>
                   </div>
                   <div>
                       <InputLabel value="Water Resistant" class="text-gray-700 text-xs" />
-                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.water_resistant" placeholder="e.g. 100m" />
+                      <TextInput type="text" list="water_resistant_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.water_resistant" placeholder="e.g. 100m" />
+                      <datalist id="water_resistant_options">
+                          <option v-for="opt in specOptions.water_resistant" :key="opt" :value="opt"></option>
+                      </datalist>
                   </div>
                   <div>
                       <InputLabel value="Shape" class="text-gray-700 text-xs" />
-                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.shape" placeholder="e.g. Round, Tonneau" />
+                      <TextInput type="text" list="shape_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.shape" placeholder="e.g. Round, Tonneau" />
+                      <datalist id="shape_options">
+                          <option v-for="opt in specOptions.shape" :key="opt" :value="opt"></option>
+                      </datalist>
                   </div>
                   <div>
                       <InputLabel value="Dial Size" class="text-gray-700 text-xs" />
-                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.dial_size" placeholder="e.g. 40mm" />
+                      <TextInput type="text" list="dial_size_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.dial_size" placeholder="e.g. 40mm" />
+                      <datalist id="dial_size_options">
+                          <option v-for="opt in specOptions.dial_size" :key="opt" :value="opt"></option>
+                      </datalist>
                   </div>
                   <div>
                       <InputLabel value="Dial Color" class="text-gray-700 text-xs" />
-                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.dial_color" placeholder="e.g. Black, Blue" />
+                      <TextInput type="text" list="dial_color_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.dial_color" placeholder="e.g. Black, Blue" />
+                      <datalist id="dial_color_options">
+                          <option v-for="opt in specOptions.dial_color" :key="opt" :value="opt"></option>
+                      </datalist>
+                  </div>
+                  <div>
+                      <InputLabel value="Dial Markings" class="text-gray-700 text-xs" />
+                      <TextInput type="text" list="dial_markings_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.dial_markings" placeholder="e.g. Arabic (Full)" />
+                      <datalist id="dial_markings_options">
+                          <option v-for="opt in specOptions.dial_markings" :key="opt" :value="opt"></option>
+                      </datalist>
                   </div>
                   <div>
                       <InputLabel value="Band Material" class="text-gray-700 text-xs" />
-                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.band" placeholder="e.g. Steel, Rubber" />
+                      <TextInput type="text" list="band_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.band" placeholder="e.g. Steel, Rubber" />
+                      <datalist id="band_options">
+                          <option v-for="opt in specOptions.band" :key="opt" :value="opt"></option>
+                      </datalist>
                   </div>
                   <div>
                       <InputLabel value="Band Size" class="text-gray-700 text-xs" />
-                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.band_size" placeholder="e.g. 20mm" />
+                      <TextInput type="text" list="band_size_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.band_size" placeholder="e.g. 20mm" />
+                      <datalist id="band_size_options">
+                          <option v-for="opt in specOptions.band_size" :key="opt" :value="opt"></option>
+                      </datalist>
                   </div>
                   <div>
                       <InputLabel value="Band Color" class="text-gray-700 text-xs" />
-                      <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.band_color" placeholder="e.g. Silver, Gold" />
+                      <TextInput type="text" list="band_color_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.band_color" placeholder="e.g. Silver, Gold" />
+                      <datalist id="band_color_options">
+                          <option v-for="opt in specOptions.band_color" :key="opt" :value="opt"></option>
+                      </datalist>
+                  </div>
+                  <div>
+                      <InputLabel value="Lug Width" class="text-gray-700 text-xs" />
+                      <TextInput type="text" list="lug_width_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.lug_width" placeholder="e.g. 20mm" />
+                      <datalist id="lug_width_options">
+                          <option v-for="opt in specOptions.lug_width" :key="opt" :value="opt"></option>
+                      </datalist>
+                  </div>
+                  <div>
+                      <InputLabel value="Strap Buckle" class="text-gray-700 text-xs" />
+                      <TextInput type="text" list="strap_buckle_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.strap_buckle" placeholder="e.g. Buckle, Clasp" />
+                      <datalist id="strap_buckle_options">
+                          <option v-for="opt in specOptions.strap_buckle" :key="opt" :value="opt"></option>
+                      </datalist>
+                  </div>
+                  <div>
+                      <InputLabel value="Case Material" class="text-gray-700 text-xs" />
+                      <TextInput type="text" list="case_material_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.case_material" placeholder="e.g. Brass, Steel" />
+                      <datalist id="case_material_options">
+                          <option v-for="opt in specOptions.case_material" :key="opt" :value="opt"></option>
+                      </datalist>
+                  </div>
+                  <div>
+                      <InputLabel value="Case Color" class="text-gray-700 text-xs" />
+                      <TextInput type="text" list="case_color_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.case_color" placeholder="e.g. Silver-Tone" />
+                      <datalist id="case_color_options">
+                          <option v-for="opt in specOptions.case_color" :key="opt" :value="opt"></option>
+                      </datalist>
+                  </div>
+                  <div>
+                      <InputLabel value="Case Thickness" class="text-gray-700 text-xs" />
+                      <TextInput type="text" list="case_thickness_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.case_thickness" placeholder="e.g. 10mm" />
+                      <datalist id="case_thickness_options">
+                          <option v-for="opt in specOptions.case_thickness" :key="opt" :value="opt"></option>
+                      </datalist>
+                  </div>
+                  <div>
+                      <InputLabel value="Case Finish" class="text-gray-700 text-xs" />
+                      <TextInput type="text" list="case_finish_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.case_finish" placeholder="e.g. Polished" />
+                      <datalist id="case_finish_options">
+                          <option v-for="opt in specOptions.case_finish" :key="opt" :value="opt"></option>
+                      </datalist>
+                  </div>
+                  <div>
+                      <InputLabel value="Battery Type" class="text-gray-700 text-xs" />
+                      <TextInput type="text" list="battery_type_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.battery_type" placeholder="e.g. CR2016" />
+                      <datalist id="battery_type_options">
+                          <option v-for="opt in specOptions.battery_type" :key="opt" :value="opt"></option>
+                      </datalist>
                   </div>
               </div>
           </div>

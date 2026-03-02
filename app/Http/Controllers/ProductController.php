@@ -14,11 +14,27 @@ class ProductController extends Controller
 {
     public function index()
     {
+        $specFields = [
+            'watch_type', 'gender', 'movement', 'glass', 'water_resistant', 'shape', 
+            'dial_size', 'dial_color', 'dial_markings', 'band', 'band_color', 'band_size',
+            'lug_width', 'strap_buckle', 'case_material', 'case_color', 'case_thickness', 
+            'case_finish', 'battery_type', 'couple'
+        ];
+
+        $specOptions = [];
+        foreach ($specFields as $field) {
+            $specOptions[$field] = Product::whereNotNull($field)
+                ->where($field, '!=', '')
+                ->distinct()
+                ->pluck($field);
+        }
+
         return Inertia::render('Products/Index', [
-            'products' => Product::with(['brand', 'category', 'customerGroups'])->paginate(10),
+            'products' => Product::with(['brand', 'categories', 'customerGroups'])->paginate(10),
             'brands' => Brand::all(),
             'categories' => Category::all(),
             'customer_groups' => CustomerGroup::all(),
+            'specOptions' => $specOptions,
         ]);
     }
 
@@ -27,7 +43,8 @@ class ProductController extends Controller
         $validated = $request->validate([
             'name' => 'required',
             'brand_id' => 'required|exists:brands,id',
-            'category_id' => 'required|exists:categories,id',
+            'category_ids' => 'required|array',
+            'category_ids.*' => 'exists:categories,id',
             'price' => 'required|numeric',
             'cost_price' => 'nullable|numeric',
             'model_number' => 'nullable|string',
@@ -57,6 +74,14 @@ class ProductController extends Controller
             'is_banner' => 'boolean',
             'is_admin_choice' => 'boolean',
             'special_discount' => 'boolean',
+            'case_thickness' => 'nullable|string',
+            'case_material' => 'nullable|string',
+            'case_color' => 'nullable|string',
+            'case_finish' => 'nullable|string',
+            'dial_markings' => 'nullable|string',
+            'lug_width' => 'nullable|string',
+            'strap_buckle' => 'nullable|string',
+            'battery_type' => 'nullable|string',
         ]);
 
         if ($request->hasFile('image')) {
@@ -75,8 +100,12 @@ class ProductController extends Controller
              $validated['barcode'] = 'W-' . strtoupper(uniqid());
         }
 
-        $productData = collect($validated)->except('customer_group_discounts')->toArray();
+        $productData = collect($validated)->except(['customer_group_discounts', 'category_ids'])->toArray();
         $product = Product::create($productData);
+
+        if ($request->has('category_ids')) {
+            $product->categories()->sync($request->category_ids);
+        }
 
         if ($request->has('customer_group_discounts') && is_array($request->customer_group_discounts)) {
             $syncData = [];
@@ -96,7 +125,8 @@ class ProductController extends Controller
         $validated = $request->validate([
             'name' => 'required',
             'brand_id' => 'required|exists:brands,id',
-            'category_id' => 'required|exists:categories,id',
+            'category_ids' => 'required|array',
+            'category_ids.*' => 'exists:categories,id',
             'price' => 'required|numeric',
             'cost_price' => 'nullable|numeric',
             'model_number' => 'nullable|string',
@@ -126,6 +156,14 @@ class ProductController extends Controller
             'is_banner' => 'boolean',
             'is_admin_choice' => 'boolean',
             'special_discount' => 'boolean',
+            'case_thickness' => 'nullable|string',
+            'case_material' => 'nullable|string',
+            'case_color' => 'nullable|string',
+            'case_finish' => 'nullable|string',
+            'dial_markings' => 'nullable|string',
+            'lug_width' => 'nullable|string',
+            'strap_buckle' => 'nullable|string',
+            'battery_type' => 'nullable|string',
         ]);
 
         if ($request->hasFile('image')) {
@@ -155,8 +193,12 @@ class ProductController extends Controller
             $validated['images'] = array_values($uploadedImages);
         }
 
-        $productData = collect($validated)->except(['customer_group_discounts', 'remove_images'])->toArray();
+        $productData = collect($validated)->except(['customer_group_discounts', 'remove_images', 'category_ids'])->toArray();
         $product->update($productData);
+
+        if ($request->has('category_ids')) {
+            $product->categories()->sync($request->category_ids);
+        }
 
         if ($request->has('customer_group_discounts') && is_array($request->customer_group_discounts)) {
             $syncData = [];
@@ -188,7 +230,7 @@ class ProductController extends Controller
     public function show(Product $product)
     {
         return Inertia::render('Products/Show', [
-            'product' => $product->load(['brand', 'category', 'items']),
+            'product' => $product->load(['brand', 'categories', 'items']),
             'items' => $product->items,
         ]);
     }
