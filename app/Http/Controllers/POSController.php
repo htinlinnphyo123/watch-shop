@@ -16,7 +16,7 @@ class POSController extends Controller
     public function index()
     {
         return Inertia::render('POS/Index', [
-            'products' => Product::with(['brand', 'category', 'customerGroups', 'items' => function($q) {
+            'products' => Product::with(['brand', 'categories', 'customerGroups', 'items' => function($q) {
                 $q->where('status', 'available');
             }])->whereHas('items', function($q) {
                 $q->where('status', 'available');
