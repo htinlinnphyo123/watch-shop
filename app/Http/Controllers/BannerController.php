@@ -27,7 +27,7 @@ class BannerController extends Controller
         ]);
 
         if ($request->hasFile('image')) {
-            $validated['image'] = $request->file('image')->store('banners', 'public');
+            $validated['image'] = $request->file('image')->store('banners', env('FILESYSTEM_DISK', 's3'));
         }
 
         Banner::create($validated);
@@ -49,9 +49,9 @@ class BannerController extends Controller
 
         if ($request->hasFile('image')) {
             if ($banner->image) {
-                Storage::disk('public')->delete($banner->image);
+                Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($banner->image);
             }
-            $dataToUpdate['image'] = $request->file('image')->store('banners', 'public');
+            $dataToUpdate['image'] = $request->file('image')->store('banners', env('FILESYSTEM_DISK', 's3'));
         }
 
         $banner->update($dataToUpdate);
@@ -62,7 +62,7 @@ class BannerController extends Controller
     public function destroy(Banner $banner)
     {
         if ($banner->image) {
-            Storage::disk('public')->delete($banner->image);
+            Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($banner->image);
         }
         $banner->delete();
         return redirect()->back();

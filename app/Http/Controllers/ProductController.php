@@ -108,16 +108,22 @@ class ProductController extends Controller
             'quick_release' => 'nullable|string',
             'clasp_type' => 'nullable|string',
             'origin' => 'nullable|string',
+            'is_featured' => 'boolean',
+            'is_banner' => 'boolean',
+            'is_admin_choice' => 'boolean',
+            'special_discount' => 'boolean',
+            'is_active' => 'boolean',
+            'is_public' => 'boolean',
         ]);
 
         if ($request->hasFile('image')) {
-            $validated['image'] = $request->file('image')->store('products', 'public');
+            $validated['image'] = $request->file('image')->store('products', env('FILESYSTEM_DISK', 's3'));
         }
         
         if ($request->hasFile('images')) {
             $uploadedImages = [];
             foreach ($request->file('images') as $file) {
-                $uploadedImages[] = $file->store('products/gallery', 'public');
+                $uploadedImages[] = $file->store('products/gallery', env('FILESYSTEM_DISK', 's3'));
             }
             $validated['images'] = $uploadedImages;
         }
@@ -185,20 +191,22 @@ class ProductController extends Controller
             'is_banner' => 'boolean',
             'is_admin_choice' => 'boolean',
             'special_discount' => 'boolean',
+            'is_active' => 'boolean',
+            'is_public' => 'boolean',
         ]);
 
         if ($request->hasFile('image')) {
             if ($product->image) {
-                Storage::disk('public')->delete($product->image);
+                Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($product->image);
             }
-            $validated['image'] = $request->file('image')->store('products', 'public');
+            $validated['image'] = $request->file('image')->store('products', env('FILESYSTEM_DISK', 's3'));
         }
 
         // Handle gallery images
         if ($request->hasFile('images')) {
             $uploadedImages = $product->images ? $product->images : [];
             foreach ($request->file('images') as $file) {
-                $uploadedImages[] = $file->store('products/gallery', 'public');
+                $uploadedImages[] = $file->store('products/gallery', env('FILESYSTEM_DISK', 's3'));
             }
             $validated['images'] = $uploadedImages;
         }
@@ -208,7 +216,7 @@ class ProductController extends Controller
             foreach ($request->input('remove_images', []) as $imgToRemove) {
                 if (($key = array_search($imgToRemove, $uploadedImages)) !== false) {
                     unset($uploadedImages[$key]);
-                    Storage::disk('public')->delete($imgToRemove);
+                    Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($imgToRemove);
                 }
             }
             $validated['images'] = array_values($uploadedImages);
@@ -237,11 +245,11 @@ class ProductController extends Controller
     public function destroy(Product $product)
     {
         if ($product->image) {
-            Storage::disk('public')->delete($product->image);
+            Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($product->image);
         }
         if ($product->images && is_array($product->images)) {
             foreach ($product->images as $img) {
-                Storage::disk('public')->delete($img);
+                Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($img);
             }
         }
         $product->delete();

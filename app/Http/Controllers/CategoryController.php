@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class CategoryController extends Controller
@@ -29,26 +30,46 @@ class CategoryController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'required',
             'parent_id' => 'nullable|exists:categories,id',
+            'description' => 'nullable|string',
+            'photo' => 'nullable|image',
         ]);
-        Category::create($request->all());
+        
+        if ($request->hasFile('photo')) {
+            $validated['photo'] = $request->file('photo')->store('categories', env('FILESYSTEM_DISK', 's3'));
+        }
+        
+        Category::create($validated);
         return redirect()->back();
     }
 
     public function update(Request $request, Category $category)
     {
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'required',
             'parent_id' => 'nullable|exists:categories,id',
+            'description' => 'nullable|string',
+            'photo' => 'nullable|image',
         ]);
-        $category->update($request->all());
+
+        if ($request->hasFile('photo')) {
+            if ($category->photo) {
+                Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($category->photo);
+            }
+            $validated['photo'] = $request->file('photo')->store('categories', env('FILESYSTEM_DISK', 's3'));
+        }
+
+        $category->update($validated);
         return redirect()->back();
     }
 
     public function destroy(Category $category)
     {
+        if ($category->photo) {
+            Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($category->photo);
+        }
         $category->delete();
         return redirect()->back();
     }

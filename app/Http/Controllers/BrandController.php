@@ -25,11 +25,11 @@ class BrandController extends Controller
         ]);
 
         if ($request->hasFile('logo')) {
-            $validated['logo'] = $request->file('logo')->store('brands', 'public');
+            $validated['logo'] = $request->file('logo')->store('brands', env('FILESYSTEM_DISK', 's3'));
         }
         
         if ($request->hasFile('bg_logo')) {
-            $validated['bg_logo'] = $request->file('bg_logo')->store('brands/bg', 'public');
+            $validated['bg_logo'] = $request->file('bg_logo')->store('brands/bg', env('FILESYSTEM_DISK', 's3'));
         }
 
         Brand::create($validated);
@@ -49,7 +49,7 @@ class BrandController extends Controller
              if ($brand->logo) {
                 // simple cleanup if needed, or just overwrite reference
             }
-            $validated['logo'] = $request->file('logo')->store('brands', 'public');
+            $validated['logo'] = $request->file('logo')->store('brands', env('FILESYSTEM_DISK', 's3'));
         } else {
             unset($validated['logo']);
         }
@@ -58,7 +58,7 @@ class BrandController extends Controller
             if ($brand->bg_logo) {
                 // cleanup logic if needed
             }
-            $validated['bg_logo'] = $request->file('bg_logo')->store('brands/bg', 'public');
+            $validated['bg_logo'] = $request->file('bg_logo')->store('brands/bg', env('FILESYSTEM_DISK', 's3'));
         } else {
             unset($validated['bg_logo']);
         }

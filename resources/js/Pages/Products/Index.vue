@@ -151,6 +151,8 @@ const form = useForm({
   is_banner: false,
   is_admin_choice: false,
   special_discount: false,
+  is_active: true,
+  is_public: true,
 });
 
 const isModalOpen = ref(false);
@@ -218,6 +220,8 @@ const openModal = (product = null) => {
     form.is_banner = !!product.is_banner;
     form.is_admin_choice = !!product.is_admin_choice;
     form.special_discount = !!product.special_discount;
+    form.is_active = product.is_active !== undefined ? !!product.is_active : true;
+    form.is_public = product.is_public !== undefined ? !!product.is_public : true;
   } else {
     form.reset();
     form.collection_id = "";
@@ -232,6 +236,8 @@ const openModal = (product = null) => {
     form.is_banner = false;
     form.is_admin_choice = false;
     form.special_discount = false;
+    form.is_active = true;
+    form.is_public = true;
     form.crystal = "";
     form.water_resistant = "";
     form.case_shape = "";
@@ -850,6 +856,14 @@ const deleteProduct = (product) => {
                   <div class="flex items-center">
                       <input type="checkbox" id="special_discount" v-model="form.special_discount" class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50" />
                       <label for="special_discount" class="ml-2 block text-sm text-gray-900">Special Discount List</label>
+                  </div>
+                  <div class="flex items-center">
+                      <input type="checkbox" id="is_active" v-model="form.is_active" class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50" />
+                      <label for="is_active" class="ml-2 block text-sm text-gray-900">Is Active</label>
+                  </div>
+                  <div class="flex items-center">
+                      <input type="checkbox" id="is_public" v-model="form.is_public" class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50" />
+                      <label for="is_public" class="ml-2 block text-sm text-gray-900">Is Public</label>
                   </div>
               </div>
           </div>

@@ -12,6 +12,8 @@ import DangerButton from '@/Components/DangerButton.vue';
 
 import { router } from '@inertiajs/vue3';
 import debounce from 'lodash/debounce';
+import { QuillEditor } from '@vueup/vue-quill';
+import '@vueup/vue-quill/dist/vue-quill.snow.css';
 
 const props = defineProps({
     categories: {
@@ -32,6 +34,7 @@ const form = useForm({
     name: '',
     parent_id: '',
     description: '',
+    photo: null,
 });
 
 const isModalOpen = ref(false);
@@ -50,9 +53,11 @@ const openModal = (category = null) => {
     if (category) {
         form.name = category.name;
         form.parent_id = category.parent_id || '';
-        form.description = category.description;
+        form.description = category.description || '';
+        form.photo = null;
     } else {
         form.reset();
+        form.photo = null;
     }
     isModalOpen.value = true;
 };
@@ -65,7 +70,10 @@ const closeModal = () => {
 
 const submit = () => {
     if (editingCategory.value) {
-        form.put(route('categories.update', editingCategory.value.id), {
+        form.transform((data) => ({
+            ...data,
+            _method: 'put',
+        })).post(route('categories.update', editingCategory.value.id), {
             onSuccess: () => closeModal(),
         });
     } else {
@@ -73,6 +81,10 @@ const submit = () => {
             onSuccess: () => closeModal(),
         });
     }
+};
+
+const handlePhotoUpload = (e) => {
+    form.photo = e.target.files[0];
 };
 
 const deleteCategory = (category) => {
@@ -119,8 +131,8 @@ const deleteCategory = (category) => {
                 <thead class="bg-gray-50">
                     <tr>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Photo</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parent Category</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Slug</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Watches</th>
                         <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -129,6 +141,10 @@ const deleteCategory = (category) => {
                 <tbody class="bg-white divide-y divide-gray-200">
                     <tr v-for="category in categories.data" :key="category.id" class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">{{ category.name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <img v-if="category.photo" :src="$page.props.storage_url + '/' + category.photo" class="h-10 w-10 object-cover rounded-full" />
+                            <span v-else class="text-gray-400 text-sm">No photo</span>
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-600 font-medium">{{ category.parent?.name || '-' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ category.slug }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ category.description }}</td>
@@ -221,13 +237,22 @@ const deleteCategory = (category) => {
                     </div>
 
                     <div>
-                        <InputLabel for="description" value="Description" class="text-gray-700" />
-                        <TextInput
-                            id="description"
-                            type="text"
-                            class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500"
-                            v-model="form.description"
+                        <InputLabel for="photo" value="Category Photo" class="text-gray-700" />
+                        <input
+                            id="photo"
+                            type="file"
+                            class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gold-50 file:text-gold-700 hover:file:bg-gold-100"
+                            @change="handlePhotoUpload"
+                            accept="image/*"
                         />
+                        <InputError class="mt-2" :message="form.errors.photo" />
+                    </div>
+
+                    <div>
+                        <InputLabel value="Description" class="text-gray-700" />
+                        <div class="mt-1 bg-white border border-gray-300 rounded-md">
+                            <QuillEditor theme="snow" v-model:content="form.description" contentType="html" toolbar="minimal" />
+                        </div>
                         <InputError class="mt-2" :message="form.errors.description" />
                     </div>
 
