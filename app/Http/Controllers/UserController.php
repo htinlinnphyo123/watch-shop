@@ -13,7 +13,7 @@ class UserController extends Controller
     public function index()
     {
         return Inertia::render('Users/Index', [
-            'users' => User::with('customer.group')->paginate(10),
+            'users' => User::with('customer.group')->latest('updated_at')->paginate(10),
         ]);
     }
 

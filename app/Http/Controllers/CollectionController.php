@@ -11,7 +11,7 @@ class CollectionController extends Controller
     public function index()
     {
         return Inertia::render('Collections/Index', [
-            'collections' => Collection::withCount('products')->paginate(10),
+            'collections' => Collection::withCount('products')->latest('updated_at')->paginate(10),
         ]);
     }
 

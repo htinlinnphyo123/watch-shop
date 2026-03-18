@@ -12,7 +12,7 @@ class CustomerController extends Controller
     public function index()
     {
         return Inertia::render('Customers/Index', [
-            'customers' => Customer::with('group')->paginate(10),
+            'customers' => Customer::with('group')->latest('updated_at')->paginate(10),
             'groups' => CustomerGroup::all(),
         ]);
     }

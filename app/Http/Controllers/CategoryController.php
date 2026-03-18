@@ -11,7 +11,7 @@ class CategoryController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Category::with(['parent', 'children'])->withCount('products');
+        $query = Category::with(['parent', 'children'])->withCount('products')->latest('updated_at');
 
         if ($request->has('parent_id') && $request->parent_id !== 'all') {
             if ($request->parent_id === 'top_level') {

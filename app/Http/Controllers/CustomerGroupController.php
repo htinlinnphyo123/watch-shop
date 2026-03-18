@@ -11,7 +11,7 @@ class CustomerGroupController extends Controller
     public function index()
     {
         return Inertia::render('CustomerGroups/Index', [
-            'groups' => CustomerGroup::paginate(15),
+            'groups' => CustomerGroup::latest('updated_at')->paginate(15),
         ]);
     }
 
