@@ -28,6 +28,21 @@ class ProductResource extends JsonResource
             'category_name' => $this->categories->pluck('name')->toArray(),
             'model_number' => $this->model_number,
             'description' => $this->description,
+            'warranty_period'=>$this->warranty_period,
+            'crystal'=>$this->crystal,
+            'water_resistant'=>$this->water_resistant,
+            'case_shape'=>$this->case_shape,
+            'dial_size'=>$this->dial_size,
+            'dial_color'=>$this->dial_color,
+            'strap_material'=>$this->strap_material,
+            'strap_size'=>$this->strap_size,
+            'strap_color'=>$this->strap_color,
+            'movement'=>$this->movement,
+            'gender'=>$this->gender,
+            'clasp_type'=>$this->clasp_type,
+            'origin'=>$this->origin,
+            'quick_release'=>$this->quick_release,
+            'strap_style'=>$this->strap_style,
         ];
 
         if ($isAuthenticated) {

@@ -12,12 +12,9 @@ class CategoryResource extends JsonResource
         return [
             'label' => $this->name,
             'id' => $this->id,
-            'children' => CategoryResource::collection($this->whenLoaded('children')),
-            'image' => $this->when(
-                $this->parent_id !== null,
-                asset(config('app.aws_url') . '/' . $this->photo)
-            ),
+            'image' => asset(config('app.aws_url') . '/' . $this->photo),
             'description'=>$this->description,
+            'children' => CategoryResource::collection($this->whenLoaded('children')),
         ];
     }
 }

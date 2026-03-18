@@ -35,15 +35,15 @@ class AuthController extends Controller
             'data' => [
                 'access_token' => $token,
                 'token_type' => 'Bearer',
-                'user' => $user->load('customer.group'),
+                'user_info' => $user,
             ],
         ]);
     }
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
-
+        $user =User::where('id', $request->id)->first();
+        $user->currentAccessToken()->delete();
         return response()->json([
             'code' => 200,
             'status' => 'success',
