@@ -14,9 +14,9 @@ const page = usePage();
     <div class="min-h-screen bg-gray-100 font-sans">
         <!-- Sidebar (Desktop) -->
         <aside class="fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 hidden md:flex flex-col z-20 transition-colors duration-300">
-            <div class="flex items-center justify-center h-16 border-b border-gray-200 px-4">
-                <Link :href="route('dashboard')" class="text-gold-500 font-bold text-xl tracking-wider uppercase">
-                    TIME ON YOU
+            <div class="flex items-center justify-center border-b border-gray-900 px-4 py-5 bg-black">
+                <Link :href="route('dashboard')">
+                    <img src="/assets/timeonyou.jpg" alt="Time On You" class="w-32 h-auto object-contain" />
                 </Link>
             </div>
             
@@ -117,9 +117,11 @@ const page = usePage();
         <!-- Main Content (With top bar for mobile) -->
         <main class="md:ml-64 min-h-screen transition-all duration-300">
             <!-- Mobile Header -->
-            <header class="md:hidden flex items-center justify-between p-4 bg-white border-b border-gray-200">
-                <div class="text-gold-500 font-bold uppercase">Time On You</div>
-                <button @click="showingNavigationDropdown = !showingNavigationDropdown" class="text-gray-500 hover:text-gray-900">
+            <header class="md:hidden flex items-center justify-between p-2 bg-black border-b border-gray-800">
+                <Link :href="route('dashboard')">
+                    <img src="/assets/timeonyou.jpg" alt="Time On You" class="w-auto h-20" />
+                </Link>
+                <button @click="showingNavigationDropdown = !showingNavigationDropdown" class="text-gray-400 hover:text-white">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                 </button>
             </header>

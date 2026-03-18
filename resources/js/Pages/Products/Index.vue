@@ -612,20 +612,38 @@ const deleteProduct = (product) => {
             </div>
             <div>
               <InputLabel value="Categories" class="text-gray-700" />
-              <select
-                multiple
-                v-model="form.category_ids"
-                class="mt-1 block w-full bg-gray-50 border border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500 rounded-md shadow-sm h-32"
-              >
-                <option
+              <!-- Selected badges -->
+              <div class="flex flex-wrap gap-1 mt-1 min-h-[24px]">
+                <span
+                  v-for="id in form.category_ids"
+                  :key="id"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 bg-gold-100 text-gold-800 text-xs font-semibold rounded-full border border-gold-300"
+                >
+                  {{ categories.find(c => c.id === id)?.name }}
+                  <button type="button" @click="form.category_ids = form.category_ids.filter(i => i !== id)" class="text-gold-600 hover:text-red-500 leading-none">&times;</button>
+                </span>
+                <span v-if="!form.category_ids.length" class="text-xs text-gray-400 italic">No categories selected</span>
+              </div>
+              <!-- Checkbox list -->
+              <div class="mt-2 max-h-36 overflow-y-auto border border-gray-300 rounded-md bg-gray-50 divide-y divide-gray-100">
+                <label
                   v-for="category in categories"
                   :key="category.id"
-                  :value="category.id"
+                  class="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gold-50 transition-colors"
+                  :class="{ 'bg-gold-50': form.category_ids.includes(category.id) }"
                 >
-                  {{ category.name }}
-                </option>
-              </select>
-              <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple categories.</p>
+                  <input
+                    type="checkbox"
+                    :value="category.id"
+                    v-model="form.category_ids"
+                    class="rounded border-gray-300 text-gold-500 shadow-sm focus:ring-gold-400"
+                  />
+                  <span class="text-sm text-gray-800">{{ category.name }}</span>
+                  <span v-if="form.category_ids.includes(category.id)" class="ml-auto text-gold-500">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                  </span>
+                </label>
+              </div>
               <InputError class="mt-2" :message="form.errors.category_ids" />
             </div>
           </div>
