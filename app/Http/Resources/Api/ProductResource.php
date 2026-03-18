@@ -1,10 +1,9 @@
 <?php
 
-namespace App\Http\Resources;
+namespace App\Http\Resources\Api;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Auth;
 
 class ProductResource extends JsonResource
 {
@@ -25,8 +24,8 @@ class ProductResource extends JsonResource
             'images' => $this->images ? array_map(function ($image) {
                 return asset(config('app.aws_url') . '/' . $image);
             }, $this->images) : [],
-            'brand' => $this->whenLoaded('brand'),
-            'categories' => $this->whenLoaded('categories'),
+            'brand_name' => $this->brand->name,
+            'category_name' => $this->categories->pluck('name')->toArray(),
             'model_number' => $this->model_number,
             'description' => $this->description,
         ];
@@ -58,3 +57,14 @@ class ProductResource extends JsonResource
         return $data;
     }
 }
+
+
+//  return [
+//             'id' => $this->id,
+//             'name' => $this->name,
+//             'price' => $this->price,
+//             'image' => $this->images ? asset(config('app.aws_url') . '/' . $this->images[0]) : null,
+//             'images' => $this->images ? array_map(function ($image) {
+//                 return asset(config('app.aws_url') . '/' . $image);
+//             }, $this->images) : [],
+//         ];

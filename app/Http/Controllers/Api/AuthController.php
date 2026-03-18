@@ -29,9 +29,14 @@ class AuthController extends Controller
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'access_token' => $token,
-            'token_type' => 'Bearer',
-            'user' => $user->load('customer.group'),
+            'code' => 200,
+            'status' => 'success',
+            'message' => 'Login Success',
+            'data' => [
+                'access_token' => $token,
+                'token_type' => 'Bearer',
+                'user' => $user->load('customer.group'),
+            ],
         ]);
     }
 
@@ -39,6 +44,10 @@ class AuthController extends Controller
     {
         $request->user()->currentAccessToken()->delete();
 
-        return response()->json(['message' => 'Logged out successfully']);
+        return response()->json([
+            'code' => 200,
+            'status' => 'success',
+            'message' => 'Logged out successfully',
+        ]);
     }
 }
