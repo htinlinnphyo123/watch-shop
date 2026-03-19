@@ -146,8 +146,7 @@ const deleteCategory = (category) => {
                             <span v-else class="text-gray-400 text-sm">No photo</span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-600 font-medium">{{ category.parent?.name || '-' }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ category.slug }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ category.description }}</td>
+                        <td class="px-6 py-4 text-gray-500 text-sm max-w-[200px] truncate">{{ category.description ? category.description.replace(/<[^>]*>/g, '') : '-' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gold-600 font-bold text-sm">
                             {{ category.products_count || 0 }}
                         </td>
