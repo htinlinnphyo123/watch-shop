@@ -17,26 +17,30 @@ use Illuminate\Http\Request;
 
 class HomeController extends Controller
 {
-    public function index()
+   public function index()
     {
-        $banners = Banner::all();
-        $brands = Brand::all();
-        $banners = BannerResource::collection($banners);
-        $brands = BrandResource::collection($brands);
-        $collections = Collection::all();
-        $collections = CollectionResource::collection($collections);
-        $featureProducts = Product::where('is_active', true)
-            ->where("is_public", true)
-            ->where('is_featured', true)
-            ->limit(4)
-            ->get();
-        $featureProducts = ProductResource::collection($featureProducts);
-        $adminChoices = Product::where('is_active', true)
-            ->where("is_public", true)
-            ->limit(10)
-            ->orderBy('created_at', 'desc')
-            ->get(); 
-        $adminChoices = ProductResource::collection($adminChoices);
+        // Base product query (reuse)
+        $baseProductQuery = Product::where('is_active', true)
+            ->where('is_public', true);
+
+        $banners = BannerResource::collection(Banner::all())->resolve();
+        $brands = BrandResource::collection(Brand::all())->resolve();
+        $collections = CollectionResource::collection(Collection::all())->resolve();
+
+        $featureProducts = ProductResource::collection(
+            (clone $baseProductQuery)
+                ->where('is_featured', true)
+                ->latest()
+                ->limit(4)
+                ->get()
+        )->resolve();
+
+        $adminChoices = ProductResource::collection(
+            (clone $baseProductQuery)
+                ->latest()
+                ->limit(10)
+                ->get()
+        )->resolve();
 
         return response()->json([
             'code' => 200,
@@ -54,32 +58,38 @@ class HomeController extends Controller
 
     public function filterNecessaryData()
     {
-        $categories = Category::all();
-        $categories = CategoryResource::collection($categories)->response()->getData(true)['data'];
-        $brands = Brand::all();
-        $brands = BrandResource::collection($brands)->response()->getData(true)['data'];
-        $collections = Collection::all();
-        $collections = CollectionResource::collection($collections)->response()->getData(true)['data'];
-        $caseShapes = Product::where('is_active', true)
-            ->where("is_public", true)
+         // Run queries in parallel style (cleaner)
+        $categories = CategoryResource::collection(Category::all())->resolve();
+        $brands = BrandResource::collection(Brand::all())->resolve();
+        $collections = CollectionResource::collection(Collection::all())->resolve();
+
+        // Single query for product attributes
+        $productAttributes = Product::where('is_active', true)
+            ->where('is_public', true)
+            ->select('case_shape', 'dial_size')
             ->distinct()
-            ->pluck('case_shape');
-        $dailSizes = Product::where('is_active', true)
-            ->where("is_public", true)
-            ->distinct()
-            ->pluck('dial_size');
-        $caseShapes = $caseShapes->map(function ($caseShape) {
-            return [
-                'id' => $caseShape,
-                'name' => $caseShape,
-            ];
-        });
-        $dailSizes = $dailSizes->map(function ($dailSize) {
-            return [
-                'id' => $dailSize,
-                'name' => $dailSize,
-            ];
-        });
+            ->get();
+
+        $caseShapes = $productAttributes
+            ->pluck('case_shape')
+            ->filter()
+            ->unique()
+            ->values()
+            ->map(fn($item) => [
+                'id' => $item,
+                'name' => $item,
+            ]);
+
+        $dialSizes = $productAttributes
+            ->pluck('dial_size')
+            ->filter()
+            ->unique()
+            ->values()
+            ->map(fn($item) => [
+                'id' => $item,
+                'name' => $item,
+            ]);
+
         return response()->json([
             'code' => 200,
             'status' => 'success',
@@ -89,7 +99,7 @@ class HomeController extends Controller
                 'brands' => $brands,
                 'collections' => $collections,
                 'case_shapes' => $caseShapes,
-                'dial_sizes' => $dailSizes,
+                'dial_sizes' => $dialSizes,
             ],
         ]);
     }

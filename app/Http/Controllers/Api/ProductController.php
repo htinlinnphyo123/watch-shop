@@ -9,58 +9,84 @@ use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
-   public function index(Request $request)
-{
-    $query = Product::with(['brand', 'categories']);
+    public function index(Request $request)
+    {
+        $query = $this->baseQuery();
 
-    if ($request->has('categoryId')) {
-        $query->whereHas('categories', function ($q) use ($request) {
-            $q->where('categories.id', $request->categoryId);
+        $this->applyFilters($query, $request);
+        $this->applySorting($query, $request);
+        $products = $this->paginate($query, $request);
+        $products = ProductResource::collection($products)->response()->getData(true);
+
+        return response()->json([
+            'code' => 200,
+            'status' => 'success',
+            'message' => 'Get Products Success',
+            'data' => $products,
+        ]);
+    }
+
+    private function baseQuery()
+    {
+        return Product::query()
+            ->with(['brand', 'categories'])
+            ->where('is_active', true)
+            ->where('is_public', true);
+    }
+
+
+    private function applyFilters($query, Request $request): void
+    {
+        $query->when($request->categoryId, function ($q, $categoryId) {
+            $q->whereHas('categories', fn ($sub) =>
+                $sub->where('categories.id', $categoryId)
+            );
+        });
+
+        $query->when($request->brandId, fn ($q, $brandId) =>
+            $q->where('brand_id', $brandId)
+        );
+
+        $query->when($request->collectionId, fn ($q, $collectionId) =>
+            $q->where('collection_id', $collectionId)
+        );
+
+        $query->when($request->minPrice, fn ($q, $minPrice) =>
+            $q->where('price', '>=', $minPrice)
+        );
+
+        $query->when($request->maxPrice, fn ($q, $maxPrice) =>
+            $q->where('price', '<=', $maxPrice)
+        );
+
+        $query->when($request->dialSize, fn ($q, $dialSize) =>
+            $q->where('dial_size', $dialSize)
+        );
+
+        $query->when($request->caseShape, fn ($q, $caseShape) =>
+            $q->where('case_shape', $caseShape)
+        );
+    }
+
+    private function applySorting($query, Request $request): void
+    {
+        $query->when($request->sortBy, function ($q, $sortBy) use ($request) {
+            $direction = $request->input('sortDirection', 'asc');
+            $q->orderBy($sortBy, $direction);
+        }, function ($q) {
+            $q->latest();
         });
     }
 
-    if ($request->has('brandId')) {
-        $query->where('brand_id', $request->brandId);
+    private function paginate($query, Request $request)
+    {
+        return $query->paginate($request->input('limit', 12));
     }
-
-    if($request->has('collectionId')) {
-        $query->where('collection_id', $request->collectionId);
-    }
-
-    if($request->has('minPrice')) {
-        $query->where('price', '>=', $request->minPrice);
-    }
-
-    if($request->has('maxPrice')) {
-        $query->where('price', '<=', $request->maxPrice);
-    }
-
-    if($request->has('dialSize')) {
-        $query->where('dial_size', $request->dialSize);
-    }
-
-    if($request->has('caseShape')) {
-        $query->where('case_shape', $request->caseShape);
-    }
-
-    
-
-    $products = $query->paginate($request->limit ?? 12);
-    $products = ProductResource::collection($products)->response()->getData(true);
-
-
-    return response()->json([
-        'code' => 200,
-        'status' => 'success',
-        'message' => 'Get Products Success',
-        'data' => $products,
-    ]);
-}
 
     public function show(Product $product)
     {
         $product = new ProductResource($product->load(['brand', 'categories']));
-        $relatedProducts = Product::where('id', '!=', $product->id)->get();
+        $relatedProducts = Product::where('id', '!=', $product->id)->limit(4)->get();
         $relatedProducts = ProductResource::collection($relatedProducts)->response()->getData(true);
         return response()->json([
             'code' => 200,
