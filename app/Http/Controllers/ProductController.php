@@ -245,14 +245,7 @@ class ProductController extends Controller
 
     public function destroy(Product $product)
     {
-        if ($product->image) {
-            Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($product->image);
-        }
-        if ($product->images && is_array($product->images)) {
-            foreach ($product->images as $img) {
-                Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($img);
-            }
-        }
+        // Soft delete — do NOT remove images so the product can be restored later.
         $product->delete();
         return redirect()->back();
     }

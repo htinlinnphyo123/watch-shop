@@ -61,9 +61,7 @@ class BannerController extends Controller
 
     public function destroy(Banner $banner)
     {
-        if ($banner->image) {
-            Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($banner->image);
-        }
+        // Soft delete — do NOT remove the image so it can be restored later.
         $banner->delete();
         return redirect()->back();
     }

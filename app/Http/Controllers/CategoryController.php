@@ -71,9 +71,7 @@ class CategoryController extends Controller
 
     public function destroy(Category $category)
     {
-        if ($category->photo) {
-            Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($category->photo);
-        }
+        // Soft delete — do NOT remove the photo file so it can be restored later.
         $category->delete();
         return redirect()->back();
     }
