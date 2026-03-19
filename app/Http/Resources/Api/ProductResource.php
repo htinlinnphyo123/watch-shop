@@ -1,10 +1,9 @@
 <?php
 
-namespace App\Http\Resources;
+namespace App\Http\Resources\Api;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Auth;
 
 class ProductResource extends JsonResource
 {
@@ -25,10 +24,25 @@ class ProductResource extends JsonResource
             'images' => $this->images ? array_map(function ($image) {
                 return asset(config('app.aws_url') . '/' . $image);
             }, $this->images) : [],
-            'brand' => $this->whenLoaded('brand'),
-            'categories' => $this->whenLoaded('categories'),
+            'brand_name' => $this->brand->name,
+            'category_name' => $this->categories->pluck('name')->toArray(),
             'model_number' => $this->model_number,
             'description' => $this->description,
+            'warranty_period'=>$this->warranty_period,
+            'crystal'=>$this->crystal,
+            'water_resistant'=>$this->water_resistant,
+            'case_shape'=>$this->case_shape,
+            'dial_size'=>$this->dial_size,
+            'dial_color'=>$this->dial_color,
+            'strap_material'=>$this->strap_material,
+            'strap_size'=>$this->strap_size,
+            'strap_color'=>$this->strap_color,
+            'movement'=>$this->movement,
+            'gender'=>$this->gender,
+            'clasp_type'=>$this->clasp_type,
+            'origin'=>$this->origin,
+            'quick_release'=>$this->quick_release,
+            'strap_style'=>$this->strap_style,
         ];
 
         if ($isAuthenticated) {
@@ -58,3 +72,14 @@ class ProductResource extends JsonResource
         return $data;
     }
 }
+
+
+//  return [
+//             'id' => $this->id,
+//             'name' => $this->name,
+//             'price' => $this->price,
+//             'image' => $this->images ? asset(config('app.aws_url') . '/' . $this->images[0]) : null,
+//             'images' => $this->images ? array_map(function ($image) {
+//                 return asset(config('app.aws_url') . '/' . $image);
+//             }, $this->images) : [],
+//         ];

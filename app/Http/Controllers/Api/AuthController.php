@@ -29,16 +29,25 @@ class AuthController extends Controller
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'access_token' => $token,
-            'token_type' => 'Bearer',
-            'user' => $user->load('customer.group'),
+            'code' => 200,
+            'status' => 'success',
+            'message' => 'Login Success',
+            'data' => [
+                'access_token' => $token,
+                'token_type' => 'Bearer',
+                'user_info' => $user,
+            ],
         ]);
     }
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
-
-        return response()->json(['message' => 'Logged out successfully']);
+        $user =User::where('id', $request->id)->first();
+        $user->currentAccessToken()->delete();
+        return response()->json([
+            'code' => 200,
+            'status' => 'success',
+            'message' => 'Logged out successfully',
+        ]);
     }
 }

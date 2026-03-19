@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\HomeController;
+use App\Http\Controllers\Api\ProductController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -15,15 +19,21 @@ use Illuminate\Support\Facades\Route;
 */
 
 // Public Routes
-Route::post('/login', [\App\Http\Controllers\Api\AuthController::class, 'login']);
-Route::get('/banners', [\App\Http\Controllers\Api\BannerController::class, 'index']);
-Route::get('/products', [\App\Http\Controllers\Api\ProductController::class, 'index']);
-Route::get('/products/{product}', [\App\Http\Controllers\Api\ProductController::class, 'show']);
+
+Route::prefix('v1/spa')->group(function () {
+    Route::post('login', [AuthController::class, 'login']);
+    Route::get('home', [HomeController::class, 'index']);
+    Route::get('products', [ProductController::class, 'index']);
+    Route::get('products/{product}', [ProductController::class, 'show']);
+    Route::get('categories', [CategoryController::class, 'index']);
+    Route::get('categories/fetch-all', [CategoryController::class, 'fetchAll']);
+    Route::get('filter-necessary-data', [HomeController::class, 'filterNecessaryData']);
+});
 
 // Protected Routes
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/logout', [\App\Http\Controllers\Api\AuthController::class, 'logout']);
-    Route::get('/user', function (Request $request) {
+Route::middleware('auth:sanctum')->prefix('v1/spa')->group(function () {
+    Route::post('logout', [AuthController::class, 'logout']);
+    Route::get('user', function (Request $request) {
         return $request->user()->load('customer.group');
     });
 });
