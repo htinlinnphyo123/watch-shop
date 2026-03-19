@@ -17,26 +17,30 @@ use Illuminate\Http\Request;
 
 class HomeController extends Controller
 {
-    public function index()
+   public function index()
     {
-        $banners = Banner::all();
-        $brands = Brand::all();
-        $banners = BannerResource::collection($banners);
-        $brands = BrandResource::collection($brands);
-        $collections = Collection::all();
-        $collections = CollectionResource::collection($collections);
-        $featureProducts = Product::where('is_active', true)
-            ->where("is_public", true)
-            ->where('is_featured', true)
-            ->limit(4)
-            ->get();
-        $featureProducts = ProductResource::collection($featureProducts);
-        $adminChoices = Product::where('is_active', true)
-            ->where("is_public", true)
-            ->limit(10)
-            ->orderBy('created_at', 'desc')
-            ->get(); 
-        $adminChoices = ProductResource::collection($adminChoices);
+        // Base product query (reuse)
+        $baseProductQuery = Product::where('is_active', true)
+            ->where('is_public', true);
+
+        $banners = BannerResource::collection(Banner::all())->resolve();
+        $brands = BrandResource::collection(Brand::all())->resolve();
+        $collections = CollectionResource::collection(Collection::all())->resolve();
+
+        $featureProducts = ProductResource::collection(
+            (clone $baseProductQuery)
+                ->where('is_featured', true)
+                ->latest()
+                ->limit(4)
+                ->get()
+        )->resolve();
+
+        $adminChoices = ProductResource::collection(
+            (clone $baseProductQuery)
+                ->latest()
+                ->limit(10)
+                ->get()
+        )->resolve();
 
         return response()->json([
             'code' => 200,
