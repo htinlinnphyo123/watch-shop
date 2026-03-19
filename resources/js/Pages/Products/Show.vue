@@ -20,7 +20,7 @@ const props = defineProps({
 });
 
 const form = useForm({
-    serial_number: '',
+    quantity: 1,
     purchase_date: '',
     status: 'available',
 });
@@ -29,13 +29,15 @@ const editingItemId = ref(null);
 const editForm = useForm({
     serial_number: '',
     system_unique_id: '',
+    purchase_date: '',
     status: '',
 });
 
 const startEdit = (item) => {
     editingItemId.value = item.id;
-    editForm.serial_number = item.serial_number;
+    editForm.serial_number = item.serial_number || '';
     editForm.system_unique_id = item.system_unique_id || '';
+    editForm.purchase_date = item.purchase_date ? item.purchase_date.substring(0, 10) : '';
     editForm.status = item.status;
 };
 
@@ -130,26 +132,28 @@ const formatDate = (dateString) => {
                          <div class="w-full mt-6 pt-6 border-t border-gray-100">
                              <h3 class="text-md font-bold text-gray-900 mb-4">Specifications</h3>
                              <div class="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
-                                 <div v-if="product.watch_type" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Watch Type</span><span class="text-gray-900 font-medium">{{ product.watch_type }}</span></div>
-                                 <div v-if="product.gender" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Gender</span><span class="text-gray-900 font-medium">{{ product.gender }}</span></div>
-                                 <div v-if="product.movement" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Movement</span><span class="text-gray-900 font-medium">{{ product.movement }}</span></div>
-                                 <div v-if="product.glass" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Glass</span><span class="text-gray-900 font-medium">{{ product.glass }}</span></div>
-                                 <div v-if="product.water_resistant" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Water Res.</span><span class="text-gray-900 font-medium">{{ product.water_resistant }}</span></div>
-                                 <div v-if="product.shape" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Shape</span><span class="text-gray-900 font-medium">{{ product.shape }}</span></div>
-                                 <div v-if="product.dial_size" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Dial Size</span><span class="text-gray-900 font-medium">{{ product.dial_size }}</span></div>
-                                 <div v-if="product.dial_color" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Dial Color</span><span class="text-gray-900 font-medium">{{ product.dial_color }}</span></div>
-                                 <div v-if="product.dial_markings" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Dial Markings</span><span class="text-gray-900 font-medium">{{ product.dial_markings }}</span></div>
-                                 <div v-if="product.band" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Band Material</span><span class="text-gray-900 font-medium">{{ product.band }}</span></div>
-                                 <div v-if="product.band_color" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Band Color</span><span class="text-gray-900 font-medium">{{ product.band_color }}</span></div>
-                                 <div v-if="product.band_size" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Band Size</span><span class="text-gray-900 font-medium">{{ product.band_size }}</span></div>
-                                 <div v-if="product.lug_width" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Lug Width</span><span class="text-gray-900 font-medium">{{ product.lug_width }}</span></div>
-                                 <div v-if="product.strap_buckle" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Strap Buckle</span><span class="text-gray-900 font-medium">{{ product.strap_buckle }}</span></div>
-                                 <div v-if="product.case_material" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Case Material</span><span class="text-gray-900 font-medium">{{ product.case_material }}</span></div>
-                                 <div v-if="product.case_color" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Case Color</span><span class="text-gray-900 font-medium">{{ product.case_color }}</span></div>
-                                 <div v-if="product.case_thickness" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Case Thickness</span><span class="text-gray-900 font-medium">{{ product.case_thickness }}</span></div>
-                                 <div v-if="product.case_finish" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Case Finish</span><span class="text-gray-900 font-medium">{{ product.case_finish }}</span></div>
-                                 <div v-if="product.battery_type" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Battery Type</span><span class="text-gray-900 font-medium">{{ product.battery_type }}</span></div>
-                                 <div v-if="product.couple" class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Couple Watch</span><span class="text-gray-900 font-medium">{{ product.couple }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Watch Type</span><span class="text-gray-900 font-medium">{{ product.watch_type || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Gender</span><span class="text-gray-900 font-medium">{{ product.gender || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Movement</span><span class="text-gray-900 font-medium">{{ product.movement || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Glass / Crystal</span><span class="text-gray-900 font-medium">{{ product.glass || product.crystal || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Water Resistant</span><span class="text-gray-900 font-medium">{{ product.water_resistant || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Case Shape</span><span class="text-gray-900 font-medium">{{ product.shape || product.case_shape || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Dial Size</span><span class="text-gray-900 font-medium">{{ product.dial_size || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Dial Color</span><span class="text-gray-900 font-medium">{{ product.dial_color || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Dial Markings</span><span class="text-gray-900 font-medium">{{ product.dial_markings || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Band Material</span><span class="text-gray-900 font-medium">{{ product.band || product.strap_material || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Band Color</span><span class="text-gray-900 font-medium">{{ product.band_color || product.strap_color || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Band Size</span><span class="text-gray-900 font-medium">{{ product.band_size || product.strap_size || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Lug Width</span><span class="text-gray-900 font-medium">{{ product.lug_width || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Clasp Type</span><span class="text-gray-900 font-medium">{{ product.strap_buckle || product.clasp_type || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Case Material</span><span class="text-gray-900 font-medium">{{ product.case_material || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Case Color</span><span class="text-gray-900 font-medium">{{ product.case_color || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Case Thickness</span><span class="text-gray-900 font-medium">{{ product.case_thickness || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Case Finish</span><span class="text-gray-900 font-medium">{{ product.case_finish || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Battery Type</span><span class="text-gray-900 font-medium">{{ product.battery_type || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Couple Watch</span><span class="text-gray-900 font-medium">{{ product.couple || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Origin</span><span class="text-gray-900 font-medium">{{ product.origin || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Quick Release</span><span class="text-gray-900 font-medium">{{ product.quick_release || '-' }}</span></div>
                              </div>
                          </div>
                      </div>
@@ -157,24 +161,34 @@ const formatDate = (dateString) => {
                  
                  <!-- Stock Management -->
                  <div class="md:w-2/3 space-y-6">
-                     <!-- Add Stock Form -->
-                     <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-                         <h3 class="text-lg font-bold text-gray-900 mb-4">Add Stock (Serial Number)</h3>
-                         <form @submit.prevent="submitItem" class="flex items-end gap-4">
-                             <div class="flex-1">
-                                 <InputLabel value="Serial Number" class="text-gray-600" />
-                                 <TextInput type="text" v-model="form.serial_number" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500" required placeholder="SN-12345" />
-                                 <InputError :message="form.errors.serial_number" class="mt-1" />
-                             </div>
-                             <div class="w-40">
-                                 <InputLabel value="Purchase Date" class="text-gray-600" />
-                                 <TextInput type="date" v-model="form.purchase_date" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500" />
-                             </div>
-                             <PrimaryButton class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold h-[42px]" :disabled="form.processing">
-                                 Add Item
-                             </PrimaryButton>
-                         </form>
-                     </div>
+                      <!-- Add Stock Form -->
+                      <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+                          <h3 class="text-lg font-bold text-gray-900 mb-1">Add Stock</h3>
+                          <p class="text-xs text-gray-500 mb-4">Enter quantity — each unit gets an auto system code. Optionally paste serial numbers (one per line).</p>
+                          <form @submit.prevent="submitItem" class="space-y-4">
+                              <div class="flex items-end gap-4">
+                                  <div class="w-28">
+                                      <InputLabel value="Quantity *" class="text-gray-600" />
+                                      <TextInput type="number" v-model="form.quantity" min="1" max="500" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500" required />
+                                      <InputError :message="form.errors.quantity" class="mt-1" />
+                                  </div>
+                                  <div class="w-44">
+                                      <InputLabel value="Purchase Date" class="text-gray-600" />
+                                      <TextInput type="date" v-model="form.purchase_date" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500" />
+                                  </div>
+                                  <div class="flex-1">
+                                      <InputLabel value="Status" class="text-gray-600" />
+                                      <select v-model="form.status" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500 rounded-md shadow-sm text-sm">
+                                          <option value="available">Available</option>
+                                          <option value="reserved">Reserved</option>
+                                      </select>
+                                  </div>
+                                  <PrimaryButton class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold" :disabled="form.processing">
+                                      Add {{ form.quantity }} Item{{ form.quantity > 1 ? 's' : '' }}
+                                  </PrimaryButton>
+                              </div>
+                          </form>
+                      </div>
                      
                      <!-- Stock List -->
                      <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
@@ -188,6 +202,7 @@ const formatDate = (dateString) => {
                                 <tr>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial Number</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">System Code</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purchase Date</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Added On</th>
                                     <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -197,12 +212,16 @@ const formatDate = (dateString) => {
                                 <tr v-for="item in items" :key="item.id" class="hover:bg-gray-50 transition-colors">
                                     <template v-if="editingItemId === item.id">
                                         <td class="px-4 py-4 whitespace-nowrap">
-                                            <input type="text" v-model="editForm.serial_number" class="w-full min-w-[130px] text-sm border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500" />
+                                            <input type="text" v-model="editForm.serial_number" class="w-full min-w-[130px] text-sm border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500" placeholder="Optional" />
                                             <InputError :message="editForm.errors.serial_number" class="mt-1" />
                                         </td>
                                         <td class="px-4 py-4 whitespace-nowrap">
                                             <input type="text" v-model="editForm.system_unique_id" class="w-full min-w-[120px] text-sm border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500" placeholder="System Code" />
                                             <InputError :message="editForm.errors.system_unique_id" class="mt-1" />
+                                        </td>
+                                        <td class="px-4 py-4 whitespace-nowrap">
+                                            <input type="date" v-model="editForm.purchase_date" class="w-full min-w-[140px] text-sm border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500" />
+                                            <InputError :message="editForm.errors.purchase_date" class="mt-1" />
                                         </td>
                                         <td class="px-4 py-4 whitespace-nowrap">
                                             <select v-model="editForm.status" class="w-full min-w-[110px] text-sm border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500">
@@ -222,8 +241,12 @@ const formatDate = (dateString) => {
                                         </td>
                                     </template>
                                     <template v-else>
-                                        <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-mono">{{ item.serial_number }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap font-mono">
+                                            <span v-if="item.serial_number" class="text-gray-900">{{ item.serial_number }}</span>
+                                            <span v-else class="text-gray-400 italic text-xs">No serial</span>
+                                        </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-gray-600 font-mono text-xs">{{ item.system_unique_id || '-' }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ item.purchase_date ? formatDate(item.purchase_date) : '-' }}</td>
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
                                                 :class="{

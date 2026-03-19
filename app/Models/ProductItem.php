@@ -11,6 +11,12 @@ class ProductItem extends Model
 
     protected $guarded = [];
 
+    protected $casts = [
+        'system_unique_id' => 'string',
+        'serial_number'    => 'string',
+        'purchase_date'    => 'date',
+    ];
+
     public function product()
     {
         return $this->belongsTo(Product::class);
