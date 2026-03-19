@@ -13,23 +13,37 @@ class ProductController extends Controller
 {
     $query = Product::with(['brand', 'categories']);
 
-    if ($request->has('category_id')) {
+    if ($request->has('categoryId')) {
         $query->whereHas('categories', function ($q) use ($request) {
-            $q->where('categories.id', $request->category_id);
+            $q->where('categories.id', $request->categoryId);
         });
     }
 
-    if ($request->has('brand_id')) {
-        $query->where('brand_id', $request->brand_id);
+    if ($request->has('brandId')) {
+        $query->where('brand_id', $request->brandId);
     }
 
-    if ($request->has('search')) {
-        $search = $request->search;
-        $query->where(function ($q) use ($search) {
-            $q->where('name', 'like', "%{$search}%")
-              ->orWhere('description', 'like', "%{$search}%");
-        });
+    if($request->has('collectionId')) {
+        $query->where('collection_id', $request->collectionId);
     }
+
+    if($request->has('minPrice')) {
+        $query->where('price', '>=', $request->minPrice);
+    }
+
+    if($request->has('maxPrice')) {
+        $query->where('price', '<=', $request->maxPrice);
+    }
+
+    if($request->has('dialSize')) {
+        $query->where('dial_size', $request->dialSize);
+    }
+
+    if($request->has('caseShape')) {
+        $query->where('case_shape', $request->caseShape);
+    }
+
+    
 
     $products = $query->paginate($request->limit ?? 12);
     $products = ProductResource::collection($products)->response()->getData(true);
