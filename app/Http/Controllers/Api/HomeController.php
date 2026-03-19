@@ -23,9 +23,9 @@ class HomeController extends Controller
         $baseProductQuery = Product::where('is_active', true)
             ->where('is_public', true);
 
-        $banners = BannerResource::collection(Banner::all())->resolve();
-        $brands = BrandResource::collection(Brand::all())->resolve();
-        $collections = CollectionResource::collection(Collection::all())->resolve();
+        $banners = BannerResource::collection(Banner::orderBy('order', 'asc')->get())->resolve();
+        $brands = BrandResource::collection(Brand::orderBy('created_at', 'asc')->get())->resolve();
+        $collections = CollectionResource::collection(Collection::orderBy('created_at', 'asc')->get())->resolve();
 
         $featureProducts = ProductResource::collection(
             (clone $baseProductQuery)
