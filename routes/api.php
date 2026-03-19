@@ -27,6 +27,7 @@ Route::prefix('v1/spa')->group(function () {
     Route::get('products/{product}', [ProductController::class, 'show']);
     Route::get('categories', [CategoryController::class, 'index']);
     Route::get('categories/fetch-all', [CategoryController::class, 'fetchAll']);
+    Route::get('filter-necessary-data', [HomeController::class, 'filterNecessaryData']);
 });
 
 // Protected Routes
