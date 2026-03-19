@@ -54,32 +54,38 @@ class HomeController extends Controller
 
     public function filterNecessaryData()
     {
-        $categories = Category::all();
-        $categories = CategoryResource::collection($categories)->response()->getData(true)['data'];
-        $brands = Brand::all();
-        $brands = BrandResource::collection($brands)->response()->getData(true)['data'];
-        $collections = Collection::all();
-        $collections = CollectionResource::collection($collections)->response()->getData(true)['data'];
-        $caseShapes = Product::where('is_active', true)
-            ->where("is_public", true)
+         // Run queries in parallel style (cleaner)
+        $categories = CategoryResource::collection(Category::all())->resolve();
+        $brands = BrandResource::collection(Brand::all())->resolve();
+        $collections = CollectionResource::collection(Collection::all())->resolve();
+
+        // Single query for product attributes
+        $productAttributes = Product::where('is_active', true)
+            ->where('is_public', true)
+            ->select('case_shape', 'dial_size')
             ->distinct()
-            ->pluck('case_shape');
-        $dailSizes = Product::where('is_active', true)
-            ->where("is_public", true)
-            ->distinct()
-            ->pluck('dial_size');
-        $caseShapes = $caseShapes->map(function ($caseShape) {
-            return [
-                'id' => $caseShape,
-                'name' => $caseShape,
-            ];
-        });
-        $dailSizes = $dailSizes->map(function ($dailSize) {
-            return [
-                'id' => $dailSize,
-                'name' => $dailSize,
-            ];
-        });
+            ->get();
+
+        $caseShapes = $productAttributes
+            ->pluck('case_shape')
+            ->filter()
+            ->unique()
+            ->values()
+            ->map(fn($item) => [
+                'id' => $item,
+                'name' => $item,
+            ]);
+
+        $dialSizes = $productAttributes
+            ->pluck('dial_size')
+            ->filter()
+            ->unique()
+            ->values()
+            ->map(fn($item) => [
+                'id' => $item,
+                'name' => $item,
+            ]);
+
         return response()->json([
             'code' => 200,
             'status' => 'success',
@@ -89,7 +95,7 @@ class HomeController extends Controller
                 'brands' => $brands,
                 'collections' => $collections,
                 'case_shapes' => $caseShapes,
-                'dial_sizes' => $dailSizes,
+                'dial_sizes' => $dialSizes,
             ],
         ]);
     }
