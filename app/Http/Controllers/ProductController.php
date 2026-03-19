@@ -32,7 +32,8 @@ class ProductController extends Controller
         $query = Product::with(['brand', 'categories', 'customerGroups'])
             ->withCount(['items as available_stock_count' => function ($q) {
                 $q->where('status', 'available');
-            }]);
+            }])
+            ->latest('updated_at');
 
         if ($request->filled('search')) {
             $search = $request->search;

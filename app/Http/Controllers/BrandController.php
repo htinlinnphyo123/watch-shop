@@ -11,7 +11,7 @@ class BrandController extends Controller
     public function index()
     {
         return Inertia::render('Brands/Index', [
-            'brands' => Brand::withCount('products')->paginate(10),
+            'brands' => Brand::withCount('products')->latest('updated_at')->paginate(10),
         ]);
     }
 

@@ -11,7 +11,7 @@ class CategoryController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Category::with(['parent', 'children'])->withCount('products');
+        $query = Category::with(['parent', 'children'])->withCount('products')->latest('updated_at');
 
         if ($request->has('parent_id') && $request->parent_id !== 'all') {
             if ($request->parent_id === 'top_level') {
@@ -55,10 +55,14 @@ class CategoryController extends Controller
         ]);
 
         if ($request->hasFile('photo')) {
+            // New photo uploaded — delete the old one from storage first
             if ($category->photo) {
                 Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($category->photo);
             }
             $validated['photo'] = $request->file('photo')->store('categories', env('FILESYSTEM_DISK', 's3'));
+        } else {
+            // No new photo — remove the key entirely so the existing photo is NOT overwritten
+            unset($validated['photo']);
         }
 
         $category->update($validated);
