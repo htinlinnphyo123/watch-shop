@@ -11,14 +11,14 @@ class OrderController extends Controller
     public function index()
     {
         return Inertia::render('Orders/Index', [
-            'orders' => Order::with(['customer', 'user', 'items.product'])->latest()->paginate(10),
+            'orders' => Order::with(['customer', 'user', 'items.product', 'items.soldItems'])->latest()->paginate(10),
         ]);
     }
 
     public function show(Order $order)
     {
         return Inertia::render('Orders/Show', [
-            'order' => $order->load(['customer', 'user', 'items.product']),
+            'order' => $order->load(['customer', 'user', 'items.product', 'items.soldItems']),
         ]);
     }
 }
