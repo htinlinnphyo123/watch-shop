@@ -86,7 +86,12 @@ class ProductController extends Controller
     public function show(Product $product)
     {
         $product = new ProductResource($product->load(['brand', 'categories']));
-        $relatedProducts = Product::where('id', '!=', $product->id)->limit(4)->get();
+        $relatedProducts = Product::where('id', '!=', $product->id)
+            ->where('is_active', true)
+            ->where('is_public', true)
+            ->inRandomOrder()
+            ->limit(4)
+            ->get();
         $relatedProducts = ProductResource::collection($relatedProducts)->response()->getData(true);
         return response()->json([
             'code' => 200,
