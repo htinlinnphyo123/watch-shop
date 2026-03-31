@@ -43,6 +43,10 @@ class ProductController extends Controller
             );
         });
 
+        $query->when($request->search, function ($q, $search) {
+            $q->where('name', 'ilike', "%{$search}%");
+        });
+
         $query->when($request->brandId, fn ($q, $brandId) =>
             $q->where('brand_id', $brandId)
         );
