@@ -1,12 +1,13 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { Head, useForm, Link } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { Head, useForm, Link, usePage } from '@inertiajs/vue3';
+import { ref, nextTick } from 'vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import DangerButton from '@/Components/DangerButton.vue';
+import JsBarcode from 'jsbarcode';
 
 const props = defineProps({
     product: {
@@ -72,6 +73,80 @@ const formatDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString();
 };
+
+// ─── Barcode Label Generation ─────────────────────────────────────────────────
+const page = usePage();
+const isPrintModalOpen = ref(false);
+const selectedLabels = ref([]);
+const labelRefs = ref({});
+
+const openPrintModal = () => {
+    selectedLabels.value = [...props.items];
+    isPrintModalOpen.value = true;
+    // Render barcodes after modal is visible
+    nextTick(() => renderAllBarcodes());
+};
+
+const renderAllBarcodes = () => {
+    props.items.forEach(item => {
+        const svgEl = document.getElementById('barcode-svg-' + item.id);
+        if (svgEl && item.system_unique_id) {
+            try {
+                JsBarcode(svgEl, item.system_unique_id, {
+                    format: 'CODE128',
+                    width: 2.2,
+                    height: 60,
+                    displayValue: true,
+                    fontSize: 12,
+                    fontOptions: 'bold',
+                    margin: 6,
+                    marginTop: 4,
+                    marginBottom: 4,
+                    background: '#ffffff',
+                    lineColor: '#000000',
+                    textMargin: 4,
+                });
+            } catch (e) {
+                console.warn('Barcode error for', item.system_unique_id, e);
+            }
+        }
+    });
+};
+
+const printLabels = () => {
+    const printWindow = window.open('', '_blank');
+    const labelEls = document.querySelectorAll('.barcode-label-card');
+    let labelsHtml = '';
+    labelEls.forEach(el => {
+        labelsHtml += el.outerHTML;
+    });
+    printWindow.document.write(`
+        <!DOCTYPE html><html><head>
+        <title>Barcode Labels - ${props.product.name}</title>
+        <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body { font-family: Arial, sans-serif; background: #fff; }
+            .labels-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 8px; }
+            .barcode-label-card {
+                border: 1px solid #e5e7eb;
+                border-radius: 4px;
+                padding: 6px 8px;
+                text-align: center;
+                page-break-inside: avoid;
+                background: #fff;
+            }
+            .label-barcode svg { display: block; margin: 0 auto; width: 100%; height: auto; }
+            @media print { body { margin: 0; } .no-print { display: none !important; } }
+        </style>
+        </head><body>
+        <div class="labels-grid">${labelsHtml}</div>
+        </body></html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 500);
+};
+// ─────────────────────────────────────────────────────────────────────────────
 </script>
 
 <template>
@@ -192,10 +267,19 @@ const formatDate = (dateString) => {
                      
                      <!-- Stock List -->
                      <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
-                        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-                            <h3 class="text-lg font-bold text-gray-900">Stock Inventory</h3>
-                            <span class="text-gold-600 font-bold">{{ (items || []).filter(i => i.status === 'available').length }} Available</span>
-                        </div>
+                         <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                             <h3 class="text-lg font-bold text-gray-900">Stock Inventory</h3>
+                             <div class="flex items-center gap-3">
+                                 <button
+                                     @click="openPrintModal"
+                                     class="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gold-50 hover:border-gold-400 hover:text-gold-700 transition-colors shadow-sm"
+                                 >
+                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                                     Print Labels
+                                 </button>
+                                 <span class="text-gold-600 font-bold">{{ (items || []).filter(i => i.status === 'available').length }} Available</span>
+                             </div>
+                         </div>
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
@@ -277,4 +361,56 @@ const formatDate = (dateString) => {
              </div>
         </div>
     </AdminLayout>
+
+    <!-- ── Print Barcode Labels Modal ───────────────────────────────────── -->
+    <Teleport to="body">
+        <div v-if="isPrintModalOpen" class="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-8">
+                <!-- Modal Header -->
+                <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-gold-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                            Barcode Labels
+                        </h2>
+                        <p class="text-sm text-gray-400 mt-0.5">{{ props.items.length }} label{{ props.items.length !== 1 ? 's' : '' }} for {{ product.name }}</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button
+                            @click="printLabels"
+                            class="inline-flex items-center gap-2 px-4 py-2 bg-gold-500 hover:bg-gold-600 text-dark-900 font-bold rounded-lg text-sm transition-colors shadow-sm"
+                        >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                            Print All
+                        </button>
+                        <button @click="isPrintModalOpen = false" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Labels Grid -->
+                <div class="p-6">
+                    <div v-if="props.items.length === 0" class="text-center py-16 text-gray-400">
+                        No stock items to generate labels for.
+                    </div>
+                    <!-- 2-column grid of wide horizontal labels -->
+                    <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div
+                            v-for="item in props.items"
+                            :key="item.id"
+                            class="barcode-label-card border border-gray-200 rounded-lg px-4 py-3 bg-white shadow-sm hover:shadow-md transition-shadow"
+                        >
+                            <!-- Barcode SVG only — full width, wide and short -->
+                            <svg :id="'barcode-svg-' + item.id" class="w-full h-auto block"></svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 pb-4 flex justify-end border-t border-gray-100 pt-4">
+                    <button @click="isPrintModalOpen = false" class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Close</button>
+                </div>
+            </div>
+        </div>
+    </Teleport>
 </template>

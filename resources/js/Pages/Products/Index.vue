@@ -1,7 +1,7 @@
 <script setup>
 import AdminLayout from "@/Layouts/AdminLayout.vue";
 import { Head, useForm, router, Link, usePage } from "@inertiajs/vue3";
-import { ref, watch } from "vue";
+import { ref, watch, onUnmounted } from "vue";
 import debounce from "lodash/debounce";
 import Modal from "@/Components/Modal.vue";
 import InputLabel from "@/Components/InputLabel.vue";
@@ -160,6 +160,78 @@ const editingProduct = ref(null);
 const imageInput = ref(null);
 const imagesInput = ref(null);
 const previewImages = ref([]);
+
+// ─── Barcode Scanner (Camera) ──────────────────────────────────────────────
+const isScanModalOpen = ref(false);
+const scanVideoRef = ref(null);
+const scanError = ref('');
+const scanSuccess = ref('');
+let scanStream = null;
+let barcodeDetector = null;
+let scanAnimFrame = null;
+
+const openScanModal = async () => {
+  scanError.value = '';
+  scanSuccess.value = '';
+  isScanModalOpen.value = true;
+  await startCamera();
+};
+
+const closeScanModal = () => {
+  stopCamera();
+  isScanModalOpen.value = false;
+  scanError.value = '';
+  scanSuccess.value = '';
+};
+
+const startCamera = async () => {
+  try {
+    if (!('BarcodeDetector' in window)) {
+      scanError.value = 'Barcode scanning is not supported in this browser. Please use Chrome or Edge.';
+      return;
+    }
+    barcodeDetector = new window.BarcodeDetector({
+      formats: ['code_128', 'code_39', 'ean_13', 'ean_8', 'qr_code', 'upc_a', 'upc_e', 'data_matrix'],
+    });
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    if (scanVideoRef.value) {
+      scanVideoRef.value.srcObject = scanStream;
+      await scanVideoRef.value.play();
+      detectBarcodeLoop();
+    }
+  } catch (err) {
+    scanError.value = 'Camera access denied or not available: ' + err.message;
+  }
+};
+
+const stopCamera = () => {
+  if (scanAnimFrame) cancelAnimationFrame(scanAnimFrame);
+  if (scanStream) {
+    scanStream.getTracks().forEach(t => t.stop());
+    scanStream = null;
+  }
+};
+
+const detectBarcodeLoop = async () => {
+  if (!scanVideoRef.value || scanVideoRef.value.readyState < 2) {
+    scanAnimFrame = requestAnimationFrame(detectBarcodeLoop);
+    return;
+  }
+  try {
+    const barcodes = await barcodeDetector.detect(scanVideoRef.value);
+    if (barcodes.length > 0) {
+      const code = barcodes[0].rawValue;
+      form.barcode = code;
+      scanSuccess.value = 'Scanned: ' + code;
+      setTimeout(() => closeScanModal(), 1200);
+      return;
+    }
+  } catch (_) {}
+  scanAnimFrame = requestAnimationFrame(detectBarcodeLoop);
+};
+
+onUnmounted(() => stopCamera());
+// ──────────────────────────────────────────────────────────────────────────────
 
 const handleMultipleImages = (e) => {
     form.images = Array.from(e.target.files);
@@ -675,12 +747,24 @@ const deleteProduct = (product) => {
                 value="Barcode (Leave empty to generate)"
                 class="text-gray-700"
               />
-              <TextInput
-                type="text"
-                class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900"
-                v-model="form.barcode"
-                placeholder="Auto-generate"
-              />
+              <div class="mt-1 flex gap-2">
+                <TextInput
+                  type="text"
+                  class="block w-full bg-gray-50 border-gray-300 text-gray-900"
+                  v-model="form.barcode"
+                  placeholder="Auto-generate"
+                />
+                <!-- Camera scan button -->
+                <button
+                  type="button"
+                  @click="openScanModal"
+                  title="Scan barcode with camera"
+                  class="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-gray-100 hover:bg-gold-50 hover:text-gold-700 border border-gray-300 hover:border-gold-400 text-gray-600 text-sm font-medium transition-colors"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5a.5.5 0 11-1 0 .5.5 0 011 0zM6 20h4M4 4h4v4H4V4zm12 0h4v4h-4V4zM4 16h4v4H4v-4z"/></svg>
+                  Scan
+                </button>
+              </div>
             </div>
           </div>
 
@@ -956,5 +1040,65 @@ const deleteProduct = (product) => {
         </form>
       </div>
     </Modal>
+
+    <!-- ── Camera Barcode Scanner Modal ───────────────────────────────── -->
+    <Modal :show="isScanModalOpen" @close="closeScanModal" max-width="sm">
+      <div class="p-6 bg-white text-gray-900">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <svg class="w-5 h-5 text-gold-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5a.5.5 0 11-1 0 .5.5 0 011 0zM6 20h4M4 4h4v4H4V4zm12 0h4v4h-4V4zM4 16h4v4H4v-4z"/></svg>
+            Scan Barcode
+          </h2>
+          <button @click="closeScanModal" class="text-gray-400 hover:text-gray-600 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <!-- Error state -->
+        <div v-if="scanError" class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          {{ scanError }}
+          <p class="mt-2 text-gray-600 text-xs">💡 Tip: You can also use a USB barcode scanner — just focus the barcode input field and scan.</p>
+        </div>
+
+        <!-- Success state -->
+        <div v-if="scanSuccess" class="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm flex items-center gap-2">
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          {{ scanSuccess }}
+        </div>
+
+        <!-- Video feed -->
+        <div v-if="!scanError" class="relative rounded-xl overflow-hidden bg-black border border-gray-200" style="aspect-ratio: 4/3;">
+          <video ref="scanVideoRef" class="w-full h-full object-cover" muted playsinline></video>
+          <!-- Scan overlay -->
+          <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div class="w-48 h-32 border-2 border-gold-400 rounded-lg relative">
+              <span class="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-gold-500 rounded-tl"></span>
+              <span class="absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 border-gold-500 rounded-tr"></span>
+              <span class="absolute -bottom-1 -left-1 w-4 h-4 border-b-2 border-l-2 border-gold-500 rounded-bl"></span>
+              <span class="absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 border-gold-500 rounded-br"></span>
+              <!-- Animated scan line -->
+              <div class="scan-line absolute left-0 right-0 h-0.5 bg-gold-400/70"></div>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-center text-xs text-gray-400 mt-3">Point your camera at a barcode. It will be detected automatically.</p>
+
+        <div class="mt-4 flex justify-end">
+          <SecondaryButton @click="closeScanModal">Cancel</SecondaryButton>
+        </div>
+      </div>
+    </Modal>
   </AdminLayout>
 </template>
+
+<style scoped>
+.scan-line {
+  animation: scan 2s linear infinite;
+}
+@keyframes scan {
+  0% { top: 0; }
+  50% { top: calc(100% - 2px); }
+  100% { top: 0; }
+}
+</style>
