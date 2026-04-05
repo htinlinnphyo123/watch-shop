@@ -18,7 +18,8 @@ class ProductController extends Controller
         $specFields = [
             'dial_size', 'dial_color', 'strap_size', 'strap_color', 'strap_material', 
             'strap_style', 'gender', 'movement', 'quick_release', 'clasp_type', 
-            'origin', 'case_shape', 'water_resistant', 'crystal'
+            'origin', 'case_shape', 'water_resistant', 'crystal',
+            'caliber_code', 'caseback_design',
         ];
 
         $specOptions = [];
@@ -88,6 +89,8 @@ class ProductController extends Controller
             'category_ids' => 'required|array',
             'category_ids.*' => 'exists:categories,id',
             'price' => 'required|numeric',
+            'web_price' => 'nullable|numeric',
+            'discount' => 'nullable|numeric|min:0|max:100',
             'cost_price' => 'nullable|numeric',
             'model_number' => 'nullable|string',
             'warranty_period' => 'required|integer',
@@ -96,6 +99,8 @@ class ProductController extends Controller
             'barcode' => 'nullable|string',
             'currency' => 'nullable|in:MMK,USD,THB',
             'crystal' => 'nullable|string',
+            'caliber_code' => 'nullable|string',
+            'caseback_design' => 'nullable|string',
             'water_resistant' => 'nullable|string',
             'case_shape' => 'nullable|string',
             'dial_size' => 'nullable|string',
@@ -162,6 +167,8 @@ class ProductController extends Controller
             'category_ids' => 'required|array',
             'category_ids.*' => 'exists:categories,id',
             'price' => 'required|numeric',
+            'web_price' => 'nullable|numeric',
+            'discount' => 'nullable|numeric|min:0|max:100',
             'cost_price' => 'nullable|numeric',
             'model_number' => 'nullable|string',
             'warranty_period' => 'required|integer',
@@ -170,6 +177,8 @@ class ProductController extends Controller
             'barcode' => 'nullable|string',
             'currency' => 'nullable|in:MMK,USD,THB',
             'crystal' => 'nullable|string',
+            'caliber_code' => 'nullable|string',
+            'caseback_design' => 'nullable|string',
             'water_resistant' => 'nullable|string',
             'case_shape' => 'nullable|string',
             'dial_size' => 'nullable|string',

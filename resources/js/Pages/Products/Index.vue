@@ -125,12 +125,16 @@ const form = useForm({
   name: "",
   model_number: "",
   price: "",
+  web_price: "",
+  discount: "",
   cost_price: "",
   warranty_period: "12", // default 12 months
   description: "",
   barcode: "",
   currency: "MMK",
   crystal: "",
+  caliber_code: "",
+  caseback_design: "",
   water_resistant: "",
   case_shape: "",
   dial_size: "",
@@ -187,12 +191,16 @@ const openModal = (product = null) => {
     form.name = product.name;
     form.model_number = product.model_number;
     form.price = product.price;
+    form.web_price = product.web_price || "";
+    form.discount = product.discount || "";
     form.cost_price = product.cost_price;
     form.warranty_period = product.warranty_period;
     form.description = product.description;
     form.barcode = product.barcode;
     form.currency = product.currency || "MMK";
     form.crystal = product.crystal || "";
+    form.caliber_code = product.caliber_code || "";
+    form.caseback_design = product.caseback_design || "";
     form.water_resistant = product.water_resistant || "";
     form.case_shape = product.case_shape || "";
     form.dial_size = product.dial_size || "";
@@ -239,6 +247,8 @@ const openModal = (product = null) => {
     form.is_active = true;
     form.is_public = true;
     form.crystal = "";
+    form.caliber_code = "";
+    form.caseback_design = "";
     form.water_resistant = "";
     form.case_shape = "";
     form.dial_size = "";
@@ -252,6 +262,8 @@ const openModal = (product = null) => {
     form.quick_release = "";
     form.clasp_type = "";
     form.origin = "";
+    form.web_price = "";
+    form.discount = "";
     previewImages.value = [];
   }
   isModalOpen.value = true;
@@ -726,6 +738,37 @@ const deleteProduct = (product) => {
             </div>
           </div>
 
+          <!-- Web Price & Discount -->
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <InputLabel
+                :value="'Web Price (' + form.currency + ')'"
+                class="text-gray-700"
+              />
+              <TextInput
+                type="number"
+                step="0.01"
+                class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900"
+                v-model="form.web_price"
+                placeholder="Optional website listing price"
+              />
+              <InputError class="mt-2" :message="form.errors.web_price" />
+            </div>
+            <div>
+              <InputLabel value="Discount (%)" class="text-gray-700" />
+              <TextInput
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900"
+                v-model="form.discount"
+                placeholder="e.g. 10 for 10%"
+              />
+              <InputError class="mt-2" :message="form.errors.discount" />
+            </div>
+          </div>
+
           <div>
             <InputLabel
               value="Warranty Period (Months)"
@@ -839,6 +882,20 @@ const deleteProduct = (product) => {
                       <TextInput type="text" list="crystal_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.crystal" placeholder="e.g. Sapphire, Mineral" />
                       <datalist id="crystal_options">
                           <option v-for="opt in specOptions.crystal" :key="opt" :value="opt"></option>
+                      </datalist>
+                  </div>
+                  <div>
+                      <InputLabel value="Caliber Code" class="text-gray-700 text-xs" />
+                      <TextInput type="text" list="caliber_code_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.caliber_code" placeholder="e.g. ETA 2824, NH35" />
+                      <datalist id="caliber_code_options">
+                          <option v-for="opt in specOptions.caliber_code" :key="opt" :value="opt"></option>
+                      </datalist>
+                  </div>
+                  <div>
+                      <InputLabel value="Caseback Design" class="text-gray-700 text-xs" />
+                      <TextInput type="text" list="caseback_design_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.caseback_design" placeholder="e.g. Solid, Exhibition" />
+                      <datalist id="caseback_design_options">
+                          <option v-for="opt in specOptions.caseback_design" :key="opt" :value="opt"></option>
                       </datalist>
                   </div>
               </div>

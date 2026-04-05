@@ -1,12 +1,11 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, useForm, Link } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
-import DangerButton from '@/Components/DangerButton.vue';
 
 const props = defineProps({
     product: {
@@ -62,6 +61,15 @@ const submitItem = () => {
     });
 };
 
+const finalPrice = computed(()=>{
+  let price = props.product.price;
+  let discount = props.product.discount;
+  if(props.product.discount){
+    return price - (price * discount / 100);
+  }
+  return price;
+})
+
 const deleteItem = (item) => {
     if (confirm('Are you sure you want to remove this item from stock?')) {
         useForm({}).delete(route('items.destroy', item.id));
@@ -99,11 +107,25 @@ const formatDate = (dateString) => {
                          </div>
                          <div v-else class="w-full h-64 bg-gray-100 rounded mb-4 flex items-center justify-center text-gray-400">No Image</div>
                          
-                         <h1 class="text-2xl font-bold text-gray-900 text-center">{{ product.name }}</h1>
-                         <p class="text-gold-600 font-bold text-xl mt-2">{{ parseInt(product.price).toLocaleString() }} {{ product.currency }}</p>
-                         <p v-if="product.currency !== 'MMK'" class="text-sm text-gray-500 font-bold mt-1">
-                             ≈ {{ (parseFloat(product.price) * parseFloat($page.props.settings[product.currency.toLowerCase() + '_rate'] || 1)).toLocaleString() }} MMK
-                         </p>
+                         <h1 class="text-2xl font-bold text-gray-900">{{ product.name }}</h1>
+                         <p class="text-gold-600 font-bold text-xl mt-2">Price - {{ parseInt(product.price).toLocaleString() }} {{ product.currency }}</p>                  
+                         <div v-if="product.discount" class="mt-1 flex items-center gap-2">
+                             <span class="text-gray-400 text-xs uppercase tracking-wider">Discount</span>
+                             <span class="text-gray-600 font-semibold text-sm">{{ product.discount }}%</span>
+                         </div>
+                         <div v-if="product.discount" class="mt-1 flex items-center gap-2">
+                            <span class="text-gray-400 text-xs uppercase tracking-wider">Final Price </span>
+                            <p v-if="product.web_price">{{ parseInt(finalPrice).toLocaleString() }} {{ product.currency }}</p>
+                         </div>
+                         <div v-if="product.web_price" class="mt-1 flex items-center gap-2">
+                             <span class="text-gray-400 text-xs uppercase tracking-wider">Web Price</span>
+                             <span class="text-gray-600 font-semibold text-sm">{{ parseInt(product.web_price).toLocaleString() }} {{ product.currency }}</span>
+                         </div>
+                         <div v-if="product.web_price && product.discount" class="mt-1 flex items-center gap-2">
+                             <span class="text-gray-400 text-xs uppercase tracking-wider">Final Discount %</span>
+                             <span class="text-gray-600 font-semibold text-sm">{{ (100 - finalPrice / product.web_price * 100).toLocaleString() }} %</span>
+                         </div>
+                         
                          
                          <div class="w-full mt-6 space-y-3 text-sm">
                              <div class="flex justify-between border-b border-gray-100 pb-2">
@@ -154,6 +176,8 @@ const formatDate = (dateString) => {
                                  <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Couple Watch</span><span class="text-gray-900 font-medium">{{ product.couple || '-' }}</span></div>
                                  <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Origin</span><span class="text-gray-900 font-medium">{{ product.origin || '-' }}</span></div>
                                  <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Quick Release</span><span class="text-gray-900 font-medium">{{ product.quick_release || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Caliber Code</span><span class="text-gray-900 font-medium">{{ product.caliber_code || '-' }}</span></div>
+                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Caseback Design</span><span class="text-gray-900 font-medium">{{ product.caseback_design || '-' }}</span></div>
                              </div>
                          </div>
                      </div>
