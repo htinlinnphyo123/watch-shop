@@ -129,6 +129,7 @@ const form = useForm({
   discount: "",
   cost_price: "",
   warranty_period: "12", // default 12 months
+  warranty_type: "",
   description: "",
   barcode: "",
   currency: "MMK",
@@ -195,6 +196,7 @@ const openModal = (product = null) => {
     form.discount = product.discount || "";
     form.cost_price = product.cost_price;
     form.warranty_period = product.warranty_period;
+    form.warranty_type = product.warranty_type || "";
     form.description = product.description;
     form.barcode = product.barcode;
     form.currency = product.currency || "MMK";
@@ -246,6 +248,7 @@ const openModal = (product = null) => {
     form.special_discount = false;
     form.is_active = true;
     form.is_public = true;
+    form.warranty_type = "";
     form.crystal = "";
     form.caliber_code = "";
     form.caseback_design = "";
@@ -769,17 +772,32 @@ const deleteProduct = (product) => {
             </div>
           </div>
 
-          <div>
-            <InputLabel
-              value="Warranty Period (Months)"
-              class="text-gray-700"
-            />
-            <TextInput
-              type="number"
-              class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900"
-              v-model="form.warranty_period"
-              required
-            />
+          <!-- Warranty Period + Type -->
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <InputLabel
+                value="Warranty Period (Months)"
+                class="text-gray-700"
+              />
+              <TextInput
+                type="number"
+                class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900"
+                v-model="form.warranty_period"
+                required
+              />
+            </div>
+            <div>
+              <InputLabel value="Warranty Type" class="text-gray-700" />
+              <select
+                v-model="form.warranty_type"
+                class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500 rounded-md shadow-sm"
+              >
+                <option value="">— Select Type —</option>
+                <option value="international_warranty">International Warranty</option>
+                <option value="shop_warranty">Shop Warranty</option>
+              </select>
+              <InputError class="mt-2" :message="form.errors.warranty_type" />
+            </div>
           </div>
 
           <!-- Detailed Specifications Dropdown or Inputs -->

@@ -148,6 +148,20 @@ const formatDate = (dateString) => {
                                  <span class="text-gray-500">Warranty</span>
                                  <span class="text-gray-900 font-medium">{{ product.warranty_period }} Months</span>
                              </div>
+                             <div class="flex justify-between border-b border-gray-100 pb-2">
+                                 <span class="text-gray-500">Warranty Type</span>
+                                 <span v-if="product.warranty_type === 'international_warranty'"
+                                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064"/></svg>
+                                     International
+                                 </span>
+                                 <span v-else-if="product.warranty_type === 'shop_warranty'"
+                                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                                     Shop Warranty
+                                 </span>
+                                 <span v-else class="text-gray-400 text-sm">-</span>
+                             </div>
                          </div>
 
                          <!-- Specifications Grid -->
