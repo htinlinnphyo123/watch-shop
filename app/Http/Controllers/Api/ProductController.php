@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\Api\ProductResource;
+use App\Http\Resources\Api\NewProductResource;
 use App\Models\Product;
 use Illuminate\Http\Request;
 
@@ -16,8 +16,7 @@ class ProductController extends Controller
         $this->applyFilters($query, $request);
         $this->applySorting($query, $request);
         $products = $this->paginate($query, $request);
-        $products = ProductResource::collection($products)->response()->getData(true);
-
+        $products = NewProductResource::collection($products)->response()->getData(true);
         return response()->json([
             'code' => 200,
             'status' => 'success',
@@ -30,6 +29,18 @@ class ProductController extends Controller
     {
         return Product::query()
             ->with(['brand', 'categories'])
+            ->withCount([
+                'items as total_items',
+                'items as available_items' => function ($q) {
+                    $q->where('status', 'available');
+                },
+                'items as sold_items' => function ($q) {
+                    $q->where('status', 'sold');
+                },
+                'items as reserved_items' => function ($q) {
+                    $q->where('status', 'reserved');
+                }
+            ])
             ->where('is_active', true)
             ->where('is_public', true);
     }
@@ -89,14 +100,14 @@ class ProductController extends Controller
 
     public function show(Product $product)
     {
-        $product = new ProductResource($product->load(['brand', 'categories']));
+        $product = new NewProductResource($product->load(['brand', 'categories']));
         $relatedProducts = Product::where('id', '!=', $product->id)
             ->where('is_active', true)
             ->where('is_public', true)
             ->inRandomOrder()
             ->limit(4)
             ->get();
-        $relatedProducts = ProductResource::collection($relatedProducts)->response()->getData(true);
+        $relatedProducts = NewProductResource::collection($relatedProducts)->response()->getData(true);
         return response()->json([
             'code' => 200,
             'status' => 'success',

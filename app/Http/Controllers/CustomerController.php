@@ -23,9 +23,16 @@ class CustomerController extends Controller
             'name' => 'required|string',
             'email' => 'required|email|unique:customers',
             'phone' => 'nullable|string',
+            'password' => 'nullable|string|min:6',
             'customer_group_id' => 'nullable|exists:customer_groups,id',
             'address' => 'nullable|string',
         ]);
+
+        if (!empty($validated['password'])) {
+            $validated['password'] = bcrypt($validated['password']);
+        } else {
+            unset($validated['password']);
+        }
 
         Customer::create($validated);
         return redirect()->back();
@@ -37,9 +44,16 @@ class CustomerController extends Controller
             'name' => 'required|string',
             'email' => 'required|email|unique:customers,email,' . $customer->id,
             'phone' => 'nullable|string',
+            'password' => 'nullable|string|min:6',
             'customer_group_id' => 'nullable|exists:customer_groups,id',
             'address' => 'nullable|string',
         ]);
+
+        if (!empty($validated['password'])) {
+            $validated['password'] = bcrypt($validated['password']);
+        } else {
+            unset($validated['password']);
+        }
 
         $customer->update($validated);
         return redirect()->back();

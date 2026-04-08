@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -19,6 +20,12 @@ class AuthController extends Controller
         ]);
 
         $user = User::where('email', $request->email)->first();
+        $type = 'user';
+
+        if (! $user) {
+            $user = Customer::with('group')->where('email', $request->email)->first();
+            $type = 'customer';
+        }
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
@@ -35,7 +42,8 @@ class AuthController extends Controller
             'data' => [
                 'access_token' => $token,
                 'token_type' => 'Bearer',
-                'user_info' => $user,
+                'user_type' => $type,
+                'user_info' => clone $user,
             ],
         ]);
     }

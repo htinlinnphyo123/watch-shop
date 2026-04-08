@@ -24,6 +24,7 @@ const form = useForm({
     name: '',
     phone: '',
     email: '',
+    password: '',
     address: '',
     customer_group_id: null,
 });
@@ -37,10 +38,12 @@ const openModal = (customer = null) => {
         form.name = customer.name;
         form.phone = customer.phone;
         form.email = customer.email;
+        form.password = '';
         form.address = customer.address;
         form.customer_group_id = customer.customer_group_id;
     } else {
         form.reset();
+        form.password = '';
         form.customer_group_id = null;
     }
     isModalOpen.value = true;
@@ -172,6 +175,13 @@ const deleteCustomer = (customer) => {
                         <InputLabel value="Email" class="text-gray-700" />
                         <TextInput type="email" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900" v-model="form.email" />
                         <InputError class="mt-2" :message="form.errors.email" />
+                    </div>
+
+                    <div>
+                        <InputLabel value="Password (leave blank to keep current)" class="text-gray-700" v-if="editingCustomer" />
+                        <InputLabel value="Password" class="text-gray-700" v-else />
+                        <TextInput type="password" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900" v-model="form.password" :required="!editingCustomer" />
+                        <InputError class="mt-2" :message="form.errors.password" />
                     </div>
 
                     <div>

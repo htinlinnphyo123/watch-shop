@@ -34,6 +34,10 @@ Route::prefix('v1/spa')->group(function () {
 Route::middleware('auth:sanctum')->prefix('v1/spa')->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
     Route::get('user', function (Request $request) {
-        return $request->user()->load('customer.group');
+        $user = $request->user();
+        if ($user instanceof \App\Models\Customer) {
+            return $user->load('group');
+        }
+        return $user->load('customer.group');
     });
 });

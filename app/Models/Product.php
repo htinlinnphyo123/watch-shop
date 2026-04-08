@@ -40,4 +40,9 @@ class Product extends Model
     {
         return $this->belongsToMany(CustomerGroup::class)->withPivot('percentage')->withTimestamps();
     }
+
+    public function finalPrice() : Attribute
+    {
+
+    }
 }
