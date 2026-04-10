@@ -45,22 +45,45 @@ class NewProductResource extends JsonResource
             'strap_style'=>$this->strap_style,
         ];
 
+        $basePrice = $this->price;
+        $webPrice = $this->web_price;
+        $productDiscount = $this->discount ?? 0;
+        
+        $isCustomer = false;
+        $customerDiscountPercentage = 0;
+        
         if ($isAuthenticated) {
-            $price = $this->price;
-            
-            // Apply Group Discount if applicable
-            if ($user->customer && $user->customer->group) {
-                $discountPercentage = $user->customer->group->percentage;
-                $discountAmount = $price * ($discountPercentage / 100);
-                $price = $price - $discountAmount;
+            if ($user instanceof \App\Models\Customer && $user->group) {
+                $isCustomer = true;
+                $customerDiscountPercentage = $user->group->percentage;
+            } elseif ($user instanceof \App\Models\User && $user->customer && $user->customer->group) {
+                $isCustomer = true;
+                $customerDiscountPercentage = $user->customer->group->percentage;
             }
+        }
 
-            $data['price'] = $this->discount ? ($price - ($price * $this->discount / 100)) : $price;
-            $data['original_price'] = $this->price;
+        if ($isCustomer) {
+            // Login Customer
+            $finalPrice = $basePrice;
+            if ($customerDiscountPercentage > 0) {
+                $finalPrice = $basePrice - ($basePrice * ($customerDiscountPercentage / 100));
+            }
+            $data['price'] = (float) $finalPrice;
+            $data['original_price'] = (float) $basePrice; // show_price
+            $data['discount'] = (float) round($customerDiscountPercentage, 2);
         } else {
-            $data['price'] = $this->discount ? ($this->price - ($this->price * $this->discount / 100)) : $this->price;
-            $data['original_price'] = $this->price;
-            $data['message'] = 'Login to see price';
+            // Public User / Login User (Internal User)
+            $finalPrice = $basePrice - ($basePrice * ($productDiscount / 100));
+            $showPrice = $webPrice ? $webPrice : $basePrice;
+            
+            $calculatedDiscount = $productDiscount;
+            if ($webPrice && $showPrice > 0) {
+                $calculatedDiscount = 100 - (($finalPrice / $showPrice) * 100);
+            }
+            
+            $data['price'] = (float) $finalPrice;
+            $data['original_price'] = (float) $showPrice;
+            $data['discount'] = (float) round($calculatedDiscount, 2);
         }
         $data['stock'] = $this->available_items > 0 ? $this->available_items : ($this->reserved_items > 0 ? $this->reserved_items : 0);
         $data['item_status'] = $this->available_items > 0 ? 'Available' : ($this->reserved_items > 0 ? 'Reserved' : 'Out Of Stock');

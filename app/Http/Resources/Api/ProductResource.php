@@ -45,28 +45,51 @@ class ProductResource extends JsonResource
             'strap_style'=>$this->strap_style,
         ];
 
+        $basePrice = $this->price;
+        $webPrice = $this->web_price;
+        $productDiscount = $this->discount ?? 0;
+        
+        $isCustomer = false;
+        $customerDiscountPercentage = 0;
+        
         if ($isAuthenticated) {
-            $price = $this->price;
-            
-            // Apply Group Discount if applicable
-            if ($user->customer && $user->customer->group) {
-                $discountPercentage = $user->customer->group->percentage;
-                $discountAmount = $price * ($discountPercentage / 100);
-                $price = $price - $discountAmount;
+            if ($user instanceof \App\Models\Customer && $user->group) {
+                $isCustomer = true;
+                $customerDiscountPercentage = $user->group->percentage;
+            } elseif ($user instanceof \App\Models\User && $user->customer && $user->customer->group) {
+                $isCustomer = true;
+                $customerDiscountPercentage = $user->customer->group->percentage;
             }
+        }
 
-            $data['price'] = $price;
-            $data['original_price'] = $this->price;
-            $data['stock'] = $this->stock_quantity ?? 10; // Fallback if column missing
-            // Check if stock exists in items or directly on product? 
-            // In my previous work I used items sum for stock, but let's assume simplified now or check column?
-            // Wait, previous conversation mentioned items relationship.
-            // But let's keep it simple. If items exist, use count.
-            if ($this->relationLoaded('items')) {
-                 $data['stock'] = $this->items->where('status', 'available')->count();
+        if ($isCustomer) {
+            // Login Customer
+            $finalPrice = $basePrice;
+            if ($customerDiscountPercentage > 0) {
+                $finalPrice = $basePrice - ($basePrice * ($customerDiscountPercentage / 100));
             }
+            $data['price'] = $finalPrice;
+            $data['original_price'] = $basePrice; // show_price
+            $data['discount'] = round($customerDiscountPercentage, 2);
         } else {
-            $data['message'] = 'Login to see price';
+            // Public User / Login User (Internal User)
+            $finalPrice = $basePrice - ($basePrice * ($productDiscount / 100));
+            $showPrice = $webPrice ? $webPrice : $basePrice;
+            
+            $calculatedDiscount = $productDiscount;
+            if ($webPrice && $showPrice > 0) {
+                $calculatedDiscount = 100 - (($finalPrice / $showPrice) * 100);
+            }
+            
+            $data['price'] = $finalPrice;
+            $data['original_price'] = $showPrice;
+            $data['discount'] = round($calculatedDiscount, 2);
+        }
+
+        $data['stock'] = $this->stock_quantity ?? 10; // Fallback if column missing
+        // Check if stock exists in items or directly on product
+        if ($this->relationLoaded('items')) {
+             $data['stock'] = $this->items->where('status', 'available')->count();
         }
 
         return $data;
