@@ -34,6 +34,11 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            'flash' => [
+                'success' => $request->session()->get('success'),
+                'error' => $request->session()->get('error'),
+                'import_errors' => $request->session()->get('import_errors'),
+            ],
             'settings' => fn () => \App\Models\Setting::pluck('value', 'key')->toArray(),
             'storage_url' => rtrim(\Illuminate\Support\Facades\Storage::url(''), '/'),
         ];

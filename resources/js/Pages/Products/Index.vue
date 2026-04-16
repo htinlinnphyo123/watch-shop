@@ -71,7 +71,7 @@ watch(
       replace: true,
     });
   }, 300),
-  { deep: true }
+  { deep: true },
 );
 
 // Helper to calculate the displayed price in the selected displayCurrency
@@ -165,22 +165,50 @@ const editingProduct = ref(null);
 const imageInput = ref(null);
 const imagesInput = ref(null);
 const previewImages = ref([]);
+const fileInput = ref(null);
+
+const handleImport = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  router.post(route("products.import"), formData, {
+    preserveScroll: true,
+    forceFormData: true,
+    onSuccess: (page) => {
+      if (page.props.flash?.import_errors?.length > 0) {
+        // UI will show the errors box
+        alert("Import failed. Please fix the errors listed above the table.");
+      } else {
+        alert("Products imported successfully!");
+      }
+      if (fileInput.value) fileInput.value.value = null;
+    },
+    onError: (errors) => {
+      console.error(errors);
+      alert("Import failed. Please check the file format.");
+      if (fileInput.value) fileInput.value.value = null;
+    },
+  });
+};
 
 const handleMultipleImages = (e) => {
-    form.images = Array.from(e.target.files);
-    previewImages.value = [];
-    form.images.forEach((file) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            previewImages.value.push(e.target.result);
-        };
-        reader.readAsDataURL(file);
-    });
+  form.images = Array.from(e.target.files);
+  previewImages.value = [];
+  form.images.forEach((file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      previewImages.value.push(e.target.result);
+    };
+    reader.readAsDataURL(file);
+  });
 };
 
 const markImageForRemoval = (imgPath, index) => {
-    form.remove_images.push(imgPath);
-    editingProduct.value.images.splice(index, 1);
+  form.remove_images.push(imgPath);
+  editingProduct.value.images.splice(index, 1);
 };
 
 const openModal = (product = null) => {
@@ -188,7 +216,9 @@ const openModal = (product = null) => {
   if (product) {
     form.brand_id = product.brand_id;
     form.collection_id = product.collection_id || "";
-    form.category_ids = product.categories ? product.categories.map(c => c.id) : [];
+    form.category_ids = product.categories
+      ? product.categories.map((c) => c.id)
+      : [];
     form.name = product.name;
     form.model_number = product.model_number;
     form.price = product.price;
@@ -216,12 +246,14 @@ const openModal = (product = null) => {
     form.quick_release = product.quick_release || "";
     form.clasp_type = product.clasp_type || "";
     form.origin = product.origin || "";
-    form.customer_group_discounts = props.customer_groups.map(group => {
-       const existing = product.customer_groups?.find(cg => cg.id === group.id);
-       return {
-          group_id: group.id,
-          percentage: existing ? existing.pivot.percentage : ""
-       };
+    form.customer_group_discounts = props.customer_groups.map((group) => {
+      const existing = product.customer_groups?.find(
+        (cg) => cg.id === group.id,
+      );
+      return {
+        group_id: group.id,
+        percentage: existing ? existing.pivot.percentage : "",
+      };
     });
     form.images = [];
     form.remove_images = [];
@@ -230,14 +262,16 @@ const openModal = (product = null) => {
     form.is_banner = !!product.is_banner;
     form.is_admin_choice = !!product.is_admin_choice;
     form.special_discount = !!product.special_discount;
-    form.is_active = product.is_active !== undefined ? !!product.is_active : true;
-    form.is_public = product.is_public !== undefined ? !!product.is_public : true;
+    form.is_active =
+      product.is_active !== undefined ? !!product.is_active : true;
+    form.is_public =
+      product.is_public !== undefined ? !!product.is_public : true;
   } else {
     form.reset();
     form.collection_id = "";
-    form.customer_group_discounts = props.customer_groups.map(group => ({
-       group_id: group.id,
-       percentage: ""
+    form.customer_group_discounts = props.customer_groups.map((group) => ({
+      group_id: group.id,
+      percentage: "",
     }));
     form.images = [];
     form.remove_images = [];
@@ -338,6 +372,24 @@ const deleteProduct = (product) => {
           </button>
         </div>
 
+        <a
+          :href="route('products.export')"
+          class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-bold text-xs text-white uppercase tracking-widest hover:bg-green-700 active:bg-green-900 focus:outline-none focus:border-green-900 focus:ring ring-green-300 disabled:opacity-25 transition ease-in-out duration-150 shadow-sm"
+        >
+          Export Excel
+        </a>
+
+        <SecondaryButton @click="fileInput.click()" class="shadow-sm">
+          Import Excel
+        </SecondaryButton>
+        <input
+          type="file"
+          ref="fileInput"
+          class="hidden"
+          accept=".csv, .xlsx, .xls"
+          @change="handleImport"
+        />
+
         <PrimaryButton
           @click="openModal()"
           class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold"
@@ -347,178 +399,271 @@ const deleteProduct = (product) => {
       </div>
     </div>
 
+    <!-- Import Errors Alert -->
+    <div
+      v-if="$page.props.flash?.import_errors?.length"
+      class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 shadow-sm"
+    >
+      <h3 class="text-red-800 font-bold mb-2 flex items-center">
+        <svg
+          class="w-5 h-5 mr-2"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          ></path>
+        </svg>
+        Excel Import Failed ({{
+          $page.props.flash.import_errors.length
+        }}
+        errors)
+      </h3>
+      <ul
+        class="list-disc pl-8 text-sm text-red-700 space-y-1 max-h-40 overflow-y-auto"
+      >
+        <li v-for="(error, i) in $page.props.flash.import_errors" :key="i">
+          {{ error }}
+        </li>
+      </ul>
+    </div>
+
     <!-- Filter Bar -->
-    <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6 flex flex-wrap gap-4 items-end">
-        <div class="flex-1 min-w-[200px]">
-            <InputLabel value="Search Name, Model or Barcode" class="text-gray-700 text-xs" />
-            <TextInput type="text" v-model="activeFilters.search" placeholder="Search..." class="mt-1 block w-full text-sm bg-gray-50 border-gray-300" />
-        </div>
-        <div class="w-[200px]">
-            <InputLabel value="Category" class="text-gray-700 text-xs" />
-            <select v-model="activeFilters.category_id" class="mt-1 block w-full text-sm bg-gray-50 border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500">
-                <option value="">All Categories</option>
-                <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-            </select>
-        </div>
-        <div class="w-[200px]">
-            <InputLabel value="Collection" class="text-gray-700 text-xs" />
-            <select v-model="activeFilters.collection_id" class="mt-1 block w-full text-sm bg-gray-50 border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500">
-                <option value="">All Collections</option>
-                <option v-for="col in collections" :key="col.id" :value="col.id">{{ col.name }}</option>
-            </select>
-        </div>
-        <div class="w-[120px]">
-            <InputLabel value="Min Price" class="text-gray-700 text-xs" />
-            <TextInput type="number" v-model="activeFilters.min_price" placeholder="Min" class="mt-1 block w-full text-sm bg-gray-50 border-gray-300" />
-        </div>
-        <div class="w-[120px]">
-            <InputLabel value="Max Price" class="text-gray-700 text-xs" />
-            <TextInput type="number" v-model="activeFilters.max_price" placeholder="Max" class="mt-1 block w-full text-sm bg-gray-50 border-gray-300" />
-        </div>
-        <div class="w-[120px] pb-2 flex items-center">
-            <input type="checkbox" id="filter_in_stock" v-model="activeFilters.in_stock" class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50" />
-            <label for="filter_in_stock" class="ml-2 block text-sm text-gray-900">In Stock Only</label>
-        </div>
+    <div
+      class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6 flex flex-wrap gap-4 items-end"
+    >
+      <div class="flex-1 min-w-[200px]">
+        <InputLabel
+          value="Search Name, Model or Barcode"
+          class="text-gray-700 text-xs"
+        />
+        <TextInput
+          type="text"
+          v-model="activeFilters.search"
+          placeholder="Search..."
+          class="mt-1 block w-full text-sm bg-gray-50 border-gray-300"
+        />
+      </div>
+      <div class="w-[200px]">
+        <InputLabel value="Category" class="text-gray-700 text-xs" />
+        <select
+          v-model="activeFilters.category_id"
+          class="mt-1 block w-full text-sm bg-gray-50 border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500"
+        >
+          <option value="">All Categories</option>
+          <option v-for="cat in categories" :key="cat.id" :value="cat.id">
+            {{ cat.name }}
+          </option>
+        </select>
+      </div>
+      <div class="w-[200px]">
+        <InputLabel value="Collection" class="text-gray-700 text-xs" />
+        <select
+          v-model="activeFilters.collection_id"
+          class="mt-1 block w-full text-sm bg-gray-50 border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500"
+        >
+          <option value="">All Collections</option>
+          <option v-for="col in collections" :key="col.id" :value="col.id">
+            {{ col.name }}
+          </option>
+        </select>
+      </div>
+      <div class="w-[120px]">
+        <InputLabel value="Min Price" class="text-gray-700 text-xs" />
+        <TextInput
+          type="number"
+          v-model="activeFilters.min_price"
+          placeholder="Min"
+          class="mt-1 block w-full text-sm bg-gray-50 border-gray-300"
+        />
+      </div>
+      <div class="w-[120px]">
+        <InputLabel value="Max Price" class="text-gray-700 text-xs" />
+        <TextInput
+          type="number"
+          v-model="activeFilters.max_price"
+          placeholder="Max"
+          class="mt-1 block w-full text-sm bg-gray-50 border-gray-300"
+        />
+      </div>
+      <div class="w-[120px] pb-2 flex items-center">
+        <input
+          type="checkbox"
+          id="filter_in_stock"
+          v-model="activeFilters.in_stock"
+          class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50"
+        />
+        <label for="filter_in_stock" class="ml-2 block text-sm text-gray-900"
+          >In Stock Only</label
+        >
+      </div>
     </div>
 
     <div
       class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200"
     >
       <div class="overflow-x-auto">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-          <tr>
-            <th
-              scope="col"
-              class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-            >
-              Image
-            </th>
-            <th
-              scope="col"
-              class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-            >
-              Name / Model
-            </th>
-            <th
-              scope="col"
-              class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-            >
-              Brand
-            </th>
-            <th
-              scope="col"
-              class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-            >
-              Category
-            </th>
-            <th
-              scope="col"
-              class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-            >
-              Price Details
-            </th>
-            <th
-              scope="col"
-              class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-            >
-              Stock
-            </th>
-            <th
-              scope="col"
-              class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
-            >
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-          <tr
-            v-for="product in products.data"
-            :key="product.id"
-            class="hover:bg-gray-50 transition-colors"
-          >
-            <td class="px-6 py-4 whitespace-nowrap">
-              <!-- Primary old image or first gallery image -->
-              <img
-                v-if="product.image || (product.images && product.images.length > 0)"
-                :src="$page.props.storage_url + '/' + (product.image || product.images[0])"
-                class="h-12 w-12 rounded object-cover border border-gray-200"
-              />
-              <div
-                v-else
-                class="h-12 w-12 rounded bg-gray-100 flex items-center justify-center text-gray-400 text-xs"
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th
+                scope="col"
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
-                No Img
-              </div>
-              <div v-if="product.images && product.images.length > 1" class="text-[10px] text-gray-400 mt-1 text-center">
+                Image
+              </th>
+              <th
+                scope="col"
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Name / Model
+              </th>
+              <th
+                scope="col"
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Brand
+              </th>
+              <th
+                scope="col"
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Category
+              </th>
+              <th
+                scope="col"
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Price Details
+              </th>
+              <th
+                scope="col"
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Stock
+              </th>
+              <th
+                scope="col"
+                class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <tr
+              v-for="product in products.data"
+              :key="product.id"
+              class="hover:bg-gray-50 transition-colors"
+            >
+              <td class="px-6 py-4 whitespace-nowrap">
+                <!-- Primary old image or first gallery image -->
+                <img
+                  v-if="
+                    product.image ||
+                    (product.images && product.images.length > 0)
+                  "
+                  :src="
+                    $page.props.storage_url +
+                    '/' +
+                    (product.image || product.images[0])
+                  "
+                  class="h-12 w-12 rounded object-cover border border-gray-200"
+                />
+                <div
+                  v-else
+                  class="h-12 w-12 rounded bg-gray-100 flex items-center justify-center text-gray-400 text-xs"
+                >
+                  No Img
+                </div>
+                <div
+                  v-if="product.images && product.images.length > 1"
+                  class="text-[10px] text-gray-400 mt-1 text-center"
+                >
                   +{{ product.images.length - (product.image ? 0 : 1) }} more
-              </div>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <div class="text-gray-900 font-medium">{{ product.name }}</div>
-              <div class="text-gray-500 text-xs">
-                {{ product.model_number }}
-              </div>
-              <div class="text-gray-400 text-[10px]">{{ product.barcode }}</div>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-gray-600">
-              {{ product.brand?.name }}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-gray-600">
-              <div v-if="product.categories && product.categories.length" class="flex flex-wrap gap-1">
-                <span v-for="cat in product.categories" :key="cat.id" class="px-2 py-0.5 bg-gray-100 rounded text-xs">
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-gray-900 font-medium">{{ product.name }}</div>
+                <div class="text-gray-500 text-xs">
+                  {{ product.model_number }}
+                </div>
+                <div class="text-gray-400 text-[10px]">
+                  {{ product.barcode }}
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-gray-600">
+                {{ product.brand?.name }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-gray-600">
+                <div
+                  v-if="product.categories && product.categories.length"
+                  class="flex flex-wrap gap-1"
+                >
+                  <span
+                    v-for="cat in product.categories"
+                    :key="cat.id"
+                    class="px-2 py-0.5 bg-gray-100 rounded text-xs"
+                  >
                     {{ cat.name }}
-                </span>
-              </div>
-              <span v-else class="text-xs text-gray-400">No Category</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <div class="text-gray-900 font-bold text-lg">
-                {{ formatPrice(getDisplayPrice(product)) }}
-                <span class="text-sm text-gray-500">{{ displayCurrency }}</span>
-              </div>
-              <div class="text-xs text-gray-400 mt-0.5">
-                Base: {{ parseInt(product.price).toLocaleString() }} {{ product.currency }}
-              </div>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <Link
-                v-if="product.id"
-                :href="route('products.show', product.id)"
-                class="inline-flex items-center text-blue-600 hover:text-blue-800 underline text-sm"
-              >
-                Manage Stock 
-                <span class="ml-1 px-2 py-0.5 rounded-full text-xs font-bold font-mono" :class="product.available_stock_count > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'">
+                  </span>
+                </div>
+                <span v-else class="text-xs text-gray-400">No Category</span>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-gray-900 font-bold text-lg">
+                  {{ parseInt(product.price).toLocaleString() }}
+                  {{ product.currency }}
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <Link
+                  v-if="product.id"
+                  :href="route('products.show', product.id)"
+                  class="inline-flex items-center text-blue-600 hover:text-blue-800 underline text-sm"
+                >
+                  Manage Stock
+                  <span
+                    class="ml-1 px-2 py-0.5 rounded-full text-xs font-bold font-mono"
+                    :class="
+                      product.available_stock_count > 0
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-red-100 text-red-700'
+                    "
+                  >
                     ({{ product.available_stock_count || 0 }})
-                </span>
-              </Link>
-              <span v-else class="text-red-500 text-xs">Invalid ID</span>
-            </td>
-            <td
-              class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3"
-            >
-              <button
-                @click="openModal(product)"
-                class="text-gold-600 hover:text-gold-800"
+                  </span>
+                </Link>
+                <span v-else class="text-red-500 text-xs">Invalid ID</span>
+              </td>
+              <td
+                class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3"
               >
-                Edit
-              </button>
-              <button
-                @click="deleteProduct(product)"
-                class="text-red-600 hover:text-red-800"
-              >
-                Delete
-              </button>
-            </td>
-          </tr>
-          <tr v-if="!products?.data?.length">
-            <td colspan="7" class="px-6 py-4 text-center text-gray-500">
-              No watches found.
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                <button
+                  @click="openModal(product)"
+                  class="text-gold-600 hover:text-gold-800"
+                >
+                  Edit
+                </button>
+                <button
+                  @click="deleteProduct(product)"
+                  class="text-red-600 hover:text-red-800"
+                >
+                  Delete
+                </button>
+              </td>
+            </tr>
+            <tr v-if="!products?.data?.length">
+              <td colspan="7" class="px-6 py-4 text-center text-gray-500">
+                No watches found.
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <!-- Pagination -->
@@ -636,18 +781,36 @@ const deleteProduct = (product) => {
                   :key="id"
                   class="inline-flex items-center gap-1 px-2 py-0.5 bg-gold-100 text-gold-800 text-xs font-semibold rounded-full border border-gold-300"
                 >
-                  {{ categories.find(c => c.id === id)?.name }}
-                  <button type="button" @click="form.category_ids = form.category_ids.filter(i => i !== id)" class="text-gold-600 hover:text-red-500 leading-none">&times;</button>
+                  {{ categories.find((c) => c.id === id)?.name }}
+                  <button
+                    type="button"
+                    @click="
+                      form.category_ids = form.category_ids.filter(
+                        (i) => i !== id,
+                      )
+                    "
+                    class="text-gold-600 hover:text-red-500 leading-none"
+                  >
+                    &times;
+                  </button>
                 </span>
-                <span v-if="!form.category_ids.length" class="text-xs text-gray-400 italic">No categories selected</span>
+                <span
+                  v-if="!form.category_ids.length"
+                  class="text-xs text-gray-400 italic"
+                  >No categories selected</span
+                >
               </div>
               <!-- Checkbox list -->
-              <div class="mt-2 max-h-36 overflow-y-auto border border-gray-300 rounded-md bg-gray-50 divide-y divide-gray-100">
+              <div
+                class="mt-2 max-h-36 overflow-y-auto border border-gray-300 rounded-md bg-gray-50 divide-y divide-gray-100"
+              >
                 <label
                   v-for="category in categories"
                   :key="category.id"
                   class="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gold-50 transition-colors"
-                  :class="{ 'bg-gold-50': form.category_ids.includes(category.id) }"
+                  :class="{
+                    'bg-gold-50': form.category_ids.includes(category.id),
+                  }"
                 >
                   <input
                     type="checkbox"
@@ -656,8 +819,23 @@ const deleteProduct = (product) => {
                     class="rounded border-gray-300 text-gold-500 shadow-sm focus:ring-gold-400"
                   />
                   <span class="text-sm text-gray-800">{{ category.name }}</span>
-                  <span v-if="form.category_ids.includes(category.id)" class="ml-auto text-gold-500">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                  <span
+                    v-if="form.category_ids.includes(category.id)"
+                    class="ml-auto text-gold-500"
+                  >
+                    <svg
+                      class="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
                   </span>
                 </label>
               </div>
@@ -793,7 +971,9 @@ const deleteProduct = (product) => {
                 class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500 rounded-md shadow-sm"
               >
                 <option value="">— Select Type —</option>
-                <option value="international_warranty">International Warranty</option>
+                <option value="international_warranty">
+                  International Warranty
+                </option>
                 <option value="shop_warranty">Shop Warranty</option>
               </select>
               <InputError class="mt-2" :message="form.errors.warranty_type" />
@@ -802,165 +982,419 @@ const deleteProduct = (product) => {
 
           <!-- Detailed Specifications Dropdown or Inputs -->
           <div class="border-t border-gray-200 pt-4 mt-4">
-              <h3 class="text-md font-bold text-gray-900 mb-4">Detailed Specifications</h3>
-              <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div>
-                      <InputLabel value="Dial Size" class="text-gray-700 text-xs" />
-                      <TextInput type="text" list="dial_size_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.dial_size" placeholder="e.g. 40mm" />
-                      <datalist id="dial_size_options">
-                          <option v-for="opt in specOptions.dial_size" :key="opt" :value="opt"></option>
-                      </datalist>
-                  </div>
-                  <div>
-                      <InputLabel value="Dial Color" class="text-gray-700 text-xs" />
-                      <TextInput type="text" list="dial_color_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.dial_color" placeholder="e.g. Black, Blue" />
-                      <datalist id="dial_color_options">
-                          <option v-for="opt in specOptions.dial_color" :key="opt" :value="opt"></option>
-                      </datalist>
-                  </div>
-                  <div>
-                      <InputLabel value="Strap Size" class="text-gray-700 text-xs" />
-                      <TextInput type="text" list="strap_size_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.strap_size" placeholder="e.g. 20mm" />
-                      <datalist id="strap_size_options">
-                          <option v-for="opt in specOptions.strap_size" :key="opt" :value="opt"></option>
-                      </datalist>
-                  </div>
-                  <div>
-                      <InputLabel value="Strap Color" class="text-gray-700 text-xs" />
-                      <TextInput type="text" list="strap_color_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.strap_color" placeholder="e.g. Silver, Gold" />
-                      <datalist id="strap_color_options">
-                          <option v-for="opt in specOptions.strap_color" :key="opt" :value="opt"></option>
-                      </datalist>
-                  </div>
-                  <div>
-                      <InputLabel value="Strap Material" class="text-gray-700 text-xs" />
-                      <TextInput type="text" list="strap_material_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.strap_material" placeholder="e.g. Steel, Rubber" />
-                      <datalist id="strap_material_options">
-                          <option v-for="opt in specOptions.strap_material" :key="opt" :value="opt"></option>
-                      </datalist>
-                  </div>
-                  <div>
-                      <InputLabel value="Strap Style" class="text-gray-700 text-xs" />
-                      <TextInput type="text" list="strap_style_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.strap_style" placeholder="e.g. Mesh, Link" />
-                      <datalist id="strap_style_options">
-                          <option v-for="opt in specOptions.strap_style" :key="opt" :value="opt"></option>
-                      </datalist>
-                  </div>
-                  <div>
-                      <InputLabel value="Gender" class="text-gray-700 text-xs" />
-                      <TextInput type="text" list="gender_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.gender" placeholder="e.g. Men, Women" />
-                      <datalist id="gender_options">
-                          <option v-for="opt in specOptions.gender" :key="opt" :value="opt"></option>
-                      </datalist>
-                  </div>
-                  <div>
-                      <InputLabel value="Movement" class="text-gray-700 text-xs" />
-                      <TextInput type="text" list="movement_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.movement" placeholder="e.g. Quartz, Automatic" />
-                      <datalist id="movement_options">
-                          <option v-for="opt in specOptions.movement" :key="opt" :value="opt"></option>
-                      </datalist>
-                  </div>
-                  <div>
-                      <InputLabel value="Quick Release" class="text-gray-700 text-xs" />
-                      <TextInput type="text" list="quick_release_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.quick_release" placeholder="e.g. Yes, No" />
-                      <datalist id="quick_release_options">
-                          <option v-for="opt in specOptions.quick_release" :key="opt" :value="opt"></option>
-                      </datalist>
-                  </div>
-                  <div>
-                      <InputLabel value="Clasp Type" class="text-gray-700 text-xs" />
-                      <TextInput type="text" list="clasp_type_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.clasp_type" placeholder="e.g. Buckle, Folding" />
-                      <datalist id="clasp_type_options">
-                          <option v-for="opt in specOptions.clasp_type" :key="opt" :value="opt"></option>
-                      </datalist>
-                  </div>
-                  <div>
-                      <InputLabel value="Origin" class="text-gray-700 text-xs" />
-                      <TextInput type="text" list="origin_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.origin" placeholder="e.g. Swiss Made" />
-                      <datalist id="origin_options">
-                          <option v-for="opt in specOptions.origin" :key="opt" :value="opt"></option>
-                      </datalist>
-                  </div>
-                  <div>
-                      <InputLabel value="Case Shape" class="text-gray-700 text-xs" />
-                      <TextInput type="text" list="case_shape_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.case_shape" placeholder="e.g. Round, Square" />
-                      <datalist id="case_shape_options">
-                          <option v-for="opt in specOptions.case_shape" :key="opt" :value="opt"></option>
-                      </datalist>
-                  </div>
-                  <div>
-                      <InputLabel value="Water Resistant" class="text-gray-700 text-xs" />
-                      <TextInput type="text" list="water_resistant_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.water_resistant" placeholder="e.g. 50m, 100m" />
-                      <datalist id="water_resistant_options">
-                          <option v-for="opt in specOptions.water_resistant" :key="opt" :value="opt"></option>
-                      </datalist>
-                  </div>
-                  <div>
-                      <InputLabel value="Crystal" class="text-gray-700 text-xs" />
-                      <TextInput type="text" list="crystal_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.crystal" placeholder="e.g. Sapphire, Mineral" />
-                      <datalist id="crystal_options">
-                          <option v-for="opt in specOptions.crystal" :key="opt" :value="opt"></option>
-                      </datalist>
-                  </div>
-                  <div>
-                      <InputLabel value="Caliber Code" class="text-gray-700 text-xs" />
-                      <TextInput type="text" list="caliber_code_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.caliber_code" placeholder="e.g. ETA 2824, NH35" />
-                      <datalist id="caliber_code_options">
-                          <option v-for="opt in specOptions.caliber_code" :key="opt" :value="opt"></option>
-                      </datalist>
-                  </div>
-                  <div>
-                      <InputLabel value="Caseback Design" class="text-gray-700 text-xs" />
-                      <TextInput type="text" list="caseback_design_options" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="form.caseback_design" placeholder="e.g. Solid, Exhibition" />
-                      <datalist id="caseback_design_options">
-                          <option v-for="opt in specOptions.caseback_design" :key="opt" :value="opt"></option>
-                      </datalist>
-                  </div>
+            <h3 class="text-md font-bold text-gray-900 mb-4">
+              Detailed Specifications
+            </h3>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div>
+                <InputLabel value="Dial Size" class="text-gray-700 text-xs" />
+                <TextInput
+                  type="text"
+                  list="dial_size_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.dial_size"
+                  placeholder="e.g. 40mm"
+                />
+                <datalist id="dial_size_options">
+                  <option
+                    v-for="opt in specOptions.dial_size"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
               </div>
+              <div>
+                <InputLabel value="Dial Color" class="text-gray-700 text-xs" />
+                <TextInput
+                  type="text"
+                  list="dial_color_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.dial_color"
+                  placeholder="e.g. Black, Blue"
+                />
+                <datalist id="dial_color_options">
+                  <option
+                    v-for="opt in specOptions.dial_color"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
+              </div>
+              <div>
+                <InputLabel value="Strap Size" class="text-gray-700 text-xs" />
+                <TextInput
+                  type="text"
+                  list="strap_size_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.strap_size"
+                  placeholder="e.g. 20mm"
+                />
+                <datalist id="strap_size_options">
+                  <option
+                    v-for="opt in specOptions.strap_size"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
+              </div>
+              <div>
+                <InputLabel value="Strap Color" class="text-gray-700 text-xs" />
+                <TextInput
+                  type="text"
+                  list="strap_color_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.strap_color"
+                  placeholder="e.g. Silver, Gold"
+                />
+                <datalist id="strap_color_options">
+                  <option
+                    v-for="opt in specOptions.strap_color"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
+              </div>
+              <div>
+                <InputLabel
+                  value="Strap Material"
+                  class="text-gray-700 text-xs"
+                />
+                <TextInput
+                  type="text"
+                  list="strap_material_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.strap_material"
+                  placeholder="e.g. Steel, Rubber"
+                />
+                <datalist id="strap_material_options">
+                  <option
+                    v-for="opt in specOptions.strap_material"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
+              </div>
+              <div>
+                <InputLabel value="Strap Style" class="text-gray-700 text-xs" />
+                <TextInput
+                  type="text"
+                  list="strap_style_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.strap_style"
+                  placeholder="e.g. Mesh, Link"
+                />
+                <datalist id="strap_style_options">
+                  <option
+                    v-for="opt in specOptions.strap_style"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
+              </div>
+              <div>
+                <InputLabel value="Gender" class="text-gray-700 text-xs" />
+                <TextInput
+                  type="text"
+                  list="gender_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.gender"
+                  placeholder="e.g. Men, Women"
+                />
+                <datalist id="gender_options">
+                  <option
+                    v-for="opt in specOptions.gender"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
+              </div>
+              <div>
+                <InputLabel value="Movement" class="text-gray-700 text-xs" />
+                <TextInput
+                  type="text"
+                  list="movement_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.movement"
+                  placeholder="e.g. Quartz, Automatic"
+                />
+                <datalist id="movement_options">
+                  <option
+                    v-for="opt in specOptions.movement"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
+              </div>
+              <div>
+                <InputLabel
+                  value="Quick Release"
+                  class="text-gray-700 text-xs"
+                />
+                <TextInput
+                  type="text"
+                  list="quick_release_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.quick_release"
+                  placeholder="e.g. Yes, No"
+                />
+                <datalist id="quick_release_options">
+                  <option
+                    v-for="opt in specOptions.quick_release"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
+              </div>
+              <div>
+                <InputLabel value="Clasp Type" class="text-gray-700 text-xs" />
+                <TextInput
+                  type="text"
+                  list="clasp_type_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.clasp_type"
+                  placeholder="e.g. Buckle, Folding"
+                />
+                <datalist id="clasp_type_options">
+                  <option
+                    v-for="opt in specOptions.clasp_type"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
+              </div>
+              <div>
+                <InputLabel value="Origin" class="text-gray-700 text-xs" />
+                <TextInput
+                  type="text"
+                  list="origin_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.origin"
+                  placeholder="e.g. Swiss Made"
+                />
+                <datalist id="origin_options">
+                  <option
+                    v-for="opt in specOptions.origin"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
+              </div>
+              <div>
+                <InputLabel value="Case Shape" class="text-gray-700 text-xs" />
+                <TextInput
+                  type="text"
+                  list="case_shape_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.case_shape"
+                  placeholder="e.g. Round, Square"
+                />
+                <datalist id="case_shape_options">
+                  <option
+                    v-for="opt in specOptions.case_shape"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
+              </div>
+              <div>
+                <InputLabel
+                  value="Water Resistant"
+                  class="text-gray-700 text-xs"
+                />
+                <TextInput
+                  type="text"
+                  list="water_resistant_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.water_resistant"
+                  placeholder="e.g. 50m, 100m"
+                />
+                <datalist id="water_resistant_options">
+                  <option
+                    v-for="opt in specOptions.water_resistant"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
+              </div>
+              <div>
+                <InputLabel value="Crystal" class="text-gray-700 text-xs" />
+                <TextInput
+                  type="text"
+                  list="crystal_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.crystal"
+                  placeholder="e.g. Sapphire, Mineral"
+                />
+                <datalist id="crystal_options">
+                  <option
+                    v-for="opt in specOptions.crystal"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
+              </div>
+              <div>
+                <InputLabel
+                  value="Caliber Code"
+                  class="text-gray-700 text-xs"
+                />
+                <TextInput
+                  type="text"
+                  list="caliber_code_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.caliber_code"
+                  placeholder="e.g. ETA 2824, NH35"
+                />
+                <datalist id="caliber_code_options">
+                  <option
+                    v-for="opt in specOptions.caliber_code"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
+              </div>
+              <div>
+                <InputLabel
+                  value="Caseback Design"
+                  class="text-gray-700 text-xs"
+                />
+                <TextInput
+                  type="text"
+                  list="caseback_design_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.caseback_design"
+                  placeholder="e.g. Solid, Exhibition"
+                />
+                <datalist id="caseback_design_options">
+                  <option
+                    v-for="opt in specOptions.caseback_design"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
+              </div>
+            </div>
           </div>
 
           <!-- Customer Group Discounts -->
-          <div class="border-t border-gray-200 pt-4 mt-4" v-if="props.customer_groups.length > 0">
-              <h3 class="text-md font-bold text-gray-900 mb-4">Specific Discounts by Group (%)</h3>
-              <p class="text-xs text-gray-500 mb-4">Leave empty to use the default group discount.</p>
-              <div class="grid grid-cols-2 gap-4">
-                  <div v-for="(discount, index) in form.customer_group_discounts" :key="index">
-                      <InputLabel :value="getCustomerGroupName(discount.group_id)" class="text-gray-700 text-sm" />
-                      <TextInput type="number" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm" v-model="discount.percentage" :placeholder="getGroupDefaultPercentage(discount.group_id) + '% (Default)'" />
-                      <InputError class="mt-2" :message="form.errors['customer_group_discounts.' + index + '.percentage']" />
-                  </div>
+          <div
+            class="border-t border-gray-200 pt-4 mt-4"
+            v-if="props.customer_groups.length > 0"
+          >
+            <h3 class="text-md font-bold text-gray-900 mb-4">
+              Specific Discounts by Group (%)
+            </h3>
+            <p class="text-xs text-gray-500 mb-4">
+              Leave empty to use the default group discount.
+            </p>
+            <div class="grid grid-cols-2 gap-4">
+              <div
+                v-for="(discount, index) in form.customer_group_discounts"
+                :key="index"
+              >
+                <InputLabel
+                  :value="getCustomerGroupName(discount.group_id)"
+                  class="text-gray-700 text-sm"
+                />
+                <TextInput
+                  type="number"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="discount.percentage"
+                  :placeholder="
+                    getGroupDefaultPercentage(discount.group_id) + '% (Default)'
+                  "
+                />
+                <InputError
+                  class="mt-2"
+                  :message="
+                    form.errors[
+                      'customer_group_discounts.' + index + '.percentage'
+                    ]
+                  "
+                />
               </div>
+            </div>
           </div>
 
           <!-- Status Options -->
           <div class="border-t border-gray-200 pt-4 mt-4">
-              <h3 class="text-md font-bold text-gray-900 mb-4">Product Status & Placement</h3>
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div class="flex items-center">
-                      <input type="checkbox" id="is_featured" v-model="form.is_featured" class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50" />
-                      <label for="is_featured" class="ml-2 block text-sm text-gray-900">Featured Product</label>
-                  </div>
-                  <div class="flex items-center">
-                      <input type="checkbox" id="is_banner" v-model="form.is_banner" class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50" />
-                      <label for="is_banner" class="ml-2 block text-sm text-gray-900">Show in Banner</label>
-                  </div>
-                  <div class="flex items-center">
-                      <input type="checkbox" id="is_admin_choice" v-model="form.is_admin_choice" class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50" />
-                      <label for="is_admin_choice" class="ml-2 block text-sm text-gray-900">Admin's Choice</label>
-                  </div>
-                  <div class="flex items-center">
-                      <input type="checkbox" id="special_discount" v-model="form.special_discount" class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50" />
-                      <label for="special_discount" class="ml-2 block text-sm text-gray-900">Special Discount List</label>
-                  </div>
-                  <div class="flex items-center">
-                      <input type="checkbox" id="is_active" v-model="form.is_active" class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50" />
-                      <label for="is_active" class="ml-2 block text-sm text-gray-900">Is Active</label>
-                  </div>
-                  <div class="flex items-center">
-                      <input type="checkbox" id="is_public" v-model="form.is_public" class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50" />
-                      <label for="is_public" class="ml-2 block text-sm text-gray-900">Is Public</label>
-                  </div>
+            <h3 class="text-md font-bold text-gray-900 mb-4">
+              Product Status & Placement
+            </h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div class="flex items-center">
+                <input
+                  type="checkbox"
+                  id="is_featured"
+                  v-model="form.is_featured"
+                  class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50"
+                />
+                <label
+                  for="is_featured"
+                  class="ml-2 block text-sm text-gray-900"
+                  >Featured Product</label
+                >
               </div>
+              <div class="flex items-center">
+                <input
+                  type="checkbox"
+                  id="is_banner"
+                  v-model="form.is_banner"
+                  class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50"
+                />
+                <label for="is_banner" class="ml-2 block text-sm text-gray-900"
+                  >Show in Banner</label
+                >
+              </div>
+              <div class="flex items-center">
+                <input
+                  type="checkbox"
+                  id="is_admin_choice"
+                  v-model="form.is_admin_choice"
+                  class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50"
+                />
+                <label
+                  for="is_admin_choice"
+                  class="ml-2 block text-sm text-gray-900"
+                  >Admin's Choice</label
+                >
+              </div>
+              <div class="flex items-center">
+                <input
+                  type="checkbox"
+                  id="special_discount"
+                  v-model="form.special_discount"
+                  class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50"
+                />
+                <label
+                  for="special_discount"
+                  class="ml-2 block text-sm text-gray-900"
+                  >Special Discount List</label
+                >
+              </div>
+              <div class="flex items-center">
+                <input
+                  type="checkbox"
+                  id="is_active"
+                  v-model="form.is_active"
+                  class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50"
+                />
+                <label for="is_active" class="ml-2 block text-sm text-gray-900"
+                  >Is Active</label
+                >
+              </div>
+              <div class="flex items-center">
+                <input
+                  type="checkbox"
+                  id="is_public"
+                  v-model="form.is_public"
+                  class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50"
+                />
+                <label for="is_public" class="ml-2 block text-sm text-gray-900"
+                  >Is Public</label
+                >
+              </div>
+            </div>
           </div>
 
           <div>
@@ -973,44 +1407,80 @@ const deleteProduct = (product) => {
           </div>
 
           <div class="border-t border-gray-200 pt-4 mt-4">
-              <h3 class="text-md font-bold text-gray-900 mb-2">Watch Photos</h3>
-              
-              <!-- Existing Gallery -->
-              <div v-if="editingProduct && editingProduct.images && editingProduct.images.length > 0" class="flex gap-2 mb-4 overflow-x-auto pb-2">
-                  <div v-for="(img, idx) in editingProduct.images" :key="idx" class="relative shrink-0">
-                      <img :src="$page.props.storage_url + '/' + img" class="h-20 w-20 object-cover rounded border border-gray-300" />
-                      <button @click.prevent="markImageForRemoval(img, idx)" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-700 text-xs shadow">
-                          &times;
-                      </button>
-                  </div>
-              </div>
+            <h3 class="text-md font-bold text-gray-900 mb-2">Watch Photos</h3>
 
-              <!-- Old Legacy Single Image -->
-              <div v-if="editingProduct && editingProduct.image" class="mb-4">
-                  <p class="text-xs text-gray-400 mb-1">Legacy Main Image</p>
-                  <img :src="$page.props.storage_url + '/' + editingProduct.image" class="h-20 w-20 object-cover rounded border border-gray-300" />
-              </div>
-
-              <div>
-                <InputLabel value="Upload Multiple Images" class="text-gray-700" />
-                <input
-                  type="file"
-                  @change="handleMultipleImages"
-                  class="mt-1 block w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gold-500 file:text-dark-900 hover:file:bg-gold-600"
-                  accept="image/*"
-                  multiple
-                  ref="imagesInput"
+            <!-- Existing Gallery -->
+            <div
+              v-if="
+                editingProduct &&
+                editingProduct.images &&
+                editingProduct.images.length > 0
+              "
+              class="flex gap-2 mb-4 overflow-x-auto pb-2"
+            >
+              <div
+                v-for="(img, idx) in editingProduct.images"
+                :key="idx"
+                class="relative shrink-0"
+              >
+                <img
+                  :src="$page.props.storage_url + '/' + img"
+                  class="h-20 w-20 object-cover rounded border border-gray-300"
                 />
-                <p class="text-xs text-gray-400 mt-2">You can select multiple photos at once. They will be added to the gallery.</p>
-                
-                <!-- NEW PREVIEW -->
-                <div v-if="previewImages.length > 0" class="mt-4 border-t border-gray-100 pt-3">
-                    <p class="text-xs text-green-600 font-bold mb-2">New Images to be added:</p>
-                    <div class="flex gap-2 overflow-x-auto pb-2">
-                        <img v-for="(preview, idx) in previewImages" :key="'new-'+idx" :src="preview" class="h-16 w-16 object-cover rounded shadow-sm border border-green-300" />
-                    </div>
+                <button
+                  @click.prevent="markImageForRemoval(img, idx)"
+                  class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-700 text-xs shadow"
+                >
+                  &times;
+                </button>
+              </div>
+            </div>
+
+            <!-- Old Legacy Single Image -->
+            <div v-if="editingProduct && editingProduct.image" class="mb-4">
+              <p class="text-xs text-gray-400 mb-1">Legacy Main Image</p>
+              <img
+                :src="$page.props.storage_url + '/' + editingProduct.image"
+                class="h-20 w-20 object-cover rounded border border-gray-300"
+              />
+            </div>
+
+            <div>
+              <InputLabel
+                value="Upload Multiple Images"
+                class="text-gray-700"
+              />
+              <input
+                type="file"
+                @change="handleMultipleImages"
+                class="mt-1 block w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gold-500 file:text-dark-900 hover:file:bg-gold-600"
+                accept="image/*"
+                multiple
+                ref="imagesInput"
+              />
+              <p class="text-xs text-gray-400 mt-2">
+                You can select multiple photos at once. They will be added to
+                the gallery.
+              </p>
+
+              <!-- NEW PREVIEW -->
+              <div
+                v-if="previewImages.length > 0"
+                class="mt-4 border-t border-gray-100 pt-3"
+              >
+                <p class="text-xs text-green-600 font-bold mb-2">
+                  New Images to be added:
+                </p>
+                <div class="flex gap-2 overflow-x-auto pb-2">
+                  <img
+                    v-for="(preview, idx) in previewImages"
+                    :key="'new-' + idx"
+                    :src="preview"
+                    class="h-16 w-16 object-cover rounded shadow-sm border border-green-300"
+                  />
                 </div>
               </div>
+            </div>
           </div>
 
           <div class="mt-6 flex justify-end">

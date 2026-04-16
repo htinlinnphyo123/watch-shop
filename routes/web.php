@@ -32,6 +32,8 @@ Route::middleware('auth')->group(function () {
     Route::resource('categories', \App\Http\Controllers\CategoryController::class);
     Route::resource('brands', \App\Http\Controllers\BrandController::class);
     Route::resource('collections', \App\Http\Controllers\CollectionController::class);
+    Route::get('products/export', [\App\Http\Controllers\ProductController::class, 'export'])->name('products.export');
+    Route::post('products/import', [\App\Http\Controllers\ProductController::class, 'import'])->name('products.import');
     Route::resource('products', \App\Http\Controllers\ProductController::class);
     Route::post('/products/{product}/items', [\App\Http\Controllers\ProductItemController::class, 'store'])->name('products.items.store');
     Route::put('/items/{item}', [\App\Http\Controllers\ProductItemController::class, 'update'])->name('items.update');

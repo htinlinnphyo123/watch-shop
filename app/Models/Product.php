@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
@@ -41,8 +42,8 @@ class Product extends Model
         return $this->belongsToMany(CustomerGroup::class)->withPivot('percentage')->withTimestamps();
     }
 
-    public function finalPrice() : Attribute
+    public function collection() : BelongsTo
     {
-
+        return $this->belongsTo(Collection::class);
     }
 }

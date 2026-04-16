@@ -13,6 +13,7 @@
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.8",
         "league/flysystem-aws-s3-v3": "^3.32",
+        "rap2hpoutre/fast-excel": "^5.7",
         "tightenco/ziggy": "^2.0"
     },
     "require-dev": {
