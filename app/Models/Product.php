@@ -20,6 +20,7 @@ class Product extends Model
         'is_banner' => 'boolean',
         'is_admin_choice' => 'boolean',
         'special_discount' => 'boolean',
+        'is_latest' => 'boolean',
     ];
 
     public function brand()

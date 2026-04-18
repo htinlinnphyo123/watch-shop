@@ -98,7 +98,11 @@ class ProductController extends Controller
             'warranty_period' => 'required|integer',
             'warranty_type' => 'nullable|in:international_warranty,shop_warranty',
             'description' => 'nullable|string',
-            'image' => 'nullable|image',
+            'image' => 'nullable',
+            'images' => 'nullable|array',
+            'images.*' => 'nullable',
+            'preview_photo' => 'nullable',
+            'preview_bg_photo' => 'nullable',
             'barcode' => 'nullable|string',
             'currency' => 'nullable|in:MMK,USD,THB',
             'crystal' => 'nullable|string',
@@ -121,18 +125,37 @@ class ProductController extends Controller
             'is_banner' => 'boolean',
             'is_admin_choice' => 'boolean',
             'special_discount' => 'boolean',
+            'is_latest' => 'boolean',
             'is_active' => 'boolean',
             'is_public' => 'boolean',
         ]);
 
         if ($request->hasFile('image')) {
             $validated['image'] = $request->file('image')->store('products', env('FILESYSTEM_DISK', 's3'));
+        } elseif (is_string($request->image)) {
+            $validated['image'] = $request->image;
+        }
+
+        if ($request->hasFile('preview_photo')) {
+            $validated['preview_photo'] = $request->file('preview_photo')->store('products', env('FILESYSTEM_DISK', 's3'));
+        } elseif (is_string($request->preview_photo)) {
+            $validated['preview_photo'] = $request->preview_photo;
+        }
+
+        if ($request->hasFile('preview_bg_photo')) {
+            $validated['preview_bg_photo'] = $request->file('preview_bg_photo')->store('products', env('FILESYSTEM_DISK', 's3'));
+        } elseif (is_string($request->preview_bg_photo)) {
+            $validated['preview_bg_photo'] = $request->preview_bg_photo;
         }
         
-        if ($request->hasFile('images')) {
+        if ($request->has('images')) {
             $uploadedImages = [];
-            foreach ($request->file('images') as $file) {
-                $uploadedImages[] = $file->store('products/gallery', env('FILESYSTEM_DISK', 's3'));
+            foreach ($request->images as $item) {
+                if ($item instanceof \Illuminate\Http\UploadedFile) {
+                    $uploadedImages[] = $item->store('products/gallery', env('FILESYSTEM_DISK', 's3'));
+                } elseif (is_string($item)) {
+                    $uploadedImages[] = $item;
+                }
             }
             $validated['images'] = $uploadedImages;
         }
@@ -177,7 +200,9 @@ class ProductController extends Controller
             'warranty_period' => 'required|integer',
             'warranty_type' => 'nullable|in:international_warranty,shop_warranty',
             'description' => 'nullable|string',
-            'image' => 'nullable|image',
+            'image' => 'nullable',
+            'preview_photo' => 'nullable',
+            'preview_bg_photo' => 'nullable',
             'barcode' => 'nullable|string',
             'currency' => 'nullable|in:MMK,USD,THB',
             'crystal' => 'nullable|string',
@@ -200,11 +225,12 @@ class ProductController extends Controller
             'customer_group_discounts.*.group_id' => 'required|exists:customer_groups,id',
             'customer_group_discounts.*.percentage' => 'nullable|numeric|min:0|max:100',
             'images' => 'nullable|array',
-            'images.*' => 'image|max:2048',
+            'images.*' => 'nullable',
             'is_featured' => 'boolean',
             'is_banner' => 'boolean',
             'is_admin_choice' => 'boolean',
             'special_discount' => 'boolean',
+            'is_latest' => 'boolean',
             'is_active' => 'boolean',
             'is_public' => 'boolean',
         ]);
@@ -214,16 +240,46 @@ class ProductController extends Controller
                 Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($product->image);
             }
             $validated['image'] = $request->file('image')->store('products', env('FILESYSTEM_DISK', 's3'));
+        } elseif (is_string($request->image) && trim($request->image) !== '') {
+            $validated['image'] = $request->image;
+        } else {
+            unset($validated['image']);
+        }
+
+        if ($request->hasFile('preview_photo')) {
+            if ($product->preview_photo) {
+                Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($product->preview_photo);
+            }
+            $validated['preview_photo'] = $request->file('preview_photo')->store('products', env('FILESYSTEM_DISK', 's3'));
+        } elseif (is_string($request->preview_photo) && trim($request->preview_photo) !== '') {
+            $validated['preview_photo'] = $request->preview_photo;
+        } else {
+            unset($validated['preview_photo']);
+        }
+
+        if ($request->hasFile('preview_bg_photo')) {
+            if ($product->preview_bg_photo) {
+                Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($product->preview_bg_photo);
+            }
+            $validated['preview_bg_photo'] = $request->file('preview_bg_photo')->store('products', env('FILESYSTEM_DISK', 's3'));
+        } elseif (is_string($request->preview_bg_photo) && trim($request->preview_bg_photo) !== '') {
+            $validated['preview_bg_photo'] = $request->preview_bg_photo;
+        } else {
+            unset($validated['preview_bg_photo']);
         }
 
         // Handle gallery images
-        if ($request->hasFile('images')) {
-            $uploadedImages = $product->images ? $product->images : [];
-            foreach ($request->file('images') as $file) {
-                $uploadedImages[] = $file->store('products/gallery', env('FILESYSTEM_DISK', 's3'));
+        $uploadedImages = $product->images ? $product->images : [];
+        if ($request->has('images')) {
+            foreach ($request->images as $item) {
+                if ($item instanceof \Illuminate\Http\UploadedFile) {
+                    $uploadedImages[] = $item->store('products/gallery', env('FILESYSTEM_DISK', 's3'));
+                } elseif (is_string($item) && !in_array($item, $uploadedImages)) {
+                    $uploadedImages[] = $item;
+                }
             }
-            $validated['images'] = $uploadedImages;
         }
+        $validated['images'] = $uploadedImages;
 
         if ($request->has('remove_images')) {
             $uploadedImages = isset($validated['images']) ? $validated['images'] : ($product->images ?? []);
@@ -485,5 +541,31 @@ class ProductController extends Controller
         } while (\App\Models\ProductItem::where('system_unique_id', $id)->exists());
 
         return $id;
+    }
+
+    public function presignedUrl(Request $request)
+    {
+        $request->validate([
+            'filename' => 'required|string',
+            'contentType' => 'required|string',
+        ]);
+
+        $path = 'products/' . uniqid() . '_' . $request->filename;
+
+        // Uses AWS S3 adapter to generate a pre-signed url for client upload
+        $uploadData = Storage::disk(env('FILESYSTEM_DISK', 's3'))
+                 ->temporaryUploadUrl($path, now()->addMinutes(10), [
+                     'ContentType' => $request->contentType,
+                     'ACL' => 'public-read'
+                 ]);
+
+        $url = is_array($uploadData) ? $uploadData['url'] : $uploadData;
+        $headers = is_array($uploadData) && isset($uploadData['headers']) ? $uploadData['headers'] : [];
+
+        return response()->json([
+            'url' => $url,
+            'headers' => $headers,
+            'path' => $path
+        ]);
     }
 }

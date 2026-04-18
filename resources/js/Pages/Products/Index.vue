@@ -152,6 +152,9 @@ const form = useForm({
   customer_group_discounts: [],
   images: [],
   remove_images: [],
+  preview_photo: null,
+  preview_bg_photo: null,
+  is_latest: false,
   is_featured: false,
   is_banner: false,
   is_admin_choice: false,
@@ -164,8 +167,13 @@ const isModalOpen = ref(false);
 const editingProduct = ref(null);
 const imageInput = ref(null);
 const imagesInput = ref(null);
+const previewPhotoInput = ref(null);
+const previewBgPhotoInput = ref(null);
 const previewImages = ref([]);
+const previewPhotoUrl = ref(null);
+const previewBgPhotoUrl = ref(null);
 const fileInput = ref(null);
+const isUploading = ref(false);
 
 const handleImport = (e) => {
   const file = e.target.files[0];
@@ -204,6 +212,28 @@ const handleMultipleImages = (e) => {
     };
     reader.readAsDataURL(file);
   });
+};
+
+const handlePreviewPhoto = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  form.preview_photo = file;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    previewPhotoUrl.value = e.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+const handlePreviewBgPhoto = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  form.preview_bg_photo = file;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    previewBgPhotoUrl.value = e.target.result;
+  };
+  reader.readAsDataURL(file);
 };
 
 const markImageForRemoval = (imgPath, index) => {
@@ -258,6 +288,11 @@ const openModal = (product = null) => {
     form.images = [];
     form.remove_images = [];
     previewImages.value = [];
+    form.preview_photo = null;
+    form.preview_bg_photo = null;
+    previewPhotoUrl.value = product.preview_photo ? (page.props.storage_url + '/' + product.preview_photo) : null;
+    previewBgPhotoUrl.value = product.preview_bg_photo ? (page.props.storage_url + '/' + product.preview_bg_photo) : null;
+    form.is_latest = !!product.is_latest;
     form.is_featured = !!product.is_featured;
     form.is_banner = !!product.is_banner;
     form.is_admin_choice = !!product.is_admin_choice;
@@ -276,6 +311,11 @@ const openModal = (product = null) => {
     form.images = [];
     form.remove_images = [];
     form.currency = "MMK";
+    form.preview_photo = null;
+    form.preview_bg_photo = null;
+    previewPhotoUrl.value = null;
+    previewBgPhotoUrl.value = null;
+    form.is_latest = false;
     form.is_featured = false;
     form.is_banner = false;
     form.is_admin_choice = false;
@@ -312,27 +352,82 @@ const closeModal = () => {
   form.category_ids = [];
   editingProduct.value = null;
   previewImages.value = [];
+  previewPhotoUrl.value = null;
+  previewBgPhotoUrl.value = null;
   if (imageInput.value) imageInput.value.value = null;
   if (imagesInput.value) imagesInput.value.value = null;
+  if (previewPhotoInput.value) previewPhotoInput.value.value = null;
+  if (previewBgPhotoInput.value) previewBgPhotoInput.value.value = null;
 };
 
-const submit = () => {
-  if (editingProduct.value) {
-    router.post(
-      route("products.update", editingProduct.value.id),
-      {
-        _method: "put",
-        ...form.data(),
-      },
-      {
-        forceFormData: true,
-        onSuccess: () => closeModal(),
-      },
-    );
-  } else {
-    form.post(route("products.store"), {
-      onSuccess: () => closeModal(),
+const uploadFileToS3 = async (file) => {
+  if (!file || !(file instanceof File)) return file;
+  try {
+    const response = await window.axios.post(route("products.presigned-url"), {
+      filename: file.name,
+      contentType: file.type || 'application/octet-stream',
     });
+    
+    let targetUrl = response.data.url;
+    let extraHeaders = response.data.headers || {};
+    
+    if (typeof targetUrl === 'object' && targetUrl !== null) {
+      extraHeaders = targetUrl.headers || extraHeaders;
+      targetUrl = targetUrl.url;
+    }
+
+    await fetch(targetUrl, {
+      method: "PUT",
+      body: file,
+      headers: {
+        "Content-Type": file.type || 'application/octet-stream',
+        "x-amz-acl": "public-read",
+        ...extraHeaders
+      },
+    });
+    return response.data.path || response.data.url?.path || '';
+  } catch (error) {
+    console.error("Error uploading to S3:", error);
+    alert("Image upload failed: " + file.name);
+    throw error;
+  }
+};
+
+const submit = async () => {
+  isUploading.value = true;
+  
+  try {
+    // Presigned S3 uploads
+    if (form.image instanceof File) form.image = await uploadFileToS3(form.image);
+    if (form.preview_photo instanceof File) form.preview_photo = await uploadFileToS3(form.preview_photo);
+    if (form.preview_bg_photo instanceof File) form.preview_bg_photo = await uploadFileToS3(form.preview_bg_photo);
+    
+    if (form.images && form.images.length > 0) {
+      const processedImages = [];
+      for (let i = 0; i < form.images.length; i++) {
+        if (form.images[i] instanceof File) {
+           processedImages.push(await uploadFileToS3(form.images[i]));
+        } else {
+           processedImages.push(form.images[i]);
+        }
+      }
+      form.images = processedImages;
+    }
+
+    if (editingProduct.value) {
+      router.post(
+        route("products.update", editingProduct.value.id),
+        { _method: "put", ...form.data() },
+        { forceFormData: true, onSuccess: () => { isUploading.value = false; closeModal(); }, onError: () => { isUploading.value = false; } }
+      );
+    } else {
+      form.post(route("products.store"), {
+        onSuccess: () => { isUploading.value = false; closeModal(); },
+        onError: () => { isUploading.value = false; }
+      });
+    }
+  } catch (err) {
+    isUploading.value = false;
   }
 };
 
@@ -1375,6 +1470,17 @@ const deleteProduct = (product) => {
               <div class="flex items-center">
                 <input
                   type="checkbox"
+                  id="is_latest"
+                  v-model="form.is_latest"
+                  class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50"
+                />
+                <label for="is_latest" class="ml-2 block text-sm text-gray-900"
+                  >Is Latest</label
+                >
+              </div>
+              <div class="flex items-center">
+                <input
+                  type="checkbox"
                   id="is_active"
                   v-model="form.is_active"
                   class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50"
@@ -1445,6 +1551,32 @@ const deleteProduct = (product) => {
               />
             </div>
 
+            <!-- Previews -->
+            <div class="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <InputLabel value="Preview Photo" class="text-gray-700" />
+                <input
+                  type="file"
+                  @change="handlePreviewPhoto"
+                  class="mt-1 block w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gold-500 file:text-dark-900 hover:file:bg-gold-600"
+                  accept="image/*"
+                  ref="previewPhotoInput"
+                />
+                <img v-if="previewPhotoUrl" :src="previewPhotoUrl" class="mt-2 h-20 w-20 object-cover rounded border border-gray-300" />
+              </div>
+              <div>
+                <InputLabel value="Preview BG Photo" class="text-gray-700" />
+                <input
+                  type="file"
+                  @change="handlePreviewBgPhoto"
+                  class="mt-1 block w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gold-500 file:text-dark-900 hover:file:bg-gold-600"
+                  accept="image/*"
+                  ref="previewBgPhotoInput"
+                />
+                <img v-if="previewBgPhotoUrl" :src="previewBgPhotoUrl" class="mt-2 h-20 w-[120px] object-cover rounded border border-gray-300" />
+              </div>
+            </div>
+
             <div>
               <InputLabel
                 value="Upload Multiple Images"
@@ -1492,10 +1624,11 @@ const deleteProduct = (product) => {
             </SecondaryButton>
             <PrimaryButton
               class="ml-3 bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold"
-              :class="{ 'opacity-25': form.processing }"
-              :disabled="form.processing"
+              :class="{ 'opacity-25': form.processing || isUploading }"
+              :disabled="form.processing || isUploading"
             >
-              {{ editingProduct ? "Update" : "Save" }}
+              <span v-if="isUploading">Uploading...</span>
+              <span v-else>{{ editingProduct ? "Update" : "Save" }}</span>
             </PrimaryButton>
           </div>
         </form>
