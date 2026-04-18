@@ -42,6 +42,14 @@ class HomeController extends Controller
                 ->get()
         )->resolve();
 
+        $isLatest = ProductResource::collection(
+            (clone $baseProductQuery)
+                ->where('is_latest', true)
+                ->latest()
+                ->limit(10)
+                ->get()
+        )->resolve();
+
         return response()->json([
             'code' => 200,
             'status' => 'success',
@@ -50,6 +58,7 @@ class HomeController extends Controller
                 'banners' => $banners,
                 'feature_products' => $featureProducts,
                 'admin_choices' => $adminChoices,
+                'is_latest' => $isLatest,
                 'brands' => $brands,
                 'collections' => $collections,
             ],
