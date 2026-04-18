@@ -26,6 +26,7 @@ class ProductResource extends JsonResource
             }, $this->images) : [],
             "preview_photo"=> $this->preview_photo ? asset(config('app.aws_url') . '/' . $this->preview_photo) : null,
             "preview_bg_photo"=> $this->preview_bg_photo ? asset(config('app.aws_url') . '/' . $this->preview_bg_photo) : null,
+            "currency"=>$this->currency,
             'brand_name' => $this->brand->name,
             'category_name' => $this->categories->pluck('name')->toArray(),
             'model_number' => $this->model_number,

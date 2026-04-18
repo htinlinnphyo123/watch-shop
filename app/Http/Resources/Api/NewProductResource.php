@@ -25,6 +25,7 @@ class NewProductResource extends JsonResource
                 return asset(config('app.aws_url') . '/' . $image);
             }, $this->images) : [],
             'brand_name' => $this->brand->name,
+            "currency"=>$this->currency,
             'category_name' => $this->categories->pluck('name')->toArray(),
             'model_number' => $this->model_number,
             'description' => $this->description,
