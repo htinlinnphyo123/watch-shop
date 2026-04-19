@@ -363,7 +363,6 @@ class ProductController extends Controller
                 'brand' => optional($product->brand)->name,
                 'collection' => optional($product->collection)->name,
                 'categories' => $product->categories ? $product->categories->pluck('name')->implode(', ') : null,
-                'specifications' => is_array($product->specifications) ? json_encode($product->specifications) : $product->specifications,
                 'items_count' => $product->items_count ?? 0,
                 'is_featured' => (int) $product->is_featured,
                 'is_banner' => (int) $product->is_banner,
@@ -398,12 +397,7 @@ class ProductController extends Controller
                 $rowNum = $index + 2;
                 $initialRowErrors = count($errors);
 
-                if (isset($line['specifications']) && is_string($line['specifications'])) {
-                    $decoded = json_decode($line['specifications'], true);
-                    if (is_array($decoded)) {
-                        $line['specifications'] = $decoded;
-                    }
-                }
+                unset($line['specifications']);
 
                 // Parse Brand
                 if (!empty($line['brand'])) {
