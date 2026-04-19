@@ -18,8 +18,7 @@ class Product extends Model
         'images' => 'array',
         'is_featured' => 'boolean',
         'is_banner' => 'boolean',
-        'is_admin_choice' => 'boolean',
-        'special_discount' => 'boolean',
+        'is_limited_collection' => 'boolean',
         'is_latest' => 'boolean',
     ];
 

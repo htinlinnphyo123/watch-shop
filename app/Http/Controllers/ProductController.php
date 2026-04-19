@@ -123,8 +123,7 @@ class ProductController extends Controller
             'origin' => 'nullable|string',
             'is_featured' => 'boolean',
             'is_banner' => 'boolean',
-            'is_admin_choice' => 'boolean',
-            'special_discount' => 'boolean',
+            'is_limited_collection' => 'boolean',
             'is_latest' => 'boolean',
             'is_active' => 'boolean',
             'is_public' => 'boolean',
@@ -228,8 +227,7 @@ class ProductController extends Controller
             'images.*' => 'nullable',
             'is_featured' => 'boolean',
             'is_banner' => 'boolean',
-            'is_admin_choice' => 'boolean',
-            'special_discount' => 'boolean',
+            'is_limited_collection' => 'boolean',
             'is_latest' => 'boolean',
             'is_active' => 'boolean',
             'is_public' => 'boolean',
@@ -334,29 +332,46 @@ class ProductController extends Controller
         $date = Carbon::now()->format('Y-m-d_H-i-s');
 
         return (new \Rap2hpoutre\FastExcel\FastExcel($products))->download('products-'.$date.'.xlsx', function ($product) {
-            $data = $product->toArray();
-            
-            // Format array casts as JSON for Excel output if needed (we are removing 'images' anyway, but good for custom specs)
-            if (isset($data['specifications']) && is_array($data['specifications'])) {
-                $data['specifications'] = json_encode($data['specifications']);
-            }
-            
-            // Stringify relationships
-            $data['brand'] = optional($product->brand)->name;
-            $data['collection'] = optional($product->collection)->name;
-            $data['categories'] = $product->categories ? $product->categories->pluck('name')->implode(', ') : null;
-
-            // Remove unneeded columns
-            unset(
-                $data['images'], $data['barcode'], $data['created_at'], 
-                $data['updated_at'], $data['deleted_at'],
-                $data['brand_id'], $data['collection_id'], $data['pivot']
-            );
-            
-            // Explicitly set items_count
-            $data['items_count'] = $product->items_count ?? 0;
-            
-            return $data;
+            return [
+                'id' => $product->id,
+                'name' => $product->name,
+                'model_number' => $product->model_number,
+                'price' => $product->price,
+                'cost_price' => $product->cost_price,
+                'web_price' => $product->web_price,
+                'discount' => $product->discount,
+                'warranty_period' => $product->warranty_period,
+                'warranty_type' => $product->warranty_type,
+                'description' => $product->description,
+                'currency' => $product->currency,
+                'crystal' => $product->crystal,
+                'water_resistant' => $product->water_resistant,
+                'case_shape' => $product->case_shape,
+                'dial_size' => $product->dial_size,
+                'dial_color' => $product->dial_color,
+                'strap_material' => $product->strap_material,
+                'strap_size' => $product->strap_size,
+                'strap_color' => $product->strap_color,
+                'movement' => $product->movement,
+                'gender' => $product->gender,
+                'clasp_type' => $product->clasp_type,
+                'strap_style' => $product->strap_style,
+                'quick_release' => $product->quick_release,
+                'origin' => $product->origin,
+                'caliber_code' => $product->caliber_code,
+                'caseback_design' => $product->caseback_design,
+                'brand' => optional($product->brand)->name,
+                'collection' => optional($product->collection)->name,
+                'categories' => $product->categories ? $product->categories->pluck('name')->implode(', ') : null,
+                'specifications' => is_array($product->specifications) ? json_encode($product->specifications) : $product->specifications,
+                'items_count' => $product->items_count ?? 0,
+                'is_featured' => (int) $product->is_featured,
+                'is_banner' => (int) $product->is_banner,
+                'is_limited_collection' => (int) $product->is_limited_collection,
+                'is_latest' => (int) $product->is_latest,
+                'is_active' => (int) $product->is_active,
+                'is_public' => (int) $product->is_public,
+            ];
         });
     }
 
@@ -468,6 +483,9 @@ class ProductController extends Controller
                         $this->generateProductItems($product, $diff);
                     }
 
+                    // Remove image lines from import mapping to protect web updates
+                    unset($line['image'], $line['preview_photo'], $line['preview_bg_photo'], $line['images']);
+
                     $product->update($line);
                     
                     if (!empty($categoryIdsRaw)) {
@@ -479,6 +497,9 @@ class ProductController extends Controller
                     // Create
                     unset($line['id']);
                     
+                    // Remove image lines from import mapping to protect web updates
+                    unset($line['image'], $line['preview_photo'], $line['preview_bg_photo'], $line['images']);
+
                     if (empty($line['barcode'])) {
                         $line['barcode'] = 'W-' . strtoupper(uniqid());
                     }
