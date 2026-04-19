@@ -157,8 +157,7 @@ const form = useForm({
   is_latest: false,
   is_featured: false,
   is_banner: false,
-  is_admin_choice: false,
-  special_discount: false,
+  is_limited_collection: false,
   is_active: true,
   is_public: true,
 });
@@ -295,8 +294,7 @@ const openModal = (product = null) => {
     form.is_latest = !!product.is_latest;
     form.is_featured = !!product.is_featured;
     form.is_banner = !!product.is_banner;
-    form.is_admin_choice = !!product.is_admin_choice;
-    form.special_discount = !!product.special_discount;
+    form.is_limited_collection = !!product.is_limited_collection;
     form.is_active =
       product.is_active !== undefined ? !!product.is_active : true;
     form.is_public =
@@ -318,8 +316,7 @@ const openModal = (product = null) => {
     form.is_latest = false;
     form.is_featured = false;
     form.is_banner = false;
-    form.is_admin_choice = false;
-    form.special_discount = false;
+    form.is_limited_collection = false;
     form.is_active = true;
     form.is_public = true;
     form.warranty_type = "";
@@ -1444,27 +1441,14 @@ const deleteProduct = (product) => {
               <div class="flex items-center">
                 <input
                   type="checkbox"
-                  id="is_admin_choice"
-                  v-model="form.is_admin_choice"
+                  id="is_limited_collection"
+                  v-model="form.is_limited_collection"
                   class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50"
                 />
                 <label
-                  for="is_admin_choice"
+                  for="is_limited_collection"
                   class="ml-2 block text-sm text-gray-900"
-                  >Admin's Choice</label
-                >
-              </div>
-              <div class="flex items-center">
-                <input
-                  type="checkbox"
-                  id="special_discount"
-                  v-model="form.special_discount"
-                  class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50"
-                />
-                <label
-                  for="special_discount"
-                  class="ml-2 block text-sm text-gray-900"
-                  >Special Discount List</label
+                  >Limited Collection</label
                 >
               </div>
               <div class="flex items-center">
