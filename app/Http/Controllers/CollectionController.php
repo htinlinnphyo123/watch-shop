@@ -11,7 +11,7 @@ class CollectionController extends Controller
     public function index()
     {
         return Inertia::render('Collections/Index', [
-            'collections' => Collection::withCount('products')->latest('updated_at')->paginate(10),
+            'collections' => Collection::withCount('products')->orderBy('sort_order', 'asc')->latest('updated_at')->paginate(10),
         ]);
     }
 
@@ -20,6 +20,7 @@ class CollectionController extends Controller
         $validated = $request->validate([
             'name' => 'required',
             'description' => 'nullable',
+            'sort_order' => 'nullable|integer',
         ]);
 
         Collection::create($validated);
@@ -31,6 +32,7 @@ class CollectionController extends Controller
         $validated = $request->validate([
             'name' => 'required',
             'description' => 'nullable',
+            'sort_order' => 'nullable|integer',
         ]);
 
         $collection->update($validated);
@@ -40,6 +42,21 @@ class CollectionController extends Controller
     public function destroy(Collection $collection)
     {
         $collection->delete();
+        return redirect()->back();
+    }
+
+    public function reorder(Request $request)
+    {
+        $request->validate([
+            'items' => 'required|array',
+            'items.*.id' => 'required|exists:collections,id',
+            'items.*.sort_order' => 'required|integer',
+        ]);
+
+        foreach ($request->items as $item) {
+            \App\Models\Collection::where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
+        }
+
         return redirect()->back();
     }
 }

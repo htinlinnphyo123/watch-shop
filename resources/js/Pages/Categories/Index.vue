@@ -35,6 +35,7 @@ const form = useForm({
     parent_id: '',
     description: '',
     photo: null,
+    sort_order: 0,
 });
 
 const isModalOpen = ref(false);
@@ -55,9 +56,11 @@ const openModal = (category = null) => {
         form.parent_id = category.parent_id || '';
         form.description = category.description || '';
         form.photo = null;
+        form.sort_order = category.sort_order !== undefined ? category.sort_order : 0;
     } else {
         form.reset();
         form.photo = null;
+        form.sort_order = 0;
     }
     isModalOpen.value = true;
 };
@@ -91,6 +94,50 @@ const deleteCategory = (category) => {
     if (confirm('Are you sure you want to delete this category?')) {
         useForm({}).delete(route('categories.destroy', category.id));
     }
+};
+
+const localList = ref([]);
+watch(() => props.categories?.data, (newVal) => {
+    localList.value = newVal ? [...newVal] : [];
+}, { immediate: true });
+
+const draggedIndex = ref(null);
+
+const onDragStart = (e, index) => {
+    draggedIndex.value = index;
+    e.dataTransfer.effectAllowed = 'move';
+};
+
+const onDragOver = (e) => {
+    e.preventDefault();
+};
+
+const onDrop = (e, targetIndex) => {
+    e.preventDefault();
+    if (draggedIndex.value === null || draggedIndex.value === targetIndex) return;
+
+    const draggedItem = localList.value[draggedIndex.value];
+    localList.value.splice(draggedIndex.value, 1);
+    localList.value.splice(targetIndex, 0, draggedItem);
+    
+    draggedIndex.value = null;
+
+    // Send the new sort orders starting from current pagination offset or just 0
+    const offset = (props.categories.current_page - 1) * props.categories.per_page || 0;
+    const items = localList.value.map((item, idx) => ({
+        id: item.id,
+        sort_order: offset + idx
+    }));
+
+    // Update local sort orders immediately for UI
+    localList.value.forEach((item, idx) => {
+        item.sort_order = offset + idx;
+    });
+
+    router.post(route('categories.reorder'), { items }, {
+        preserveScroll: true,
+        preserveState: true,
+    });
 };
 </script>
 
@@ -135,12 +182,23 @@ const deleteCategory = (category) => {
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parent Category</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Watches</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sort Order</th>
                         <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                    <tr v-for="category in categories.data" :key="category.id" class="hover:bg-gray-50 transition-colors">
-                        <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">{{ category.name }}</td>
+                    <tr v-for="(category, index) in localList" :key="category.id" 
+                        class="hover:bg-gray-50 transition-colors"
+                        draggable="true"
+                        @dragstart="onDragStart($event, index)"
+                        @dragover="onDragOver($event)"
+                        @drop="onDrop($event, index)"
+                        style="cursor: grab"
+                    >
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">
+                            <span class="mr-2 text-gray-400 cursor-grab">☰</span>
+                            {{ category.name }}
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <img v-if="category.photo" :src="$page.props.storage_url + '/' + category.photo" class="h-10 w-10 object-cover rounded-full" />
                             <span v-else class="text-gray-400 text-sm">No photo</span>
@@ -149,6 +207,9 @@ const deleteCategory = (category) => {
                         <td class="px-6 py-4 text-gray-500 text-sm max-w-[200px] truncate">{{ category.description ? category.description.replace(/<[^>]*>/g, '') : '-' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gold-600 font-bold text-sm">
                             {{ category.products_count || 0 }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-600 font-medium">
+                            {{ category.sort_order ?? 0 }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                             <button @click="openModal(category)" class="text-gold-600 hover:text-gold-800">Edit</button>
@@ -214,6 +275,17 @@ const deleteCategory = (category) => {
                             autofocus
                         />
                         <InputError class="mt-2" :message="form.errors.name" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="sort_order" value="Sort Order" class="text-gray-700" />
+                        <TextInput
+                            id="sort_order"
+                            type="number"
+                            class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500"
+                            v-model="form.sort_order"
+                        />
+                        <InputError class="mt-2" :message="form.errors.sort_order" />
                     </div>
 
                     <div>

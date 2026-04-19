@@ -12,7 +12,10 @@ class CategoryController extends Controller
     {
         // only parent categories
         $categories = Category::whereNull('parent_id')
-            ->with('children')
+            ->with(['children' => function($query) {
+                $query->orderBy('sort_order', 'asc');
+            }])
+            ->orderBy('sort_order', 'asc')
             ->get();
 
         return response()->json([
@@ -28,7 +31,7 @@ class CategoryController extends Controller
 
     public function fetchAll()
     {
-        $categories = Category::all();
+        $categories = Category::orderBy('sort_order', 'asc')->get();
         $categories = CategoryResource::collection($categories)->response()->getData(true);
 
         return response()->json([

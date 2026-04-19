@@ -1,7 +1,7 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, useForm, router, Link } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import Modal from '@/Components/Modal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
@@ -19,6 +19,7 @@ const props = defineProps({
 const form = useForm({
     name: '',
     description: '',
+    sort_order: 0,
 });
 
 const isModalOpen = ref(false);
@@ -29,8 +30,10 @@ const openModal = (collection = null) => {
     if (collection) {
         form.name = collection.name || '';
         form.description = collection.description || '';
+        form.sort_order = collection.sort_order !== undefined ? collection.sort_order : 0;
     } else {
         form.reset();
+        form.sort_order = 0;
     }
     isModalOpen.value = true;
 };
@@ -58,6 +61,48 @@ const deleteCollection = (collection) => {
         useForm({}).delete(route('collections.destroy', collection.id));
     }
 };
+
+const localList = ref([]);
+watch(() => props.collections?.data, (newVal) => {
+    localList.value = newVal ? [...newVal] : [];
+}, { immediate: true });
+
+const draggedIndex = ref(null);
+
+const onDragStart = (e, index) => {
+    draggedIndex.value = index;
+    e.dataTransfer.effectAllowed = 'move';
+};
+
+const onDragOver = (e) => {
+    e.preventDefault();
+};
+
+const onDrop = (e, targetIndex) => {
+    e.preventDefault();
+    if (draggedIndex.value === null || draggedIndex.value === targetIndex) return;
+
+    const draggedItem = localList.value[draggedIndex.value];
+    localList.value.splice(draggedIndex.value, 1);
+    localList.value.splice(targetIndex, 0, draggedItem);
+    
+    draggedIndex.value = null;
+
+    const offset = (props.collections.current_page - 1) * props.collections.per_page || 0;
+    const items = localList.value.map((item, idx) => ({
+        id: item.id,
+        sort_order: offset + idx
+    }));
+
+    localList.value.forEach((item, idx) => {
+        item.sort_order = offset + idx;
+    });
+
+    router.post(route('collections.reorder'), { items }, {
+        preserveScroll: true,
+        preserveState: true,
+    });
+};
 </script>
 
 <template>
@@ -82,17 +127,31 @@ const deleteCollection = (collection) => {
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Watches</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sort Order</th>
                         <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                    <tr v-for="collection in collections.data" :key="collection.id" class="hover:bg-gray-50 transition-colors">
-                        <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">{{ collection.name }}</td>
+                    <tr v-for="(collection, index) in localList" :key="collection.id" 
+                        class="hover:bg-gray-50 transition-colors"
+                        draggable="true"
+                        @dragstart="onDragStart($event, index)"
+                        @dragover="onDragOver($event)"
+                        @drop="onDrop($event, index)"
+                        style="cursor: grab"
+                    >
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">
+                            <span class="mr-2 text-gray-400 cursor-grab">☰</span>
+                            {{ collection.name }}
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">
                             {{ collection.description || '-' }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-gold-600 font-bold text-sm">
                             {{ collection.products_count || 0 }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-600 font-medium">
+                            {{ collection.sort_order ?? 0 }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                             <button @click="openModal(collection)" class="text-gold-600 hover:text-gold-800">Edit</button>
@@ -158,6 +217,17 @@ const deleteCollection = (collection) => {
                             autofocus
                         />
                         <InputError class="mt-2" :message="form.errors.name" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="sort_order" value="Sort Order" class="text-gray-700" />
+                        <TextInput
+                            id="sort_order"
+                            type="number"
+                            class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500"
+                            v-model="form.sort_order"
+                        />
+                        <InputError class="mt-2" :message="form.errors.sort_order" />
                     </div>
 
                     <div>

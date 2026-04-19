@@ -24,8 +24,8 @@ class HomeController extends Controller
             ->where('is_public', true);
 
         $banners = BannerResource::collection(Banner::orderBy('order', 'asc')->where("is_active", true)->get())->resolve();
-        $brands = BrandResource::collection(Brand::orderBy('created_at', 'asc')->get())->resolve();
-        $collections = CollectionResource::collection(Collection::orderBy('created_at', 'asc')->get())->resolve();
+        $brands = BrandResource::collection(Brand::orderBy('sort_order', 'asc')->orderBy('created_at', 'asc')->get())->resolve();
+        $collections = CollectionResource::collection(Collection::orderBy('sort_order', 'asc')->orderBy('created_at', 'asc')->get())->resolve();
 
         $featureProducts = ProductResource::collection(
             (clone $baseProductQuery)
@@ -68,9 +68,9 @@ class HomeController extends Controller
     public function filterNecessaryData()
     {
          // Run queries in parallel style (cleaner)
-        $categories = CategoryResource::collection(Category::all())->resolve();
-        $brands = BrandResource::collection(Brand::all())->resolve();
-        $collections = CollectionResource::collection(Collection::all())->resolve();
+        $categories = CategoryResource::collection(Category::orderBy('sort_order', 'asc')->get())->resolve();
+        $brands = BrandResource::collection(Brand::orderBy('sort_order', 'asc')->get())->resolve();
+        $collections = CollectionResource::collection(Collection::orderBy('sort_order', 'asc')->get())->resolve();
 
         // Single query for product attributes
         $productAttributes = Product::where('is_active', true)

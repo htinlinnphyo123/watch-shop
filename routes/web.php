@@ -29,8 +29,11 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
+    Route::post('categories/reorder', [\App\Http\Controllers\CategoryController::class, 'reorder'])->name('categories.reorder');
     Route::resource('categories', \App\Http\Controllers\CategoryController::class);
+    Route::post('brands/reorder', [\App\Http\Controllers\BrandController::class, 'reorder'])->name('brands.reorder');
     Route::resource('brands', \App\Http\Controllers\BrandController::class);
+    Route::post('collections/reorder', [\App\Http\Controllers\CollectionController::class, 'reorder'])->name('collections.reorder');
     Route::resource('collections', \App\Http\Controllers\CollectionController::class);
     Route::get('products/export', [\App\Http\Controllers\ProductController::class, 'export'])->name('products.export');
     Route::post('products/presigned-url', [\App\Http\Controllers\ProductController::class, 'presignedUrl'])->name('products.presigned-url');

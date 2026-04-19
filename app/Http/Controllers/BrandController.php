@@ -11,7 +11,7 @@ class BrandController extends Controller
     public function index()
     {
         return Inertia::render('Brands/Index', [
-            'brands' => Brand::withCount('products')->latest('updated_at')->paginate(10),
+            'brands' => Brand::withCount('products')->orderBy('sort_order', 'asc')->latest('updated_at')->paginate(10),
         ]);
     }
 
@@ -22,6 +22,7 @@ class BrandController extends Controller
             'website' => 'nullable|url',
             'logo' => 'nullable|image|max:1024',
             'bg_logo' => 'nullable|image|max:1024',
+            'sort_order' => 'nullable|integer',
         ]);
 
         if ($request->hasFile('logo')) {
@@ -43,6 +44,7 @@ class BrandController extends Controller
             'website' => 'nullable|url',
             'logo' => 'nullable|image|max:1024',
             'bg_logo' => 'nullable|image|max:1024',
+            'sort_order' => 'nullable|integer',
         ]);
 
         if ($request->hasFile('logo')) {
@@ -70,6 +72,21 @@ class BrandController extends Controller
     public function destroy(Brand $brand)
     {
         $brand->delete();
+        return redirect()->back();
+    }
+
+    public function reorder(Request $request)
+    {
+        $request->validate([
+            'items' => 'required|array',
+            'items.*.id' => 'required|exists:brands,id',
+            'items.*.sort_order' => 'required|integer',
+        ]);
+
+        foreach ($request->items as $item) {
+            \App\Models\Brand::where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
+        }
+
         return redirect()->back();
     }
 }

@@ -11,7 +11,7 @@ class CategoryController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Category::with(['parent', 'children'])->withCount('products')->latest('updated_at');
+        $query = Category::with(['parent', 'children'])->withCount('products')->orderBy('sort_order', 'asc')->latest('updated_at');
 
         if ($request->has('parent_id') && $request->parent_id !== 'all') {
             if ($request->parent_id === 'top_level') {
@@ -35,6 +35,7 @@ class CategoryController extends Controller
             'parent_id' => 'nullable|exists:categories,id',
             'description' => 'nullable|string',
             'photo' => 'nullable|image',
+            'sort_order' => 'nullable|integer',
         ]);
         
         if ($request->hasFile('photo')) {
@@ -52,6 +53,7 @@ class CategoryController extends Controller
             'parent_id' => 'nullable|exists:categories,id',
             'description' => 'nullable|string',
             'photo' => 'nullable|image',
+            'sort_order' => 'nullable|integer',
         ]);
 
         if ($request->hasFile('photo')) {
@@ -73,6 +75,21 @@ class CategoryController extends Controller
     {
         // Soft delete — do NOT remove the photo file so it can be restored later.
         $category->delete();
+        return redirect()->back();
+    }
+
+    public function reorder(Request $request)
+    {
+        $request->validate([
+            'items' => 'required|array',
+            'items.*.id' => 'required|exists:categories,id',
+            'items.*.sort_order' => 'required|integer',
+        ]);
+
+        foreach ($request->items as $item) {
+            Category::where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
+        }
+
         return redirect()->back();
     }
 }
