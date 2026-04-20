@@ -50,6 +50,14 @@ class HomeController extends Controller
                 ->get()
         )->resolve();
 
+        $isLimited = ProductResource::collection(
+            (clone $baseProductQuery)
+                ->where('is_limited', true)
+                ->latest()
+                ->limit(10)
+                ->get()
+        )->resolve();
+
         return response()->json([
             'code' => 200,
             'status' => 'success',
@@ -61,6 +69,7 @@ class HomeController extends Controller
                 'is_latest' => $isLatest,
                 'brands' => $brands,
                 'collections' => $collections,
+                'is_limited' => $isLimited,
             ],
         ]);
     }
