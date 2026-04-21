@@ -526,6 +526,7 @@ class ProductController extends Controller
         } catch (\Illuminate\Database\QueryException $e) {
             \Illuminate\Support\Facades\DB::rollBack();
             $errorMessage = $e->getMessage();
+            dd($errorMessage);
             
             // Try to make Postgres numeric errors more readable as a fallback
             if (strpos($errorMessage, 'invalid input syntax for type numeric') !== false) {
