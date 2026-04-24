@@ -1,6 +1,7 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
 const props = defineProps({
     order: Object,
@@ -15,6 +16,15 @@ const formatTime = (d) => new Date(d).toLocaleTimeString('en-US', {
 });
 
 const lineTotal = (item) => parseInt(item.price) * item.quantity;
+
+const orderSubtotal = computed(() => {
+    return props.order.items?.reduce((sum, item) => sum + lineTotal(item), 0) || 0;
+});
+
+const discountAmount = computed(() => {
+    const total = parseInt(props.order.total_amount) || 0;
+    return orderSubtotal.value > total ? orderSubtotal.value - total : 0;
+});
 
 // Only show serial numbers that exist — hide internal system IDs from customer view
 const customerUnits = (soldItems) =>
@@ -244,7 +254,11 @@ const approveOrder = () => {
                             <!-- Subtotal rows (extend here if you add tax/discount later) -->
                             <div class="flex justify-between text-sm text-gray-500 mb-2">
                                 <span>Subtotal</span>
-                                <span>{{ parseInt(order.total_amount).toLocaleString() }} Ks</span>
+                                <span>{{ orderSubtotal.toLocaleString() }} Ks</span>
+                            </div>
+                            <div v-if="discountAmount > 0" class="flex justify-between text-sm text-red-500 mb-2">
+                                <span>Discount</span>
+                                <span>-{{ discountAmount.toLocaleString() }} Ks</span>
                             </div>
                             <!-- Divider -->
                             <div class="h-px my-3" style="background: #c9a96e;"></div>
