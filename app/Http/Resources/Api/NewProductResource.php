@@ -17,6 +17,13 @@ class NewProductResource extends JsonResource
         $user = $request->user('sanctum');
         $isAuthenticated = $user !== null;
 
+        // Resolve MMK exchange rate for this product's currency
+        $settings = \App\Models\Setting::pluck('value', 'key')->toArray();
+        $rate = 1;
+        if ($this->currency && $this->currency !== 'MMK') {
+            $rateKey = strtolower($this->currency) . '_rate';
+            $rate = floatval($settings[$rateKey] ?? 1);
+        }
         $data = [
             'id' => $this->id,
             'name' => $this->name,
@@ -25,7 +32,7 @@ class NewProductResource extends JsonResource
                 return asset(config('app.aws_url') . '/' . $image);
             }, $this->images) : [],
             'brand_name' => $this->brand->name,
-            "currency"=>$this->currency,
+            'currency' => 'MMK',
             'category_name' => $this->categories->pluck('name')->toArray(),
             'model_number' => $this->model_number,
             'description' => $this->description,
@@ -46,8 +53,8 @@ class NewProductResource extends JsonResource
             'strap_style'=>$this->strap_style,
         ];
 
-        $basePrice = $this->price;
-        $webPrice = $this->web_price;
+        $basePrice = floatval($this->price) * $rate;   // always in MMK
+        $webPrice  = $this->web_price ? floatval($this->web_price) * $rate : null;
         $productDiscount = $this->discount ?? 0;
         
         $isCustomer = false;
@@ -64,27 +71,27 @@ class NewProductResource extends JsonResource
         }
 
         if ($isCustomer) {
-            // Login Customer
+            // Login Customer — apply group discount on top of MMK price
             $finalPrice = $basePrice;
             if ($customerDiscountPercentage > 0) {
                 $finalPrice = $basePrice - ($basePrice * ($customerDiscountPercentage / 100));
             }
-            $data['price'] = (float) $finalPrice;
-            $data['original_price'] = (float) $basePrice; // show_price
-            $data['discount'] = (float) round($customerDiscountPercentage, 2);
+            $data['price']          = (float) round($finalPrice, 2);
+            $data['original_price'] = (float) round($basePrice, 2);
+            $data['discount']       = (float) round($customerDiscountPercentage, 2);
         } else {
-            // Public User / Login User (Internal User)
+            // Public User / Internal User
             $finalPrice = $basePrice - ($basePrice * ($productDiscount / 100));
-            $showPrice = $webPrice ? $webPrice : $basePrice;
-            
+            $showPrice  = $webPrice ? $webPrice : $basePrice;
+
             $calculatedDiscount = $productDiscount;
             if ($webPrice && $showPrice > 0) {
                 $calculatedDiscount = 100 - (($finalPrice / $showPrice) * 100);
             }
-            
-            $data['price'] = (float) $finalPrice;
-            $data['original_price'] = (float) $showPrice;
-            $data['discount'] = (float) round($calculatedDiscount, 2);
+
+            $data['price']          = (float) round($finalPrice, 2);
+            $data['original_price'] = (float) round($showPrice, 2);
+            $data['discount']       = (float) round($calculatedDiscount, 2);
         }
         $data['stock'] = $this->available_items > 0 ? $this->available_items : ($this->reserved_items > 0 ? $this->reserved_items : 0);
         $data['item_status'] = $this->available_items > 0 ? 'Available' : ($this->reserved_items > 0 ? 'Reserved' : 'Out Of Stock');

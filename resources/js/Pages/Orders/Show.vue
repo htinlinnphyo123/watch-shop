@@ -1,6 +1,7 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
 const props = defineProps({
     order: Object,
@@ -16,11 +17,28 @@ const formatTime = (d) => new Date(d).toLocaleTimeString('en-US', {
 
 const lineTotal = (item) => parseInt(item.price) * item.quantity;
 
+const orderSubtotal = computed(() => {
+    return props.order.items?.reduce((sum, item) => sum + lineTotal(item), 0) || 0;
+});
+
+const discountAmount = computed(() => {
+    const total = parseInt(props.order.total_amount) || 0;
+    return orderSubtotal.value > total ? orderSubtotal.value - total : 0;
+});
+
 // Only show serial numbers that exist — hide internal system IDs from customer view
 const customerUnits = (soldItems) =>
     (soldItems || []).filter(u => u.serial_number);
 
 const printOrder = () => window.print();
+
+import { router } from '@inertiajs/vue3';
+
+const approveOrder = () => {
+    if (confirm('Are you sure you want to approve this order? Stock will be deducted automatically.')) {
+        router.post(route('orders.approve', props.order.id));
+    }
+};
 </script>
 
 <style>
@@ -72,15 +90,24 @@ const printOrder = () => window.print();
                     </svg>
                     Back to Orders
                 </Link>
-                <button
-                    @click="printOrder"
-                    class="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 hover:bg-black text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
-                >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-                    </svg>
-                    Print Invoice
-                </button>
+                <div class="flex gap-3">
+                    <button
+                        v-if="order.status === 'pending'"
+                        @click="approveOrder"
+                        class="inline-flex items-center gap-2 px-5 py-2.5 bg-gold-500 hover:bg-gold-600 text-dark-900 text-sm font-bold rounded-lg transition-colors shadow-sm"
+                    >
+                        Approve Order
+                    </button>
+                    <button
+                        @click="printOrder"
+                        class="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 hover:bg-black text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                        </svg>
+                        Print Invoice
+                    </button>
+                </div>
             </div>
 
             <!-- ══════════════════════════════════════════════════════════
@@ -140,9 +167,15 @@ const printOrder = () => window.print();
                                 </div>
                                 <div class="flex justify-end gap-2">
                                     <span class="text-gray-400">Status</span>
-                                    <span class="inline-flex items-center gap-1 font-semibold" style="color: #7c9d6f;">
+                                    <span v-if="order.status === 'completed'" class="inline-flex items-center gap-1 font-semibold" style="color: #7c9d6f;">
                                         <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-                                        Paid
+                                        Completed
+                                    </span>
+                                    <span v-else-if="order.status === 'pending'" class="inline-flex items-center gap-1 font-semibold text-yellow-500">
+                                        Pending Approval
+                                    </span>
+                                    <span v-else class="inline-flex items-center gap-1 font-semibold capitalize text-gray-500">
+                                        {{ order.status }}
                                     </span>
                                 </div>
                                 <div class="flex justify-end gap-2">
@@ -221,7 +254,11 @@ const printOrder = () => window.print();
                             <!-- Subtotal rows (extend here if you add tax/discount later) -->
                             <div class="flex justify-between text-sm text-gray-500 mb-2">
                                 <span>Subtotal</span>
-                                <span>{{ parseInt(order.total_amount).toLocaleString() }} Ks</span>
+                                <span>{{ orderSubtotal.toLocaleString() }} Ks</span>
+                            </div>
+                            <div v-if="discountAmount > 0" class="flex justify-between text-sm text-red-500 mb-2">
+                                <span>Discount</span>
+                                <span>-{{ discountAmount.toLocaleString() }} Ks</span>
                             </div>
                             <!-- Divider -->
                             <div class="h-px my-3" style="background: #c9a96e;"></div>

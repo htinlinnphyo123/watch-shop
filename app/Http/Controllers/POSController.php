@@ -83,7 +83,7 @@ class POSController extends Controller
                     }
                 }
 
-                // ── Pricing ───────────────────────────────────────────────────
+                // ── Convert to MMK ────────────────────────────────────────────
                 $rate = 1;
                 if ($product->currency && $product->currency !== 'MMK') {
                     $rateKey = strtolower($product->currency) . '_rate';
@@ -108,6 +108,15 @@ class POSController extends Controller
                     'price'      => $finalItemPrice,
                     'item_ids'   => $items->pluck('id')->all(),
                 ];
+            }
+
+            // Apply Top Level Discount
+            $topLevelDiscount = \App\Models\TopLevelDiscount::where('amount', '<=', $subtotal)
+                ->orderBy('amount', 'desc')
+                ->first();
+
+            if ($topLevelDiscount && $topLevelDiscount->percentage > 0) {
+                $subtotal = $subtotal - ($subtotal * ($topLevelDiscount->percentage / 100));
             }
 
             $order = Order::create([

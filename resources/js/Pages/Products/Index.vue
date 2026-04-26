@@ -708,8 +708,8 @@ const deleteProduct = (product) => {
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-gray-900 font-bold text-lg">
-                  {{ parseInt(product.price).toLocaleString() }}
-                  {{ product.currency }}
+                  {{ formatPrice(getDisplayPrice(product)) }}
+                  {{ displayCurrency }}
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">

@@ -7,13 +7,13 @@ use App\Http\Resources\Api\BannerResource;
 use App\Http\Resources\Api\BrandResource;
 use App\Http\Resources\Api\CategoryResource;
 use App\Http\Resources\Api\CollectionResource;
+use App\Http\Resources\Api\NewProductResource;
 use App\Http\Resources\Api\ProductResource;
 use App\Models\Banner;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Collection;
 use App\Models\Product;
-use Illuminate\Http\Request;
 
 class HomeController extends Controller
 {
@@ -35,14 +35,14 @@ class HomeController extends Controller
                 ->get()
         )->resolve();
 
-        $adminChoices = ProductResource::collection(
+        $adminChoices = NewProductResource::collection(
             (clone $baseProductQuery)
                 ->latest()
                 ->limit(10)
                 ->get()
         )->resolve();
 
-        $isLatest = ProductResource::collection(
+        $isLatest = NewProductResource::collection(
             (clone $baseProductQuery)
                 ->where('is_latest', true)
                 ->latest()
