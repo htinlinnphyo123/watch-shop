@@ -50,9 +50,9 @@ class HomeController extends Controller
                 ->get()
         )->resolve();
 
-        $isLimited = ProductResource::collection(
+        $isLimited = NewProductResource::collection(
             (clone $baseProductQuery)
-                ->where('is_limited', true)
+                ->where('is_limited_collection', true)
                 ->latest()
                 ->limit(10)
                 ->get()
