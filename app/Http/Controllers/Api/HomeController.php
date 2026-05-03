@@ -19,8 +19,8 @@ class HomeController extends Controller
 {
    public function index()
     {
-        // Base product query (reuse)
-        $baseProductQuery = Product::where('is_active', true)
+        $baseProductQuery = Product::withItemCounts()
+            ->where('is_active', true)
             ->where('is_public', true);
 
         $banners = BannerResource::collection(Banner::orderBy('order', 'asc')->where("is_active", true)->get())->resolve();

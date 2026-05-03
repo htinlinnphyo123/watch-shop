@@ -28,19 +28,8 @@ class ProductController extends Controller
     private function baseQuery()
     {
         return Product::query()
-            ->with(['brand', 'categories'])
-            ->withCount([
-                'items as total_items',
-                'items as available_items' => function ($q) {
-                    $q->where('status', 'available');
-                },
-                'items as sold_items' => function ($q) {
-                    $q->where('status', 'sold');
-                },
-                'items as reserved_items' => function ($q) {
-                    $q->where('status', 'reserved');
-                }
-            ])
+            ->with(['brand', 'categories',])
+            ->withItemCounts()
             ->where('is_active', true)
             ->where('is_public', true);
     }
@@ -100,10 +89,22 @@ class ProductController extends Controller
 
     public function show(Product $product)
     {
-        $product = new NewProductResource($product->load(['brand', 'categories']));
-        $relatedProducts = Product::where('id', '!=', $product->id)
-            ->where('is_active', true)
-            ->where('is_public', true)
+        $product->load(['brand', 'categories'])->loadCount([
+            'items as total_items',
+            'items as available_items' => function ($q) {
+                $q->where('status', 'available');
+            },
+            'items as sold_items' => function ($q) {
+                $q->where('status', 'sold');
+            },
+            'items as reserved_items' => function ($q) {
+                $q->where('status', 'reserved');
+            }
+        ]);
+
+        $productResource = new NewProductResource($product);
+        $relatedProducts = $this->baseQuery()
+            ->where('id', '!=', $product->id)
             ->inRandomOrder()
             ->limit(4)
             ->get();
@@ -113,7 +114,7 @@ class ProductController extends Controller
             'status' => 'success',
             'message' => 'Get Product Success',
             'data' => [
-                'product'=>$product,
+                'product'=>$productResource,
                 'related_products'=>$relatedProducts['data']    
             ]
         ]);

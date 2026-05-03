@@ -46,4 +46,20 @@ class Product extends Model
     {
         return $this->belongsTo(Collection::class);
     }
+
+    public function scopeWithItemCounts($query)
+    {
+        return $query->withCount([
+            'items as total_items',
+            'items as available_items' => function ($q) {
+                $q->where('status', 'available');
+            },
+            'items as sold_items' => function ($q) {
+                $q->where('status', 'sold');
+            },
+            'items as reserved_items' => function ($q) {
+                $q->where('status', 'reserved');
+            }
+        ]);
+    }
 }
