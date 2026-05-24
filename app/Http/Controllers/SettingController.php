@@ -19,6 +19,8 @@ class SettingController extends Controller
         $validated = $request->validate([
             'usd_rate' => 'required|numeric|min:0',
             'thb_rate' => 'required|numeric|min:0',
+            'sgd_rate' => 'required|numeric|min:0',
+            'cny_rate' => 'required|numeric|min:0',
         ]);
 
         foreach ($validated as $key => $value) {

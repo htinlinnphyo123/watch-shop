@@ -450,7 +450,7 @@ const deleteProduct = (product) => {
         <!-- Currency Toggle -->
         <div class="bg-gray-200 p-1 rounded-lg flex items-center shadow-inner">
           <button
-            v-for="currency in ['MMK', 'USD', 'THB']"
+            v-for="currency in ['MMK', 'USD', 'THB', 'SGD', 'CNY']"
             :key="currency"
             @click="displayCurrency = currency"
             :class="[
@@ -979,6 +979,8 @@ const deleteProduct = (product) => {
                 <option value="MMK">MMK (Myanmar Kyat)</option>
                 <option value="USD">USD (US Dollar)</option>
                 <option value="THB">THB (Thai Baht)</option>
+                <option value="SGD">SGD (Singapore Dollar)</option>
+                <option value="CNY">CNY (Chinese Yuan)</option>
               </select>
             </div>
           </div>

@@ -16,6 +16,8 @@ class SettingSeeder extends Seeder
         $settings = [
             ['key' => 'usd_rate', 'value' => '4000'],
             ['key' => 'thb_rate', 'value' => '120'],
+            ['key' => 'sgd_rate', 'value' => '3000'],
+            ['key' => 'cny_rate', 'value' => '550'],
         ];
 
         foreach ($settings as $setting) {

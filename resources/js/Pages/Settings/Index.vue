@@ -12,6 +12,8 @@ const settings = page.props.settings || {};
 const form = useForm({
     usd_rate: settings.usd_rate || '4000',
     thb_rate: settings.thb_rate || '120',
+    sgd_rate: settings.sgd_rate || '3000',
+    cny_rate: settings.cny_rate || '550',
 });
 
 const submit = () => {
@@ -80,6 +82,42 @@ const submit = () => {
                                     />
                                 </div>
                                 <InputError class="mt-2" :message="form.errors.thb_rate" />
+                            </div>
+
+                            <div>
+                                <InputLabel for="sgd_rate" value="1 SGD = (MMK)" />
+                                <div class="relative mt-1">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <span class="text-gray-500 sm:text-sm">Ks</span>
+                                    </div>
+                                    <TextInput
+                                        id="sgd_rate"
+                                        type="number"
+                                        step="0.01"
+                                        class="mt-1 block w-full pl-10 border-gray-300 focus:border-gold-500 focus:ring-gold-500 rounded-md shadow-sm"
+                                        v-model="form.sgd_rate"
+                                        required
+                                    />
+                                </div>
+                                <InputError class="mt-2" :message="form.errors.sgd_rate" />
+                            </div>
+
+                            <div>
+                                <InputLabel for="cny_rate" value="1 CNY = (MMK)" />
+                                <div class="relative mt-1">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <span class="text-gray-500 sm:text-sm">Ks</span>
+                                    </div>
+                                    <TextInput
+                                        id="cny_rate"
+                                        type="number"
+                                        step="0.01"
+                                        class="mt-1 block w-full pl-10 border-gray-300 focus:border-gold-500 focus:ring-gold-500 rounded-md shadow-sm"
+                                        v-model="form.cny_rate"
+                                        required
+                                    />
+                                </div>
+                                <InputError class="mt-2" :message="form.errors.cny_rate" />
                             </div>
 
                             <div class="flex items-center gap-4">
