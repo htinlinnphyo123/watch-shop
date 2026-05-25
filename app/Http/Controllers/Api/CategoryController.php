@@ -10,10 +10,11 @@ class CategoryController extends Controller
 {
    public function index()
     {
-        // only parent categories
+        // only parent categories that are visible
         $categories = Category::whereNull('parent_id')
+            ->where('is_show', true)
             ->with(['children' => function($query) {
-                $query->orderBy('sort_order', 'asc');
+                $query->where('is_show', true)->orderBy('sort_order', 'asc');
             }])
             ->orderBy('sort_order', 'asc')
             ->get();
@@ -31,7 +32,7 @@ class CategoryController extends Controller
 
     public function fetchAll()
     {
-        $categories = Category::orderBy('sort_order', 'asc')->get();
+        $categories = Category::where('is_show', true)->orderBy('sort_order', 'asc')->get();
         $categories = CategoryResource::collection($categories)->response()->getData(true);
 
         return response()->json([

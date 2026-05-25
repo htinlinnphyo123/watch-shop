@@ -90,6 +90,10 @@ const handlePhotoUpload = (e) => {
     form.photo = e.target.files[0];
 };
 
+const toggleShow = (category) => {
+    useForm({}).patch(route('categories.toggle-show', category.id));
+};
+
 const deleteCategory = (category) => {
     if (confirm('Are you sure you want to delete this category?')) {
         useForm({}).delete(route('categories.destroy', category.id));
@@ -183,6 +187,7 @@ const onDrop = (e, targetIndex) => {
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Watches</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sort Order</th>
+                        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Show</th>
                         <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
@@ -211,13 +216,25 @@ const onDrop = (e, targetIndex) => {
                         <td class="px-6 py-4 whitespace-nowrap text-gray-600 font-medium">
                             {{ category.sort_order ?? 0 }}
                         </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <button
+                                @click="toggleShow(category)"
+                                class="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold transition-all duration-200"
+                                :class="category.is_show
+                                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                    : 'bg-red-100 text-red-700 hover:bg-red-200'"
+                            >
+                                <span v-if="category.is_show">ON</span>
+                                <span v-else>OFF</span>
+                            </button>
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                             <button @click="openModal(category)" class="text-gold-600 hover:text-gold-800">Edit</button>
                             <button @click="deleteCategory(category)" class="text-red-600 hover:text-red-800">Delete</button>
                         </td>
                     </tr>
                     <tr v-if="!categories?.data?.length">
-                        <td colspan="6" class="px-6 py-4 text-center text-gray-500">No categories found.</td>
+                        <td colspan="8" class="px-6 py-4 text-center text-gray-500">No categories found.</td>
                     </tr>
                 </tbody>
             </table>

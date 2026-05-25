@@ -71,6 +71,15 @@ class CategoryController extends Controller
         return redirect()->back();
     }
 
+    public function toggleShow(Category $category)
+    {
+        $category->update([
+            'is_show' => !$category->is_show,
+        ]);
+
+        return redirect()->back()->with('success', 'Category visibility updated.');
+    }
+
     public function destroy(Category $category)
     {
         // Soft delete — do NOT remove the photo file so it can be restored later.

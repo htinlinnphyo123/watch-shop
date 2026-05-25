@@ -77,7 +77,7 @@ class HomeController extends Controller
     public function filterNecessaryData()
     {
          // Run queries in parallel style (cleaner)
-        $categories = CategoryResource::collection(Category::orderBy('sort_order', 'asc')->get())->resolve();
+        $categories = CategoryResource::collection(Category::query()->where('is_show', true)->orderBy('sort_order', 'asc')->get())->resolve();
         $brands = BrandResource::collection(Brand::orderBy('sort_order', 'asc')->get())->resolve();
         $collections = CollectionResource::collection(Collection::orderBy('sort_order', 'asc')->get())->resolve();
 

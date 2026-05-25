@@ -30,6 +30,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::post('categories/reorder', [\App\Http\Controllers\CategoryController::class, 'reorder'])->name('categories.reorder');
+    Route::patch('categories/{category}/toggle-show', [\App\Http\Controllers\CategoryController::class, 'toggleShow'])->name('categories.toggle-show');
     Route::resource('categories', \App\Http\Controllers\CategoryController::class);
     Route::post('brands/reorder', [\App\Http\Controllers\BrandController::class, 'reorder'])->name('brands.reorder');
     Route::resource('brands', \App\Http\Controllers\BrandController::class);

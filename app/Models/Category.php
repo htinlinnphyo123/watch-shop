@@ -12,6 +12,10 @@ class Category extends Model
 
     protected $guarded = [];
 
+    protected $casts = [
+        'is_show' => 'boolean',
+    ];
+
     public function parent()
     {
         return $this->belongsTo(Category::class, 'parent_id');
