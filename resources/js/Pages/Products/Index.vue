@@ -57,6 +57,8 @@ const activeFilters = ref({
   min_price: props.filters.min_price || "",
   max_price: props.filters.max_price || "",
   in_stock: props.filters.in_stock === "true" || false,
+  sort: props.filters.sort || "updated_at",
+  direction: props.filters.direction || "desc",
 });
 
 watch(
@@ -69,6 +71,8 @@ watch(
     if (value.min_price) params.min_price = value.min_price;
     if (value.max_price) params.max_price = value.max_price;
     if (value.in_stock) params.in_stock = "true";
+    if (value.sort) params.sort = value.sort;
+    if (value.direction) params.direction = value.direction;
 
     router.get(route("products.index"), params, {
       preserveState: true,
@@ -596,6 +600,27 @@ const deleteProduct = (product) => {
         <label for="filter_in_stock" class="ml-2 block text-sm text-gray-900"
           >In Stock Only</label
         >
+      </div>
+      <div class="w-[180px]">
+        <InputLabel value="Sort By" class="text-gray-700 text-xs" />
+        <select
+          v-model="activeFilters.sort"
+          class="mt-1 block w-full text-sm bg-gray-50 border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500"
+        >
+          <option value="updated_at">Last Updated</option>
+          <option value="name">Name</option>
+          <option value="price">Price</option>
+        </select>
+      </div>
+      <div class="w-[120px]">
+        <InputLabel value="Order" class="text-gray-700 text-xs" />
+        <select
+          v-model="activeFilters.direction"
+          class="mt-1 block w-full text-sm bg-gray-50 border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500"
+        >
+          <option value="desc">Descending</option>
+          <option value="asc">Ascending</option>
+        </select>
       </div>
     </div>
 

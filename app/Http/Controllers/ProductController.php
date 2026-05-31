@@ -71,9 +71,17 @@ class ProductController extends Controller
             });
         }
 
+        // Sorting
+        $sortField = $request->get('sort', 'updated_at');
+        $sortDirection = $request->get('direction', 'desc');
+        $allowedSorts = ['name', 'price', 'updated_at'];
+        if (in_array($sortField, $allowedSorts)) {
+            $query->orderBy($sortField, $sortDirection === 'asc' ? 'asc' : 'desc');
+        }
+
         return Inertia::render('Products/Index', [
             'products' => $query->paginate(10)->withQueryString(),
-            'filters' => $request->only(['search', 'category_id', 'brand_id', 'min_price', 'max_price', 'in_stock']),
+            'filters' => $request->only(['search', 'category_id', 'brand_id', 'min_price', 'max_price', 'in_stock', 'sort', 'direction']),
             'brands' => Brand::all(),
             'categories' => Category::all(),
             'collections' => Collection::all(),
