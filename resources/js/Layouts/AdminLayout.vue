@@ -26,7 +26,7 @@ const page = usePage();
                     Dashboard
                 </Link>
                 
-                <div v-if="$page.props.auth.user.role === 'admin'">
+                <div v-if="$page.props.auth.user.role === 'admin' || $page.props.auth.user.role === 'manager'">
                     <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-2 ml-4">Inventory</div>
                     
                     <Link :href="route('categories.index')" :class="{'text-gold-600 bg-gold-50': route().current('categories.*')}" class="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors">

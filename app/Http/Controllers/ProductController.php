@@ -41,9 +41,9 @@ class ProductController extends Controller
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('model_number', 'like', "%{$search}%")
-                  ->orWhere('barcode', 'like', "%{$search}%");
+                $q->where('name', 'ilike', "%{$search}%")
+                  ->orWhere('model_number', 'ilike', "%{$search}%")
+                  ->orWhere('barcode', 'ilike', "%{$search}%");
             });
         }
 
@@ -53,8 +53,8 @@ class ProductController extends Controller
             });
         }
 
-        if ($request->filled('collection_id')) {
-            $query->where('collection_id', $request->collection_id);
+        if ($request->filled('brand_id')) {
+            $query->where('brand_id', $request->brand_id);
         }
 
         if ($request->filled('min_price')) {
@@ -71,14 +71,23 @@ class ProductController extends Controller
             });
         }
 
+        // Sorting
+        $sortField = $request->get('sort', 'updated_at');
+        $sortDirection = $request->get('direction', 'desc');
+        $allowedSorts = ['name', 'price', 'updated_at'];
+        if (in_array($sortField, $allowedSorts)) {
+            $query->orderBy($sortField, $sortDirection === 'asc' ? 'asc' : 'desc');
+        }
+
         return Inertia::render('Products/Index', [
             'products' => $query->paginate(10)->withQueryString(),
-            'filters' => $request->only(['search', 'category_id', 'collection_id', 'min_price', 'max_price', 'in_stock']),
+            'filters' => $request->only(['search', 'category_id', 'brand_id', 'min_price', 'max_price', 'in_stock', 'sort', 'direction']),
             'brands' => Brand::all(),
             'categories' => Category::all(),
             'collections' => Collection::all(),
             'customer_groups' => CustomerGroup::all(),
             'specOptions' => $specOptions,
+            'userRole' => $request->user()->role ?? 'user',
         ]);
     }
 

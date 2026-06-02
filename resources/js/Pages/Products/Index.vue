@@ -39,6 +39,10 @@ const props = defineProps({
     type: Object,
     default: () => ({}),
   },
+  userRole: {
+    type: String,
+    default: "user",
+  },
 });
 
 console.log("Products Data:", props.products);
@@ -49,10 +53,12 @@ const displayCurrency = ref("MMK"); // Default view
 const activeFilters = ref({
   search: props.filters.search || "",
   category_id: props.filters.category_id || "",
-  collection_id: props.filters.collection_id || "",
+  brand_id: props.filters.brand_id || "",
   min_price: props.filters.min_price || "",
   max_price: props.filters.max_price || "",
   in_stock: props.filters.in_stock === "true" || false,
+  sort: props.filters.sort || "updated_at",
+  direction: props.filters.direction || "desc",
 });
 
 watch(
@@ -61,10 +67,12 @@ watch(
     let params = {};
     if (value.search) params.search = value.search;
     if (value.category_id) params.category_id = value.category_id;
-    if (value.collection_id) params.collection_id = value.collection_id;
+    if (value.brand_id) params.brand_id = value.brand_id;
     if (value.min_price) params.min_price = value.min_price;
     if (value.max_price) params.max_price = value.max_price;
     if (value.in_stock) params.in_stock = "true";
+    if (value.sort) params.sort = value.sort;
+    if (value.direction) params.direction = value.direction;
 
     router.get(route("products.index"), params, {
       preserveState: true,
@@ -553,14 +561,14 @@ const deleteProduct = (product) => {
         </select>
       </div>
       <div class="w-[200px]">
-        <InputLabel value="Collection" class="text-gray-700 text-xs" />
+        <InputLabel value="Brand" class="text-gray-700 text-xs" />
         <select
-          v-model="activeFilters.collection_id"
+          v-model="activeFilters.brand_id"
           class="mt-1 block w-full text-sm bg-gray-50 border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500"
         >
-          <option value="">All Collections</option>
-          <option v-for="col in collections" :key="col.id" :value="col.id">
-            {{ col.name }}
+          <option value="">All Brands</option>
+          <option v-for="br in brands" :key="br.id" :value="br.id">
+            {{ br.name }}
           </option>
         </select>
       </div>
@@ -592,6 +600,27 @@ const deleteProduct = (product) => {
         <label for="filter_in_stock" class="ml-2 block text-sm text-gray-900"
           >In Stock Only</label
         >
+      </div>
+      <div class="w-[180px]">
+        <InputLabel value="Sort By" class="text-gray-700 text-xs" />
+        <select
+          v-model="activeFilters.sort"
+          class="mt-1 block w-full text-sm bg-gray-50 border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500"
+        >
+          <option value="updated_at">Last Updated</option>
+          <option value="name">Name</option>
+          <option value="price">Price</option>
+        </select>
+      </div>
+      <div class="w-[120px]">
+        <InputLabel value="Order" class="text-gray-700 text-xs" />
+        <select
+          v-model="activeFilters.direction"
+          class="mt-1 block w-full text-sm bg-gray-50 border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500"
+        >
+          <option value="desc">Descending</option>
+          <option value="asc">Ascending</option>
+        </select>
       </div>
     </div>
 
@@ -627,6 +656,7 @@ const deleteProduct = (product) => {
                 Category
               </th>
               <th
+                v-if="userRole === 'admin'"
                 scope="col"
                 class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
@@ -706,7 +736,7 @@ const deleteProduct = (product) => {
                 </div>
                 <span v-else class="text-xs text-gray-400">No Category</span>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap">
+              <td v-if="userRole === 'admin'" class="px-6 py-4 whitespace-nowrap">
                 <div class="text-gray-900 font-bold text-lg">
                   {{ formatPrice(getDisplayPrice(product)) }}
                   {{ displayCurrency }}
@@ -714,7 +744,7 @@ const deleteProduct = (product) => {
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <Link
-                  v-if="product.id"
+                  v-if="product.id && userRole !== 'user'"
                   :href="route('products.show', product.id)"
                   class="inline-flex items-center text-blue-600 hover:text-blue-800 underline text-sm"
                 >
@@ -730,7 +760,8 @@ const deleteProduct = (product) => {
                     ({{ product.available_stock_count || 0 }})
                   </span>
                 </Link>
-                <span v-else class="text-red-500 text-xs">Invalid ID</span>
+                <span v-else-if="!product.id" class="text-red-500 text-xs">Invalid ID</span>
+                <span v-else class="text-xs text-gray-400">—</span>
               </td>
               <td
                 class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3"
@@ -750,7 +781,7 @@ const deleteProduct = (product) => {
               </td>
             </tr>
             <tr v-if="!products?.data?.length">
-              <td colspan="7" class="px-6 py-4 text-center text-gray-500">
+              <td :colspan="userRole === 'admin' ? 7 : 6" class="px-6 py-4 text-center text-gray-500">
                 No watches found.
               </td>
             </tr>
