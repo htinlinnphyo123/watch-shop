@@ -63,8 +63,12 @@ class ProductController extends Controller
             $q->where('price', '<=', $maxPrice)
         );
 
-        $query->when($request->dialSize, fn ($q, $dialSize) =>
-            $q->where('dial_size', $dialSize)
+        $query->when($request->minDialSize, fn ($q, $minDialSize) =>
+            $q->where('dial_size', '>=', $minDialSize)
+        );
+
+        $query->when($request->maxDialSize, fn ($q, $maxDialSize) =>
+            $q->where('dial_size', '<=', $maxDialSize)
         );
 
         $query->when($request->caseShape, fn ($q, $caseShape) =>
@@ -84,7 +88,8 @@ class ProductController extends Controller
 
     private function paginate($query, Request $request)
     {
-        return $query->paginate($request->input('limit', 12));
+        $perPage = $request->input('per_page', $request->input('limit', 12));
+        return $query->paginate($perPage);
     }
 
     public function show(Product $product)
