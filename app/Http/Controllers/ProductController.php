@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Collection;
 use App\Models\CustomerGroup;
 use App\Models\Product;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -35,8 +36,7 @@ class ProductController extends Controller
         $query = Product::with(['brand', 'categories', 'customerGroups'])
             ->withCount(['items as available_stock_count' => function ($q) {
                 $q->where('status', 'available');
-            }])
-            ->latest('updated_at');
+            }]);
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -57,12 +57,32 @@ class ProductController extends Controller
             $query->where('brand_id', $request->brand_id);
         }
 
+        // Load exchange rates once for price filtering and sorting
+        $rates = Setting::whereIn('key', ['usd_rate', 'thb_rate', 'sgd_rate', 'cny_rate'])
+            ->pluck('value', 'key');
+        $usdRate = (float) ($rates['usd_rate'] ?? 1);
+        $thbRate = (float) ($rates['thb_rate'] ?? 1);
+        $sgdRate = (float) ($rates['sgd_rate'] ?? 1);
+        $cnyRate = (float) ($rates['cny_rate'] ?? 1);
+
+        // Price filtering: filter by MMK-equivalent price
+        $mmkPriceExpression = "
+            CASE
+                WHEN currency = 'MMK' THEN price
+                WHEN currency = 'USD' THEN price * {$usdRate}
+                WHEN currency = 'THB' THEN price * {$thbRate}
+                WHEN currency = 'SGD' THEN price * {$sgdRate}
+                WHEN currency = 'CNY' THEN price * {$cnyRate}
+                ELSE price
+            END
+        ";
+
         if ($request->filled('min_price')) {
-            $query->where('price', '>=', $request->min_price);
+            $query->whereRaw("({$mmkPriceExpression}) >= ?", [$request->min_price]);
         }
 
         if ($request->filled('max_price')) {
-            $query->where('price', '<=', $request->max_price);
+            $query->whereRaw("({$mmkPriceExpression}) <= ?", [$request->max_price]);
         }
 
         if ($request->filled('in_stock') && $request->in_stock === 'true') {
@@ -76,7 +96,12 @@ class ProductController extends Controller
         $sortDirection = $request->get('direction', 'desc');
         $allowedSorts = ['name', 'price', 'updated_at'];
         if (in_array($sortField, $allowedSorts)) {
-            $query->orderBy($sortField, $sortDirection === 'asc' ? 'asc' : 'desc');
+            if ($sortField === 'price') {
+                $direction = $sortDirection === 'asc' ? 'asc' : 'desc';
+                $query->orderByRaw("({$mmkPriceExpression}) {$direction}");
+            } else {
+                $query->orderBy($sortField, $sortDirection === 'asc' ? 'asc' : 'desc');
+            }
         }
 
         return Inertia::render('Products/Index', [
