@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\NewProductResource;
 use App\Models\Product;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 
 class ProductController extends Controller
@@ -55,13 +56,31 @@ class ProductController extends Controller
             $q->where('collection_id', $collectionId)
         );
 
-        $query->when($request->minPrice, fn ($q, $minPrice) =>
-            $q->where('price', '>=', $minPrice)
-        );
+        $rates = Setting::whereIn('key', ['usd_rate', 'thb_rate', 'sgd_rate', 'cny_rate'])
+            ->pluck('value', 'key');
+        $usdRate = (float) ($rates['usd_rate'] ?? 1);
+        $thbRate = (float) ($rates['thb_rate'] ?? 1);
+        $sgdRate = (float) ($rates['sgd_rate'] ?? 1);
+        $cnyRate = (float) ($rates['cny_rate'] ?? 1);
 
-        $query->when($request->maxPrice, fn ($q, $maxPrice) =>
-            $q->where('price', '<=', $maxPrice)
-        );
+        $mmkPriceExpression = "
+            CASE
+                WHEN currency = 'MMK' THEN price
+                WHEN currency = 'USD' THEN price * {$usdRate}
+                WHEN currency = 'THB' THEN price * {$thbRate}
+                WHEN currency = 'SGD' THEN price * {$sgdRate}
+                WHEN currency = 'CNY' THEN price * {$cnyRate}
+                ELSE price
+            END
+        ";
+
+        if ($request->filled('minPrice')) {
+            $query->whereRaw("({$mmkPriceExpression}) >= ?", [$request->minPrice]);
+        }
+
+        if ($request->filled('maxPrice')) {
+            $query->whereRaw("({$mmkPriceExpression}) <= ?", [$request->maxPrice]);
+        }
 
         $query->when($request->minDialSize, fn ($q, $minDialSize) =>
             $q->where('dial_size', '>=', $minDialSize)
