@@ -45,7 +45,8 @@ class ProductController extends Controller
         });
 
         $query->when($request->search, function ($q, $search) {
-            $q->where('name', 'ilike', "%{$search}%");
+            $q->where('name', 'ilike', "%{$search}%")
+                ->orWhere('model_number', 'ilike', "%{$search}%");
         });
 
         $query->when($request->brandId, fn ($q, $brandId) =>

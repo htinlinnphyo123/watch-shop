@@ -84,29 +84,13 @@ class HomeController extends Controller
         // Single query for product attributes
         $productAttributes = Product::where('is_active', true)
             ->where('is_public', true)
-            ->select('case_shape', 'dial_size')
+            ->select('case_shape', 'dial_size','strap_material','movement')
             ->distinct()
             ->get();
 
-        $caseShapes = $productAttributes
-            ->pluck('case_shape')
-            ->filter()
-            ->unique()
-            ->values()
-            ->map(fn($item) => [
-                'id' => $item,
-                'name' => $item,
-            ]);
-
-        $dialSizes = $productAttributes
-            ->pluck('dial_size')
-            ->filter()
-            ->unique()
-            ->values()
-            ->map(fn($item) => [
-                'id' => $item,
-                'name' => $item,
-            ]);
+        $caseShapes = $this->getKeyValuePairFromProducts($productAttributes,'case_shape');
+        $strapMaterials = $this->getKeyValuePairFromProducts($productAttributes,'strap_material');
+        $moveMents = $this->getKeyValuePairFromProducts($productAttributes,'movement');
 
         return response()->json([
             'code' => 200,
@@ -117,8 +101,23 @@ class HomeController extends Controller
                 'brands' => $brands,
                 'collections' => $collections,
                 'case_shapes' => $caseShapes,
-                'dial_sizes' => $dialSizes,
+                'strap_materials' => $strapMaterials,
+                'movements' => $moveMents
             ],
         ]);
     }
+
+    protected function getKeyValuePairFromProducts(\Illuminate\Database\Eloquent\Collection $productAttributes,string $field) : \Illuminate\Support\Collection
+    {
+        return $productAttributes
+            ->pluck($field)
+            ->filter()
+            ->unique()
+            ->values()
+            ->map(fn($item) => [
+                'id' => $item,
+                'name' => $item,
+            ]);
+    }
+
 }
