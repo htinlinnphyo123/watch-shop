@@ -94,6 +94,14 @@ class ProductController extends Controller
         $query->when($request->caseShape, fn ($q, $caseShape) =>
             $q->where('case_shape', $caseShape)
         );
+
+        $query->when($request->strapMaterial, fn ($q, $strapMaterial) => 
+            $q->where('strap_material', $strapMaterial)
+        );
+
+        $query->when($request->movement, fn($q,$movement) => 
+            $q->where('movement', $movement)
+        );
     }
 
     private function applySorting($query, Request $request): void
