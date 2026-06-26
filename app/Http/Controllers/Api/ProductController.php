@@ -36,26 +36,57 @@ class ProductController extends Controller
     }
 
 
+    /**
+     * Extract an array parameter from the request, supporting:
+     *   ?key=1,2,3      (comma-separated string)
+     *   ?key[]=1&key[]=2 (standard array notation)
+     *   ?key=1&key=2     (duplicate keys - PHP keeps only the last one)
+     */
+    private function getArrayParam(Request $request, string $key): ?array
+    {
+        $value = $request->query($key);
+
+        if (empty($value)) {
+            return null;
+        }
+
+        // Already an array (e.g. ?key[]=1&key[]=2)
+        if (is_array($value)) {
+            return $value;
+        }
+
+        // Comma-separated string (e.g. ?key=1,2,3)
+        if (is_string($value) && str_contains($value, ',')) {
+            return explode(',', $value);
+        }
+        
+        // Single value
+        return [$value];
+    }
+
     private function applyFilters($query, Request $request): void
     {
-        $query->when($request->categoryId, function ($q, $categoryId) {
-            $q->whereHas('categories', fn ($sub) =>
-                $sub->where('categories.id', $categoryId)
+        $categoryIds = $this->getArrayParam($request, 'categoryId');
+        if ($categoryIds) {
+            $query->whereHas('categories', fn ($sub) =>
+                $sub->whereIn('categories.id', $categoryIds)
             );
-        });
+        }
 
         $query->when($request->search, function ($q, $search) {
             $q->where('name', 'ilike', "%{$search}%")
                 ->orWhere('model_number', 'ilike', "%{$search}%");
         });
 
-        $query->when($request->brandId, fn ($q, $brandId) =>
-            $q->where('brand_id', $brandId)
-        );
+        $brandIds = $this->getArrayParam($request, 'brandId');
+        if ($brandIds) {
+            $query->whereIn('brand_id', $brandIds);
+        }
 
-        $query->when($request->collectionId, fn ($q, $collectionId) =>
-            $q->where('collection_id', $collectionId)
-        );
+        $collectionIds = $this->getArrayParam($request, 'collectionId');
+        if ($collectionIds) {
+            $query->whereIn('collection_id', $collectionIds);
+        }
 
         $rates = Setting::whereIn('key', ['usd_rate', 'thb_rate', 'sgd_rate', 'cny_rate'])
             ->pluck('value', 'key');
@@ -91,17 +122,20 @@ class ProductController extends Controller
             $q->where('dial_size', '<=', $maxDialSize)
         );
 
-        $query->when($request->caseShape, fn ($q, $caseShape) =>
-            $q->where('case_shape', $caseShape)
-        );
+        $caseShapes = $this->getArrayParam($request, 'caseShape');
+        if ($caseShapes) {
+            $query->whereIn('case_shape', $caseShapes);
+        }
 
-        $query->when($request->strapMaterial, fn ($q, $strapMaterial) => 
-            $q->where('strap_material', $strapMaterial)
-        );
+        $strapMaterials = $this->getArrayParam($request, 'strapMaterial');
+        if ($strapMaterials) {
+            $query->whereIn('strap_material', $strapMaterials);
+        }
 
-        $query->when($request->movement, fn($q,$movement) => 
-            $q->where('movement', $movement)
-        );
+        $movements = $this->getArrayParam($request, 'movement');
+        if ($movements) {
+            $query->whereIn('movement', $movements);
+        }
     }
 
     private function applySorting($query, Request $request): void
