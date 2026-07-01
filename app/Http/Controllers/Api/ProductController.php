@@ -12,6 +12,10 @@ class ProductController extends Controller
 {
     public function index(Request $request)
     {
+        $request->validate([
+            'brandId' => 'nullable',
+            'stockStatus' => 'nullable'
+        ]);
         $query = $this->baseQuery();
 
         $this->applyFilters($query, $request);
@@ -59,7 +63,7 @@ class ProductController extends Controller
         if (is_string($value) && str_contains($value, ',')) {
             return explode(',', $value);
         }
-        
+
         // Single value
         return [$value];
     }
@@ -68,7 +72,9 @@ class ProductController extends Controller
     {
         $categoryIds = $this->getArrayParam($request, 'categoryId');
         if ($categoryIds) {
-            $query->whereHas('categories', fn ($sub) =>
+            $query->whereHas(
+                'categories',
+                fn($sub) =>
                 $sub->whereIn('categories.id', $categoryIds)
             );
         }
@@ -114,11 +120,15 @@ class ProductController extends Controller
             $query->whereRaw("({$mmkPriceExpression}) <= ?", [$request->maxPrice]);
         }
 
-        $query->when($request->minDialSize, fn ($q, $minDialSize) =>
+        $query->when(
+            $request->minDialSize,
+            fn($q, $minDialSize) =>
             $q->where('dial_size', '>=', $minDialSize)
         );
 
-        $query->when($request->maxDialSize, fn ($q, $maxDialSize) =>
+        $query->when(
+            $request->maxDialSize,
+            fn($q, $maxDialSize) =>
             $q->where('dial_size', '<=', $maxDialSize)
         );
 
@@ -135,6 +145,21 @@ class ProductController extends Controller
         $movements = $this->getArrayParam($request, 'movement');
         if ($movements) {
             $query->whereIn('movement', $movements);
+        }
+
+        $stockStatus = $request->query('stockStatus');
+        if ($stockStatus) {
+            $hasAvailable = $stockStatus === 'available';
+            $hasOutOfStock = $stockStatus === 'out_of_stock';
+            if ($hasAvailable) {
+                $query->whereHas('items', function ($q) {
+                    $q->where('status', 'available');
+                });
+            } elseif ($hasOutOfStock) {
+                $query->whereDoesntHave('items', function ($q) {
+                    $q->where('status', 'available');
+                });
+            }
         }
     }
 
@@ -181,8 +206,8 @@ class ProductController extends Controller
             'status' => 'success',
             'message' => 'Get Product Success',
             'data' => [
-                'product'=>$productResource,
-                'related_products'=>$relatedProducts['data']    
+                'product' => $productResource,
+                'related_products' => $relatedProducts['data']
             ]
         ]);
     }
