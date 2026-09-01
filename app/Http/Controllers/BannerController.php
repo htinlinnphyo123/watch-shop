@@ -18,9 +18,15 @@ class BannerController extends Controller
 
     public function store(Request $request)
     {
+        $type = $request->input('type', 'image');
+        $mediaRule = $type === 'video'
+            ? 'required|file|mimes:mp4,mov,avi,wmv,webm,flv,mkv|max:102400'
+            : 'required|file|mimes:jpg,jpeg,png,webp,gif,svg|max:20480';
+
         $validated = $request->validate([
-            'image' => 'required|image',
             'title' => 'nullable|string',
+            'type' => 'required|in:image,video',
+            'image' => $mediaRule,
             'link' => 'nullable|string',
             'order' => 'integer',
             'is_active' => 'boolean',
@@ -37,9 +43,15 @@ class BannerController extends Controller
 
     public function update(Request $request, Banner $banner)
     {
+        $type = $request->input('type', $banner->type ?? 'image');
+        $mediaRule = $type === 'video'
+            ? 'nullable|file|mimes:mp4,mov,avi,wmv,webm,flv,mkv|max:102400'
+            : 'nullable|file|mimes:jpg,jpeg,png,webp,gif,svg|max:20480';
+
         $validated = $request->validate([
-            'image' => 'nullable|image',
             'title' => 'nullable|string',
+            'type' => 'required|in:image,video',
+            'image' => $mediaRule,
             'link' => 'nullable|string',
             'order' => 'integer',
             'is_active' => 'boolean',

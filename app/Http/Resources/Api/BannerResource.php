@@ -17,6 +17,7 @@ class BannerResource extends JsonResource
         return [
             'id' => $this->id,
             'title' => $this->title,
+            'type' => $this->type ?? 'image',
             'image' => asset(config('app.aws_url') . '/' . $this->image),
             'link' => $this->link,
         ];

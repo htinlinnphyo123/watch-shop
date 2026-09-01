@@ -15,6 +15,7 @@ const props = defineProps({
 
 const form = useForm({
     title: '',
+    type: 'image',
     link: '',
     image: null,
     is_active: true,
@@ -24,7 +25,7 @@ const form = useForm({
 const isModalOpen = ref(false);
 const editingBanner = ref(null);
 const imageInput = ref(null);
-const previewImage = ref(null);
+const previewMedia = ref(null);
 
 const onFileChange = (e) => {
     const file = e.target.files[0];
@@ -33,25 +34,27 @@ const onFileChange = (e) => {
     if (file) {
         const reader = new FileReader();
         reader.onload = (e) => {
-            previewImage.value = e.target.result;
+            previewMedia.value = e.target.result;
         };
         reader.readAsDataURL(file);
     } else {
-        previewImage.value = null;
+        previewMedia.value = null;
     }
 };
 
 const openModal = (banner = null) => {
     editingBanner.value = banner;
-    previewImage.value = null;
+    previewMedia.value = null;
     if (banner) {
-        form.title = banner.title;
-        form.link = banner.link;
+        form.title = banner.title || '';
+        form.type = banner.type || 'image';
+        form.link = banner.link || '';
         form.is_active = Boolean(banner.is_active);
-        form.order = banner.order;
+        form.order = banner.order || 0;
         form.image = null; // Don't carry over file object
     } else {
         form.reset();
+        form.type = 'image';
         form.is_active = true;
         form.order = 0;
     }
@@ -62,7 +65,7 @@ const closeModal = () => {
     isModalOpen.value = false;
     form.reset();
     editingBanner.value = null;
-    previewImage.value = null;
+    previewMedia.value = null;
     if (imageInput.value) imageInput.value.value = null;
 };
 
@@ -71,6 +74,7 @@ const submit = () => {
         router.post(route('banners.update', editingBanner.value.id), {
             _method: 'put',
             title: form.title,
+            type: form.type,
             link: form.link,
             is_active: form.is_active ? 1 : 0,
             order: form.order,
@@ -111,8 +115,9 @@ const deleteBanner = (banner) => {
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Media</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Link</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -122,9 +127,15 @@ const deleteBanner = (banner) => {
                 <tbody class="bg-white divide-y divide-gray-200">
                     <tr v-for="banner in banners.data" :key="banner.id" class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <img :src="$page.props.storage_url + '/' + banner.image" class="h-16 w-32 object-cover rounded border border-gray-200" />
+                            <video v-if="banner.type === 'video'" :src="$page.props.storage_url + '/' + banner.image" class="h-16 w-32 object-cover rounded border border-gray-200" autoplay loop muted playsinline></video>
+                            <img v-else :src="$page.props.storage_url + '/' + banner.image" class="h-16 w-32 object-cover rounded border border-gray-200" />
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">{{ banner.title || '-' }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span :class="banner.type === 'video' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full uppercase">
+                                {{ banner.type || 'image' }}
+                            </span>
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-gold-600 text-sm">
                             <a v-if="banner.link" :href="banner.link" target="_blank" class="hover:underline truncate block max-w-xs">{{ banner.link }}</a>
                             <span v-else>-</span>
@@ -141,7 +152,7 @@ const deleteBanner = (banner) => {
                         </td>
                     </tr>
                     <tr v-if="banners.data.length === 0">
-                        <td colspan="6" class="px-6 py-4 text-center text-gray-500">No banners found.</td>
+                        <td colspan="7" class="px-6 py-4 text-center text-gray-500">No banners found.</td>
                     </tr>
                 </tbody>
             </table>
@@ -201,6 +212,21 @@ const deleteBanner = (banner) => {
                     </div>
 
                     <div>
+                        <InputLabel value="Banner Type" class="text-gray-700" />
+                        <div class="mt-2 flex items-center space-x-6">
+                            <label class="inline-flex items-center cursor-pointer">
+                                <input type="radio" v-model="form.type" value="image" class="text-gold-600 focus:ring-gold-500" />
+                                <span class="ml-2 text-gray-700 font-medium">Image</span>
+                            </label>
+                            <label class="inline-flex items-center cursor-pointer">
+                                <input type="radio" v-model="form.type" value="video" class="text-gold-600 focus:ring-gold-500" />
+                                <span class="ml-2 text-gray-700 font-medium">Video</span>
+                            </label>
+                        </div>
+                        <InputError class="mt-2" :message="form.errors.type" />
+                    </div>
+
+                    <div>
                         <InputLabel for="link" value="Link URL (Optional)" class="text-gray-700" />
                         <TextInput
                             id="link"
@@ -232,23 +258,35 @@ const deleteBanner = (banner) => {
                     </div>
 
                     <div>
-                        <InputLabel for="image" value="Banner Image" class="text-gray-700" />
+                        <InputLabel for="image" :value="form.type === 'video' ? 'Banner Video' : 'Banner Image'" class="text-gray-700" />
                         
-                        <!-- Image Preview -->
-                        <div v-if="previewImage" class="mt-2 mb-4">
-                            <img :src="previewImage" class="h-32 w-full object-cover rounded border border-gray-300" />
-                            <p class="text-xs text-green-600 mt-1">New image selected</p>
+                        <!-- Media Preview -->
+                        <div v-if="form.type === 'video'">
+                            <div v-if="previewMedia" class="mt-2 mb-4">
+                                <video :src="previewMedia" controls class="h-36 w-full object-cover rounded border border-gray-300"></video>
+                                <p class="text-xs text-green-600 mt-1">New video selected</p>
+                            </div>
+                            <div v-else-if="editingBanner && editingBanner.image && editingBanner.type === 'video'" class="mt-2 mb-4">
+                                <video :src="$page.props.storage_url + '/' + editingBanner.image" controls class="h-36 w-full object-cover rounded border border-gray-300"></video>
+                                <p class="text-xs text-gray-500 mt-1">Current Video</p>
+                            </div>
                         </div>
-                        <div v-else-if="editingBanner && editingBanner.image" class="mt-2 mb-4">
-                             <img :src="$page.props.storage_url + '/' + editingBanner.image" class="h-32 w-full object-cover rounded border border-gray-300" />
-                             <p class="text-xs text-gray-500 mt-1">Current Image</p>
+                        <div v-else>
+                            <div v-if="previewMedia" class="mt-2 mb-4">
+                                <img :src="previewMedia" class="h-32 w-full object-cover rounded border border-gray-300" />
+                                <p class="text-xs text-green-600 mt-1">New image selected</p>
+                            </div>
+                            <div v-else-if="editingBanner && editingBanner.image && (editingBanner.type === 'image' || !editingBanner.type)" class="mt-2 mb-4">
+                                <img :src="$page.props.storage_url + '/' + editingBanner.image" class="h-32 w-full object-cover rounded border border-gray-300" />
+                                <p class="text-xs text-gray-500 mt-1">Current Image</p>
+                            </div>
                         </div>
 
                         <input 
                             type="file" 
                             @change="onFileChange"
                             class="mt-1 block w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gold-500 file:text-dark-900 hover:file:bg-gold-600"
-                            accept="image/*"
+                            :accept="form.type === 'video' ? 'video/*' : 'image/*'"
                             ref="imageInput"
                             :required="!editingBanner"
                         />
