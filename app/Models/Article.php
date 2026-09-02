@@ -45,13 +45,11 @@ class Article extends Model
 
     /**
      * Scope: only published articles.
+     * Visibility is controlled solely by the is_published flag.
+     * published_at is a display/record field, not a scheduling gate.
      */
     public function scopePublished($query)
     {
-        return $query->where('is_published', true)
-                     ->where(function ($q) {
-                         $q->whereNull('published_at')
-                           ->orWhere('published_at', '<=', now());
-                     });
+        return $query->where('is_published', true);
     }
 }

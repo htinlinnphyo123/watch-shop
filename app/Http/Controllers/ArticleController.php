@@ -37,6 +37,11 @@ class ArticleController extends Controller
         // Auto-generate slug if not provided
         $validated['slug'] = $validated['slug'] ?? Str::slug($validated['title']);
 
+        // Auto-set published_at when publishing without a specific date
+        if (!empty($validated['is_published']) && empty($validated['published_at'])) {
+            $validated['published_at'] = now();
+        }
+
         if ($request->hasFile('cover_image')) {
             $validated['cover_image'] = $request->file('cover_image')
                 ->store('articles', env('FILESYSTEM_DISK', 's3'));
@@ -67,6 +72,11 @@ class ArticleController extends Controller
         ]);
 
         $dataToUpdate = collect($validated)->except('cover_image')->toArray();
+
+        // Auto-set published_at when publishing without a specific date
+        if (!empty($dataToUpdate['is_published']) && empty($dataToUpdate['published_at']) && empty($article->published_at)) {
+            $dataToUpdate['published_at'] = now();
+        }
 
         if ($request->hasFile('cover_image')) {
             // Delete old image from storage
