@@ -14,6 +14,10 @@ const props = defineProps({
         type: Boolean,
         default: true,
     },
+    sidebarOffset: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const emit = defineEmits(['close']);
@@ -50,11 +54,12 @@ onUnmounted(() => {
 
 const maxWidthClass = computed(() => {
     return {
-        sm: 'sm:max-w-sm',
-        md: 'sm:max-w-md',
-        lg: 'sm:max-w-lg',
-        xl: 'sm:max-w-xl',
-        '2xl': 'sm:max-w-2xl',
+        sm:   'sm:max-w-sm',
+        md:   'sm:max-w-md',
+        lg:   'sm:max-w-lg',
+        xl:   'sm:max-w-xl',
+        '2xl':'sm:max-w-2xl',
+        '3xl':'sm:max-w-3xl',
     }[props.maxWidth];
 });
 </script>
@@ -62,7 +67,7 @@ const maxWidthClass = computed(() => {
 <template>
     <Teleport to="body">
         <Transition leave-active-class="duration-200">
-            <div v-show="show" class="fixed inset-0 overflow-y-auto px-4 py-6 sm:px-0 z-50" scroll-region>
+            <div v-show="show" class="fixed inset-0 overflow-y-auto px-4 py-6 sm:px-0 z-50" :class="{ 'md:left-64': sidebarOffset }" scroll-region>
                 <Transition
                     enter-active-class="ease-out duration-300"
                     enter-from-class="opacity-0"

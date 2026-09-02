@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ArticleController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\HomeController;
@@ -28,6 +29,8 @@ Route::prefix('v1/spa')->group(function () {
     Route::get('categories', [CategoryController::class, 'index']);
     Route::get('categories/fetch-all', [CategoryController::class, 'fetchAll']);
     Route::get('filter-necessary-data', [HomeController::class, 'filterNecessaryData']);
+    Route::get('articles', [ArticleController::class, 'index']);
+    Route::get('articles/{slug}', [ArticleController::class, 'show']);
 });
 
 // Protected Routes
