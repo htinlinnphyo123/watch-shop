@@ -21,7 +21,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'role'
+        'role',
     ];
 
     /**
@@ -43,8 +43,24 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
+
+    protected static function booted(): void
+    {
+        static::created(function (User $user) {
+            $user->wallet()->create([
+                'balance' => 0,
+                'currency' => 'MMK',
+            ]);
+        });
+    }
+
     public function customer()
     {
         return $this->hasOne(Customer::class, 'email', 'email');
+    }
+
+    public function wallet()
+    {
+        return $this->hasOne(Wallet::class);
     }
 }

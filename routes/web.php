@@ -36,19 +36,25 @@ Route::middleware('auth')->group(function () {
     Route::resource('brands', \App\Http\Controllers\BrandController::class);
     Route::post('collections/reorder', [\App\Http\Controllers\CollectionController::class, 'reorder'])->name('collections.reorder');
     Route::resource('collections', \App\Http\Controllers\CollectionController::class);
-    Route::get('products/export', [\App\Http\Controllers\ProductController::class, 'export'])->name('products.export');
+    Route::get('products/export', [\App\Http\Controllers\ProductController::class, 'export'])->middleware('role:admin')->name('products.export');
     Route::post('products/presigned-url', [\App\Http\Controllers\ProductController::class, 'presignedUrl'])->name('products.presigned-url');
     Route::post('products/import', [\App\Http\Controllers\ProductController::class, 'import'])->name('products.import');
     Route::resource('products', \App\Http\Controllers\ProductController::class);
     Route::post('/products/{product}/items', [\App\Http\Controllers\ProductItemController::class, 'store'])->name('products.items.store');
     Route::put('/items/{item}', [\App\Http\Controllers\ProductItemController::class, 'update'])->name('items.update');
     Route::delete('/items/{item}', [\App\Http\Controllers\ProductItemController::class, 'destroy'])->name('items.destroy');
-    
+    Route::get('wallet', [\App\Http\Controllers\WalletController::class, 'index'])->name('wallet.index');
+    Route::post('wallet/transactions', [\App\Http\Controllers\WalletController::class, 'storeTransaction'])->name('wallet.transactions.store');
+    Route::put('wallet/transactions/{walletTransaction}', [\App\Http\Controllers\WalletController::class, 'updateTransaction'])->name('wallet.transactions.update');
+    Route::delete('wallet/transactions/{walletTransaction}', [\App\Http\Controllers\WalletController::class, 'destroyTransaction'])->name('wallet.transactions.destroy');
+
+    // Inventory management is available to every authenticated user.
+    Route::resource('banners', \App\Http\Controllers\BannerController::class);
+
     // Admin Only Routes
     Route::middleware(['role:admin'])->group(function () {
         Route::resource('users', \App\Http\Controllers\UserController::class);
         Route::resource('customer-groups', \App\Http\Controllers\CustomerGroupController::class);
-        Route::resource('banners', \App\Http\Controllers\BannerController::class);
         Route::resource('top-level-discounts', \App\Http\Controllers\TopLevelDiscountController::class);
         Route::get('settings', [\App\Http\Controllers\SettingController::class, 'index'])->name('settings.index');
         Route::put('settings', [\App\Http\Controllers\SettingController::class, 'update'])->name('settings.update');

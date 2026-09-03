@@ -482,13 +482,16 @@ const deleteProduct = (product) => {
         </div>
 
         <a
+          v-if="userRole === 'admin'"
           :href="route('products.export')"
           class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-bold text-xs text-white uppercase tracking-widest hover:bg-green-700 active:bg-green-900 focus:outline-none focus:border-green-900 focus:ring ring-green-300 disabled:opacity-25 transition ease-in-out duration-150 shadow-sm"
         >
           Export Excel
         </a>
 
-        <SecondaryButton @click="fileInput.click()" class="shadow-sm">
+        <SecondaryButton 
+            v-if="userRole === 'admin'"
+            @click="fileInput.click()" class="shadow-sm">
           Import Excel
         </SecondaryButton>
         <input
@@ -665,7 +668,6 @@ const deleteProduct = (product) => {
                 Category
               </th>
               <th
-                v-if="userRole === 'admin'"
                 scope="col"
                 class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
@@ -745,10 +747,17 @@ const deleteProduct = (product) => {
                 </div>
                 <span v-else class="text-xs text-gray-400">No Category</span>
               </td>
-              <td v-if="userRole === 'admin'" class="px-6 py-4 whitespace-nowrap">
+              <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-gray-900 font-bold text-lg">
                   {{ formatPrice(getDisplayPrice(product)) }}
                   {{ displayCurrency }}
+                </div>
+                <div
+                  v-if="userRole === 'admin' && product.cost_price !== null && product.cost_price !== undefined"
+                  class="text-xs text-gray-500 mt-1"
+                >
+                  Cost: {{ parseFloat(product.cost_price).toLocaleString() }}
+                  {{ product.currency }}
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
@@ -1039,7 +1048,7 @@ const deleteProduct = (product) => {
                 required
               />
             </div>
-            <div>
+            <div v-if="userRole === 'admin'">
               <InputLabel
                 :value="'Cost Price (' + form.currency + ')'"
                 class="text-gray-700"

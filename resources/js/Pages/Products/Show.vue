@@ -194,6 +194,10 @@ const formatDate = (dateString) => {
                                  <span class="text-gray-500">Priority Level</span>
                                  <span class="text-gray-900 font-medium">{{ product.priority_level ?? 0 }}</span>
                              </div>
+                             <div v-if="$page.props.auth.user.role === 'admin'" class="flex justify-between border-b border-gray-100 pb-2">
+                                 <span class="text-gray-500">Cost Price</span>
+                                 <span class="text-gray-900 font-medium">{{ product.cost_price ? parseFloat(product.cost_price).toLocaleString() + ' ' + product.currency : '-' }}</span>
+                             </div>
                              <div class="flex justify-between border-b border-gray-100 pb-2">
                                  <span class="text-gray-500">Warranty Type</span>
                                  <span v-if="product.warranty_type === 'international_warranty'"

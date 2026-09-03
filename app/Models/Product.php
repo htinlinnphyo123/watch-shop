@@ -23,6 +23,17 @@ class Product extends Model
         'priority_level' => 'integer',
     ];
 
+    public function toArray(): array
+    {
+        $data = parent::toArray();
+
+        if (auth()->user()?->role !== 'admin') {
+            unset($data['cost_price']);
+        }
+
+        return $data;
+    }
+
     public function brand()
     {
         return $this->belongsTo(Brand::class);

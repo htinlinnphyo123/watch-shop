@@ -171,6 +171,10 @@ class ProductController extends Controller
             'is_public' => 'boolean',
         ]);
 
+        if ($request->user()->role !== 'admin') {
+            unset($validated['cost_price']);
+        }
+
         $validated['priority_level'] = $validated['priority_level'] ?? 0;
 
         if ($request->hasFile('image')) {
@@ -281,6 +285,10 @@ class ProductController extends Controller
             'is_active' => 'boolean',
             'is_public' => 'boolean',
         ]);
+
+        if ($request->user()->role !== 'admin') {
+            unset($validated['cost_price']);
+        }
 
         $validated['priority_level'] = $validated['priority_level'] ?? 0;
 
@@ -454,6 +462,10 @@ class ProductController extends Controller
                 $initialRowErrors = count($errors);
 
                 unset($line['specifications']);
+
+                if ($request->user()->role !== 'admin') {
+                    unset($line['cost_price']);
+                }
 
                 // Parse Brand
                 if (! empty($line['brand'])) {
