@@ -34,7 +34,11 @@ class ArticleResource extends JsonResource
             'slug'         => $this->slug,
             'cover_image'  => $coverImageUrl,
             'excerpt'      => $this->excerpt,
-            'content'      => $this->content,       // Full HTML/Markdown body
+            // Strip HTML from content for teaser text
+            'plain_excerpt' => $this->content
+                ? Str::limit(strip_tags($this->content), 220)
+                : null,
+            'content'      => $this->content,
             'category'     => $this->category,
             'tags'         => $this->tags ?? [],
             'published_at' => $this->published_at?->toISOString(),
