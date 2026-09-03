@@ -70,6 +70,35 @@ const finalPrice = computed(()=>{
   return price;
 })
 
+const youtubeEmbedUrl = computed(() => {
+    if (!props.product.youtube_link) return null;
+
+    try {
+        const url = new URL(props.product.youtube_link);
+        const hostname = url.hostname.replace(/^www\./, '').toLowerCase();
+        let videoId = null;
+
+        if (hostname === 'youtu.be') {
+            videoId = url.pathname.split('/').filter(Boolean)[0];
+        } else if (['youtube.com', 'm.youtube.com'].includes(hostname)) {
+            if (url.pathname === '/watch') {
+                videoId = url.searchParams.get('v');
+            } else {
+                const parts = url.pathname.split('/').filter(Boolean);
+                if (['shorts', 'embed', 'live'].includes(parts[0])) {
+                    videoId = parts[1];
+                }
+            }
+        }
+
+        return /^[A-Za-z0-9_-]{11}$/.test(videoId || '')
+            ? `https://www.youtube-nocookie.com/embed/${videoId}`
+            : null;
+    } catch {
+        return null;
+    }
+});
+
 const deleteItem = (item) => {
     if (confirm('Are you sure you want to remove this item from stock?')) {
         useForm({}).delete(route('items.destroy', item.id));
@@ -106,6 +135,19 @@ const formatDate = (dateString) => {
                              <img :src="$page.props.storage_url + '/' + product.image" class="w-full h-64 object-cover rounded shadow-sm" />
                          </div>
                          <div v-else class="w-full h-64 bg-gray-100 rounded mb-4 flex items-center justify-center text-gray-400">No Image</div>
+
+                         <div v-if="youtubeEmbedUrl" class="w-full mb-4">
+                             <iframe
+                                 :src="youtubeEmbedUrl"
+                                 class="w-full rounded shadow-sm border-0"
+                                 style="aspect-ratio: 16 / 9"
+                                 title="YouTube video player"
+                                 loading="lazy"
+                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                 referrerpolicy="strict-origin-when-cross-origin"
+                                 allowfullscreen
+                             ></iframe>
+                         </div>
                          
                          <h1 class="text-2xl font-bold text-gray-900">{{ product.name }}</h1>
                          <p class="text-gold-600 font-bold text-xl mt-2">Price - {{ parseInt(product.price).toLocaleString() }} {{ product.currency }}</p>                  
@@ -147,6 +189,10 @@ const formatDate = (dateString) => {
                              <div class="flex justify-between border-b border-gray-100 pb-2">
                                  <span class="text-gray-500">Warranty</span>
                                  <span class="text-gray-900 font-medium">{{ product.warranty_period }} Months</span>
+                             </div>
+                             <div class="flex justify-between border-b border-gray-100 pb-2">
+                                 <span class="text-gray-500">Priority Level</span>
+                                 <span class="text-gray-900 font-medium">{{ product.priority_level ?? 0 }}</span>
                              </div>
                              <div class="flex justify-between border-b border-gray-100 pb-2">
                                  <span class="text-gray-500">Warranty Type</span>

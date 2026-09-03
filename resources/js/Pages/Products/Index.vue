@@ -139,6 +139,9 @@ const form = useForm({
   warranty_period: "12", // default 12 months
   warranty_type: "",
   description: "",
+  youtube_link: "",
+  case_material: "",
+  priority_level: 0,
   barcode: "",
   currency: "MMK",
   crystal: "",
@@ -265,6 +268,9 @@ const openModal = (product = null) => {
     form.warranty_period = product.warranty_period;
     form.warranty_type = product.warranty_type || "";
     form.description = product.description;
+    form.youtube_link = product.youtube_link || "";
+    form.case_material = product.case_material || "";
+    form.priority_level = product.priority_level ?? 0;
     form.barcode = product.barcode;
     form.currency = product.currency || "MMK";
     form.crystal = product.crystal || "";
@@ -328,6 +334,9 @@ const openModal = (product = null) => {
     form.is_active = true;
     form.is_public = true;
     form.warranty_type = "";
+    form.youtube_link = "";
+    form.case_material = "";
+    form.priority_level = 0;
     form.crystal = "";
     form.caliber_code = "";
     form.caseback_design = "";
@@ -1105,6 +1114,32 @@ const deleteProduct = (product) => {
             </div>
           </div>
 
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <InputLabel value="YouTube Link" class="text-gray-700" />
+              <TextInput
+                type="url"
+                class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900"
+                v-model="form.youtube_link"
+                placeholder="https://www.youtube.com/watch?v=..."
+              />
+              <InputError class="mt-2" :message="form.errors.youtube_link" />
+            </div>
+            <div>
+              <InputLabel value="Priority Level" class="text-gray-700" />
+              <select
+                class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900"
+                v-model="form.priority_level"
+              >
+                <option :value="0">0</option>
+                <option :value="1">1</option>
+                <option :value="2">2</option>
+                <option :value="3">3</option>
+              </select>
+              <InputError class="mt-2" :message="form.errors.priority_level" />
+            </div>
+          </div>
+
           <!-- Detailed Specifications Dropdown or Inputs -->
           <div class="border-t border-gray-200 pt-4 mt-4">
             <h3 class="text-md font-bold text-gray-900 mb-4">
@@ -1320,6 +1355,24 @@ const deleteProduct = (product) => {
                     :value="opt"
                   ></option>
                 </datalist>
+              </div>
+              <div>
+                <InputLabel value="Case Material" class="text-gray-700 text-xs" />
+                <TextInput
+                  type="text"
+                  list="case_material_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.case_material"
+                  placeholder="e.g. Stainless Steel, Titanium"
+                />
+                <datalist id="case_material_options">
+                  <option
+                    v-for="opt in specOptions.case_material"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
+                <InputError class="mt-2" :message="form.errors.case_material" />
               </div>
               <div>
                 <InputLabel

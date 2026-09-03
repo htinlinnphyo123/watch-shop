@@ -3,11 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\Product;
+use App\Services\LowStockNotificationService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class OrderController extends Controller
 {
+    public function __construct(private readonly LowStockNotificationService $lowStockNotifications)
+    {
+    }
+
     public function index()
     {
         return Inertia::render('Orders/Index', [
@@ -50,6 +56,10 @@ class OrderController extends Controller
                     'status' => 'sold',
                     'order_item_id' => $orderItem->id,
                 ]);
+            }
+
+            foreach ($order->items->pluck('product_id')->unique() as $productId) {
+                $this->lowStockNotifications->sync(Product::findOrFail($productId));
             }
 
             $order->update(['status' => 'completed']);

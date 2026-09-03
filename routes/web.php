@@ -52,6 +52,8 @@ Route::middleware('auth')->group(function () {
         Route::resource('top-level-discounts', \App\Http\Controllers\TopLevelDiscountController::class);
         Route::get('settings', [\App\Http\Controllers\SettingController::class, 'index'])->name('settings.index');
         Route::put('settings', [\App\Http\Controllers\SettingController::class, 'update'])->name('settings.update');
+        Route::get('low-stock-notifications', [\App\Http\Controllers\LowStockNotificationController::class, 'index'])->name('low-stock-notifications.index');
+        Route::patch('low-stock-notifications/{lowStockNotification}', [\App\Http\Controllers\LowStockNotificationController::class, 'update'])->name('low-stock-notifications.update');
     });
 
     // Shared Routes (Staff & Admin)

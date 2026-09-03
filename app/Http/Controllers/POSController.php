@@ -8,12 +8,17 @@ use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductItem;
+use App\Services\LowStockNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class POSController extends Controller
 {
+    public function __construct(private readonly LowStockNotificationService $lowStockNotifications)
+    {
+    }
+
     public function index()
     {
         return Inertia::render('POS/Index', [
@@ -139,6 +144,10 @@ class POSController extends Controller
                     'status'        => 'sold',
                     'order_item_id' => $orderItem->id,
                 ]);
+            }
+
+            foreach (collect($orderItemsData)->pluck('product_id')->unique() as $productId) {
+                $this->lowStockNotifications->sync(Product::findOrFail($productId));
             }
 
             DB::commit();

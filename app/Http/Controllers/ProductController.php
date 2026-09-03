@@ -8,6 +8,7 @@ use App\Models\Collection;
 use App\Models\CustomerGroup;
 use App\Models\Product;
 use App\Models\Setting;
+use App\Services\LowStockNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -16,13 +17,17 @@ use Inertia\Inertia;
 
 class ProductController extends Controller
 {
+    public function __construct(private readonly LowStockNotificationService $lowStockNotifications)
+    {
+    }
+
     public function index(Request $request)
     {
         $specFields = [
-            'dial_size', 'dial_color', 'strap_size', 'strap_color', 'strap_material', 
-            'strap_style', 'gender', 'movement', 'quick_release', 'clasp_type', 
+            'dial_size', 'dial_color', 'strap_size', 'strap_color', 'strap_material',
+            'strap_style', 'gender', 'movement', 'quick_release', 'clasp_type',
             'origin', 'case_shape', 'water_resistant', 'crystal',
-            'caliber_code', 'caseback_design',
+            'caliber_code', 'caseback_design', 'case_material',
         ];
 
         $specOptions = [];
@@ -42,8 +47,8 @@ class ProductController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'ilike', "%{$search}%")
-                  ->orWhere('model_number', 'ilike', "%{$search}%")
-                  ->orWhere('barcode', 'ilike', "%{$search}%");
+                    ->orWhere('model_number', 'ilike', "%{$search}%")
+                    ->orWhere('barcode', 'ilike', "%{$search}%");
             });
         }
 
@@ -132,6 +137,9 @@ class ProductController extends Controller
             'warranty_period' => 'required|integer',
             'warranty_type' => 'nullable|in:international_warranty,shop_warranty',
             'description' => 'nullable|string',
+            'youtube_link' => 'nullable|url:http,https|max:2048',
+            'case_material' => 'nullable|string|max:255',
+            'priority_level' => 'nullable|integer|in:0,1,2,3',
             'image' => 'nullable',
             'images' => 'nullable|array',
             'images.*' => 'nullable',
@@ -163,6 +171,8 @@ class ProductController extends Controller
             'is_public' => 'boolean',
         ]);
 
+        $validated['priority_level'] = $validated['priority_level'] ?? 0;
+
         if ($request->hasFile('image')) {
             $validated['image'] = $request->file('image')->store('products', env('FILESYSTEM_DISK', 's3'));
         } elseif (is_string($request->image)) {
@@ -180,7 +190,7 @@ class ProductController extends Controller
         } elseif (is_string($request->preview_bg_photo)) {
             $validated['preview_bg_photo'] = $request->preview_bg_photo;
         }
-        
+
         if ($request->has('images')) {
             $uploadedImages = [];
             foreach ($request->images as $item) {
@@ -194,7 +204,7 @@ class ProductController extends Controller
         }
 
         if (empty($validated['barcode'])) {
-             $validated['barcode'] = 'W-' . strtoupper(uniqid());
+            $validated['barcode'] = 'W-'.strtoupper(uniqid());
         }
 
         $productData = collect($validated)->except(['customer_group_discounts', 'category_ids'])->toArray();
@@ -213,6 +223,8 @@ class ProductController extends Controller
             }
             $product->customerGroups()->sync($syncData);
         }
+
+        $this->lowStockNotifications->sync($product);
 
         return redirect()->back();
     }
@@ -233,6 +245,9 @@ class ProductController extends Controller
             'warranty_period' => 'required|integer',
             'warranty_type' => 'nullable|in:international_warranty,shop_warranty',
             'description' => 'nullable|string',
+            'youtube_link' => 'nullable|url:http,https|max:2048',
+            'case_material' => 'nullable|string|max:255',
+            'priority_level' => 'nullable|integer|in:0,1,2,3',
             'image' => 'nullable',
             'preview_photo' => 'nullable',
             'preview_bg_photo' => 'nullable',
@@ -266,6 +281,8 @@ class ProductController extends Controller
             'is_active' => 'boolean',
             'is_public' => 'boolean',
         ]);
+
+        $validated['priority_level'] = $validated['priority_level'] ?? 0;
 
         if ($request->hasFile('image')) {
             if ($product->image) {
@@ -306,7 +323,7 @@ class ProductController extends Controller
             foreach ($request->images as $item) {
                 if ($item instanceof \Illuminate\Http\UploadedFile) {
                     $uploadedImages[] = $item->store('products/gallery', env('FILESYSTEM_DISK', 's3'));
-                } elseif (is_string($item) && !in_array($item, $uploadedImages)) {
+                } elseif (is_string($item) && ! in_array($item, $uploadedImages)) {
                     $uploadedImages[] = $item;
                 }
             }
@@ -341,6 +358,8 @@ class ProductController extends Controller
             $product->customerGroups()->sync($syncData);
         }
 
+        $this->lowStockNotifications->sync($product);
+
         return redirect()->back();
     }
 
@@ -348,9 +367,10 @@ class ProductController extends Controller
     {
         // Soft delete — do NOT remove images so the product can be restored later.
         $product->delete();
+
         return redirect()->back();
     }
-    
+
     public function show(Product $product)
     {
         return Inertia::render('Products/Show', [
@@ -362,7 +382,7 @@ class ProductController extends Controller
     public function export()
     {
         $products = Product::with(['brand', 'collection', 'categories'])->withCount('items')->get();
-        
+
         $date = Carbon::now()->format('Y-m-d_H-i-s');
 
         return (new \Rap2hpoutre\FastExcel\FastExcel($products))->download('products-'.$date.'.xlsx', function ($product) {
@@ -377,6 +397,9 @@ class ProductController extends Controller
                 'warranty_period' => $product->warranty_period,
                 'warranty_type' => $product->warranty_type,
                 'description' => $product->description,
+                'youtube_link' => $product->youtube_link,
+                'case_material' => $product->case_material,
+                'priority_level' => $product->priority_level,
                 'currency' => $product->currency,
                 'crystal' => $product->crystal,
                 'water_resistant' => $product->water_resistant,
@@ -415,12 +438,11 @@ class ProductController extends Controller
         ]);
 
         $errors = [];
-        
+
         try {
             \Illuminate\Support\Facades\DB::beginTransaction();
 
             $collection = (new \Rap2hpoutre\FastExcel\FastExcel)->import($request->file('file'));
-
 
             $brandsCache = Brand::pluck('id', 'name')->toArray();
             $collectionsCache = Collection::pluck('id', 'name')->toArray();
@@ -434,7 +456,7 @@ class ProductController extends Controller
                 unset($line['specifications']);
 
                 // Parse Brand
-                if (!empty($line['brand'])) {
+                if (! empty($line['brand'])) {
                     if (array_key_exists($line['brand'], $brandsCache)) {
                         $line['brand_id'] = $brandsCache[$line['brand']];
                     } else {
@@ -446,7 +468,7 @@ class ProductController extends Controller
                 unset($line['brand']);
 
                 // Parse Collection
-                if (!empty($line['collection'])) {
+                if (! empty($line['collection'])) {
                     if (array_key_exists($line['collection'], $collectionsCache)) {
                         $line['collection_id'] = $collectionsCache[$line['collection']];
                     } else {
@@ -457,7 +479,7 @@ class ProductController extends Controller
 
                 // Parse Categories
                 $categoryIdsRaw = [];
-                if (!empty($line['categories'])) {
+                if (! empty($line['categories'])) {
                     $catNames = array_map('trim', explode(',', $line['categories']));
                     foreach ($catNames as $catName) {
                         if (array_key_exists($catName, $categoriesCache)) {
@@ -470,7 +492,7 @@ class ProductController extends Controller
                 unset($line['categories']);
 
                 $requestedItemsCount = isset($line['items_count']) ? (int) $line['items_count'] : 0;
-                unset($line['items_count']); 
+                unset($line['items_count']);
 
                 $validator = Validator::make($line, [
                     'name' => 'required|string',
@@ -480,6 +502,9 @@ class ProductController extends Controller
                     'discount' => 'nullable|numeric|min:0|max:100',
                     'warranty_period' => 'nullable|integer',
                     'warranty_type' => 'nullable|in:international_warranty,shop_warranty',
+                    'youtube_link' => 'nullable|url:http,https|max:2048',
+                    'case_material' => 'nullable|string|max:255',
+                    'priority_level' => 'nullable|integer|in:0,1,2,3',
                 ]);
 
                 if ($validator->fails()) {
@@ -490,15 +515,20 @@ class ProductController extends Controller
                     }
                 }
 
+                if (array_key_exists('priority_level', $line) && ($line['priority_level'] === '' || $line['priority_level'] === null)) {
+                    $line['priority_level'] = 0;
+                }
+
                 if (count($errors) > $initialRowErrors) {
                     continue; // Skip DB operations for this row if there were any validation errors
                 }
 
-                if (!empty($line['id'])) {
+                if (! empty($line['id'])) {
                     // Update
                     $product = Product::find($line['id']);
-                    if (!$product) {
+                    if (! $product) {
                         $errors[] = "Row {$rowNum}, Column 'id': Product ID {$line['id']} not found.";
+
                         continue;
                     }
 
@@ -518,8 +548,8 @@ class ProductController extends Controller
                     unset($line['image'], $line['preview_photo'], $line['preview_bg_photo'], $line['images']);
 
                     $product->update($line);
-                    
-                    if (!empty($categoryIdsRaw)) {
+
+                    if (! empty($categoryIdsRaw)) {
                         $product->categories()->sync($categoryIdsRaw);
                     } else {
                         $product->categories()->detach();
@@ -527,20 +557,20 @@ class ProductController extends Controller
                 } else {
                     // Create
                     unset($line['id']);
-                    
+
                     // Remove image lines from import mapping to protect web updates
                     unset($line['image'], $line['preview_photo'], $line['preview_bg_photo'], $line['images']);
 
                     if (empty($line['barcode'])) {
-                        $line['barcode'] = 'W-' . strtoupper(uniqid());
+                        $line['barcode'] = 'W-'.strtoupper(uniqid());
                     }
 
                     $line['web_price'] = $line['web_price'] ? $line['web_price'] : 0;
                     $line['discount'] = $line['discount'] ? $line['discount'] : 0;
-                    
+
                     $product = Product::create($line);
 
-                    if (!empty($categoryIdsRaw)) {
+                    if (! empty($categoryIdsRaw)) {
                         $product->categories()->sync($categoryIdsRaw);
                     }
 
@@ -548,10 +578,13 @@ class ProductController extends Controller
                         $this->generateProductItems($product, $requestedItemsCount);
                     }
                 }
+
+                $this->lowStockNotifications->sync($product);
             }
 
             if (count($errors) > 0) {
                 \Illuminate\Support\Facades\DB::rollBack();
+
                 return redirect()->back()->with('import_errors', $errors);
             }
 
@@ -561,16 +594,17 @@ class ProductController extends Controller
             \Illuminate\Support\Facades\DB::rollBack();
             $errorMessage = $e->getMessage();
             dd($errorMessage);
-            
+
             // Try to make Postgres numeric errors more readable as a fallback
             if (strpos($errorMessage, 'invalid input syntax for type numeric') !== false) {
-                return redirect()->back()->with('import_errors', ["Database Error: A numeric column received invalid text. Please check that price, discount, and other numeric fields contain only numbers."]);
+                return redirect()->back()->with('import_errors', ['Database Error: A numeric column received invalid text. Please check that price, discount, and other numeric fields contain only numbers.']);
             }
-            
-            return redirect()->back()->with('import_errors', ["Database Error: " . $errorMessage]);
+
+            return redirect()->back()->with('import_errors', ['Database Error: '.$errorMessage]);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\DB::rollBack();
-            return redirect()->back()->with('import_errors', ["System Error: " . $e->getMessage()]);
+
+            return redirect()->back()->with('import_errors', ['System Error: '.$e->getMessage()]);
         }
 
         return redirect()->back()->with('success', 'Products imported completely without errors.');
@@ -580,9 +614,9 @@ class ProductController extends Controller
     {
         for ($i = 0; $i < $quantity; $i++) {
             $product->items()->create([
-                'serial_number'    => null,
+                'serial_number' => null,
                 'system_unique_id' => $this->generateUniqueSystemId(),
-                'status'           => 'available',
+                'status' => 'available',
             ]);
         }
     }
@@ -606,14 +640,14 @@ class ProductController extends Controller
             'contentType' => 'required|string',
         ]);
 
-        $path = 'products/' . uniqid() . '_' . $request->filename;
+        $path = 'products/'.uniqid().'_'.$request->filename;
 
         // Uses AWS S3 adapter to generate a pre-signed url for client upload
         $uploadData = Storage::disk(env('FILESYSTEM_DISK', 's3'))
-                 ->temporaryUploadUrl($path, now()->addMinutes(10), [
-                     'ContentType' => $request->contentType,
-                     'ACL' => 'public-read'
-                 ]);
+            ->temporaryUploadUrl($path, now()->addMinutes(10), [
+                'ContentType' => $request->contentType,
+                'ACL' => 'public-read',
+            ]);
 
         $url = is_array($uploadData) ? $uploadData['url'] : $uploadData;
         $headers = is_array($uploadData) && isset($uploadData['headers']) ? $uploadData['headers'] : [];
@@ -621,7 +655,7 @@ class ProductController extends Controller
         return response()->json([
             'url' => $url,
             'headers' => $headers,
-            'path' => $path
+            'path' => $path,
         ]);
     }
 }

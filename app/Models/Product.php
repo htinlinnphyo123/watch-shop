@@ -20,6 +20,7 @@ class Product extends Model
         'is_banner' => 'boolean',
         'is_limited_collection' => 'boolean',
         'is_latest' => 'boolean',
+        'priority_level' => 'integer',
     ];
 
     public function brand()
@@ -42,7 +43,12 @@ class Product extends Model
         return $this->belongsToMany(CustomerGroup::class)->withPivot('percentage')->withTimestamps();
     }
 
-    public function collection() : BelongsTo
+    public function lowStockNotifications()
+    {
+        return $this->hasMany(LowStockNotification::class);
+    }
+
+    public function collection(): BelongsTo
     {
         return $this->belongsTo(Collection::class);
     }
@@ -59,7 +65,7 @@ class Product extends Model
             },
             'items as reserved_items' => function ($q) {
                 $q->where('status', 'reserved');
-            }
+            },
         ]);
     }
 }
