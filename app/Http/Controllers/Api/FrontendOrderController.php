@@ -189,6 +189,7 @@ class FrontendOrderController extends Controller
                 'total_amount' => $subtotal,
                 'status'       => 'pending',
                 'order_number' => 'ORD-' . strtoupper(uniqid()),
+                'notes'        => $request->input('notes'),
             ]);
 
             foreach ($orderItemsData as $lineData) {
