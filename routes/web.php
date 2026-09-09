@@ -64,8 +64,11 @@ Route::middleware('auth')->group(function () {
 
     // Shared Routes (Staff & Admin)
     Route::resource('customers', \App\Http\Controllers\CustomerController::class);
-    
+
     Route::get('/pos', [\App\Http\Controllers\POSController::class, 'index'])->name('pos.index');
+    Route::get('/pos/products', [\App\Http\Controllers\POSController::class, 'products'])->name('pos.products');
+    Route::get('/pos/products/scan', [\App\Http\Controllers\POSController::class, 'scan'])->name('pos.products.scan');
+    Route::get('/pos/products/{product}/available-items', [\App\Http\Controllers\POSController::class, 'availableItems'])->name('pos.products.available-items');
     Route::post('/pos/checkout', [\App\Http\Controllers\POSController::class, 'checkout'])->name('pos.checkout');
 
     Route::resource('orders', \App\Http\Controllers\OrderController::class)->only(['index', 'show']);

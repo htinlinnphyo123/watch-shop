@@ -7,15 +7,23 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
-import Fuse from 'fuse.js';
+import axios from 'axios';
 
 const props = defineProps({
     products: { type: Array, default: () => [] },
+    productsPagination: { type: Object, default: () => ({ current_page: 1, last_page: 1 }) },
     customers: { type: Array, default: () => [] },
 });
 
 const searchInput = ref(null);
 const search = ref('');
+const productResults = ref([...props.products]);
+const productPage = ref(props.productsPagination.current_page || 1);
+const lastProductPage = ref(props.productsPagination.last_page || 1);
+const productsLoading = ref(false);
+const productLoadError = ref('');
+let searchTimer = null;
+let productRequestId = 0;
 const cart = ref([]);
 const isCheckoutModalOpen = ref(false);
 
@@ -56,45 +64,76 @@ const formatPrice = (amount) => new Intl.NumberFormat('en-US', {
 
 const checkoutForm = useForm({
     customer_id: '',
+    discount_percentage: 0,
     payment_method: 'cash',
     amount_paid: 0,
     cart: [],
 });
 
-// ─── Fuzzy search ─────────────────────────────────────────────────────────────
-const filteredProducts = computed(() => {
-    if (!props.products) return [];
-    if (!search.value) return props.products;
-    const fuse = new Fuse(props.products, {
-        keys: ['name', 'model_number', 'barcode', 'brand.name'],
-        threshold: 0.3,
-        includeScore: true,
-    });
-    return fuse.search(search.value).map(r => r.item);
+// ─── Paginated server-side product search ────────────────────────────────────
+const filteredProducts = computed(() => productResults.value);
+
+const loadProducts = async (append = false) => {
+    const requestId = ++productRequestId;
+    const page = append ? productPage.value + 1 : 1;
+    productsLoading.value = true;
+    productLoadError.value = '';
+
+    try {
+        const response = await axios.get(route('pos.products'), {
+            params: { q: search.value.trim() || undefined, page },
+        });
+        if (requestId !== productRequestId) return;
+
+        productResults.value = append
+            ? [...productResults.value, ...response.data.data]
+            : response.data.data;
+        productPage.value = response.data.current_page;
+        lastProductPage.value = response.data.last_page;
+    } catch (error) {
+        if (requestId === productRequestId) {
+            productLoadError.value = 'Could not load watches. Please try again.';
+        }
+    } finally {
+        if (requestId === productRequestId) productsLoading.value = false;
+    }
+};
+
+watch(search, () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => loadProducts(false), 300);
 });
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─── Customer-group discount ──────────────────────────────────────────────────
+// ─── Order discount ───────────────────────────────────────────────────────────
+const discountManuallyAdjusted = ref(false);
+
 const getActiveCustomerGroup = () => {
     if (!checkoutForm.customer_id) return null;
     const customer = props.customers.find(c => c.id == checkoutForm.customer_id);
     return customer ? customer.group : null;
 };
 
-const hasCustomDiscount = (product) => {
+const defaultDiscountPercentage = computed(() => {
     const group = getActiveCustomerGroup();
-    if (!group) return false;
-    const override = product.customer_groups?.find(cg => cg.id === group.id);
-    return override && override.pivot.percentage !== null && override.pivot.percentage !== '';
-};
+    if (group) return parseFloat(group.percentage) || 0;
 
-const getItemDiscountPercentage = (product) => {
+    if (subTotal.value <= 0) return 0;
+    const watchDiscount = cart.value.reduce((sum, item) => {
+        const percentage = parseFloat(item.product.discount) || 0;
+        return sum + (getMmkPrice(item.product) * item.qty * percentage / 100);
+    }, 0);
+
+    return Number(((watchDiscount / subTotal.value) * 100).toFixed(2));
+});
+
+const defaultDiscountSource = computed(() => {
     const group = getActiveCustomerGroup();
-    if (!group) return 0;
-    const override = product.customer_groups?.find(cg => cg.id === group.id);
-    const percentage = (override && override.pivot.percentage !== null && override.pivot.percentage !== '')
-        ? override.pivot.percentage : group.percentage;
-    return parseFloat(percentage) || 0;
+    return group ? `${group.name} member type` : 'watch record';
+});
+
+const applyDefaultDiscount = () => {
+    checkoutForm.discount_percentage = defaultDiscountPercentage.value;
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -103,16 +142,25 @@ const subTotal = computed(() =>
     cart.value.reduce((sum, item) => sum + getMmkPrice(item.product) * item.qty, 0)
 );
 
-const discount = computed(() =>
-    cart.value.reduce((total, item) => {
-        const pct = getItemDiscountPercentage(item.product);
-        return pct > 0
-            ? total + getMmkPrice(item.product) * item.qty * (pct / 100)
-            : total;
-    }, 0)
-);
+const appliedDiscountPercentage = computed(() => {
+    const percentage = parseFloat(checkoutForm.discount_percentage) || 0;
+    return Math.max(0, Math.min(100, percentage));
+});
+
+const discount = computed(() => subTotal.value * (appliedDiscountPercentage.value / 100));
 
 const total = computed(() => subTotal.value - discount.value);
+const amountPaid = computed(() => parseFloat(checkoutForm.amount_paid) || 0);
+const amountShort = computed(() => Math.max(0, total.value - amountPaid.value));
+
+watch(() => checkoutForm.customer_id, () => {
+    discountManuallyAdjusted.value = false;
+    applyDefaultDiscount();
+});
+
+watch(cart, () => {
+    if (!discountManuallyAdjusted.value) applyDefaultDiscount();
+}, { deep: true });
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── How many of this product are already in the cart ─────────────────────────
@@ -128,7 +176,14 @@ const availableItems = computed(() => {
     return (selectedProduct.value.items || []).filter(i => !pinnedIds.includes(i.id));
 });
 
-const maxQty = computed(() => availableItems.value.length);
+const genericCartQty = computed(() => {
+    if (!selectedProduct.value) return 0;
+    return cart.value
+        .filter(c => c.product.id === selectedProduct.value.id && !c.item_id)
+        .reduce((sum, item) => sum + item.qty, 0);
+});
+
+const maxQty = computed(() => Math.max(0, availableItems.value.length - genericCartQty.value));
 
 const filteredAvailableItems = computed(() => {
     if (!serialSearch.value) return availableItems.value;
@@ -141,11 +196,23 @@ const filteredAvailableItems = computed(() => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Open add modal ───────────────────────────────────────────────────────────
-const addToCart = (product) => {
-    if (!product.items || product.items.length === 0) {
+const addToCart = async (product) => {
+    if ((product.available_items_count || 0) <= cartQtyForProduct(product.id)) {
         alert('No stock available for this product!');
         return;
     }
+
+    if (!product.available_items_loaded) {
+        try {
+            const response = await axios.get(route('pos.products.available-items', product.id));
+            product.items = response.data.items;
+            product.available_items_loaded = true;
+        } catch (error) {
+            alert(error.response?.data?.message || 'Could not load the available units.');
+            return;
+        }
+    }
+
     selectedProduct.value = product;
     addMode.value = 'quantity';
     addQty.value = 1;
@@ -199,39 +266,33 @@ const confirmAddSerial = (item) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Barcode scan ─────────────────────────────────────────────────────────────
-const handleBarcodeScan = () => {
+const handleBarcodeScan = async () => {
     if (!search.value) return;
-    const scanValue = search.value.trim().toLowerCase();
+    const scanValue = search.value.trim();
 
-    for (const product of props.products) {
-        if (product.items) {
-            const matchedItem = product.items.find(
-                i => i.serial_number && i.serial_number.toLowerCase() === scanValue
-            );
-            if (matchedItem) {
-                if (cart.value.find(c => c.item_id === matchedItem.id)) {
-                    alert('Item is already in the cart!');
-                    search.value = '';
-                    return;
-                }
+    try {
+        const response = await axios.get(route('pos.products.scan'), { params: { code: scanValue } });
+        const { product, item } = response.data;
+
+        if (item) {
+            if (cart.value.find(c => c.item_id === item.id)) {
+                alert('Item is already in the cart!');
+            } else {
                 cart.value.push({
                     product,
-                    item_id: matchedItem.id,
-                    serial_number: matchedItem.serial_number,
+                    item_id: item.id,
+                    serial_number: item.serial_number || item.system_unique_id,
                     qty: 1,
                 });
-                search.value = '';
-                return;
             }
+        } else {
+            await addToCart(product);
         }
-    }
-
-    const matchedProduct = props.products.find(
-        p => p.barcode && p.barcode.toLowerCase() === scanValue
-    );
-    if (matchedProduct) {
-        addToCart(matchedProduct);
         search.value = '';
+    } catch (error) {
+        if (error.response?.status === 404) {
+            alert('No available watch matches that barcode or serial number.');
+        }
     }
 };
 // ─────────────────────────────────────────────────────────────────────────────
@@ -250,11 +311,13 @@ const openCheckout = () => {
 };
 
 const submitCheckout = () => {
+    checkoutForm.discount_percentage = appliedDiscountPercentage.value;
     checkoutForm.post(route('pos.checkout'), {
         onSuccess: () => {
             cart.value = [];
             isCheckoutModalOpen.value = false;
             checkoutForm.reset();
+            discountManuallyAdjusted.value = false;
         },
     });
 };
@@ -275,6 +338,7 @@ const submitCheckout = () => {
                         v-model="search"
                         @keyup.enter="handleBarcodeScan"
                         type="text"
+                        maxlength="100"
                         placeholder="Search by name, model, or scan barcode…"
                         class="flex-1 bg-white border-gray-300 text-gray-900 rounded-lg focus:ring-gold-500 focus:border-gold-500 p-4 shadow-sm"
                         autofocus
@@ -310,7 +374,7 @@ const submitCheckout = () => {
                             />
                             <div v-else class="w-full h-full flex items-center justify-center text-gray-400 text-xs">No Image</div>
                             <div class="absolute top-2 right-2 bg-black/60 text-white text-[11px] font-semibold px-2 py-0.5 rounded-full">
-                                {{ product.items?.length || 0 }} in stock
+                                {{ product.available_items_count || 0 }} in stock
                             </div>
                         </div>
                         <div class="p-3">
@@ -324,6 +388,17 @@ const submitCheckout = () => {
                             </div>
                         </div>
                     </div>
+                    <div v-if="filteredProducts.length === 0 && !productsLoading" class="col-span-full py-16 text-center text-gray-400">
+                        {{ productLoadError || 'No available watches found.' }}
+                    </div>
+                </div>
+                <div v-if="productLoadError && filteredProducts.length > 0" class="mt-4 text-center text-sm text-red-500">
+                    {{ productLoadError }}
+                </div>
+                <div v-if="productPage < lastProductPage" class="mt-6 flex justify-center">
+                    <SecondaryButton @click="loadProducts(true)" :disabled="productsLoading">
+                        {{ productsLoading ? 'Loading…' : 'Load more watches' }}
+                    </SecondaryButton>
                 </div>
             </div>
 
@@ -368,14 +443,13 @@ const submitCheckout = () => {
                                 </div>
                             </div>
                             <div class="text-right shrink-0">
-                                <template v-if="getItemDiscountPercentage(item.product) > 0">
+                                <template v-if="appliedDiscountPercentage > 0">
                                     <div class="text-gray-400 line-through text-[10px]">{{ (getMmkPrice(item.product) * item.qty).toLocaleString() }} Ks</div>
                                     <div class="text-gold-600 font-bold text-sm leading-tight">
-                                        {{ (getMmkPrice(item.product) * item.qty * (1 - getItemDiscountPercentage(item.product) / 100)).toLocaleString() }} Ks
+                                        {{ (getMmkPrice(item.product) * item.qty * (1 - appliedDiscountPercentage / 100)).toLocaleString() }} Ks
                                     </div>
                                     <div class="text-[10px] text-green-600 bg-green-50 border border-green-100 px-1.5 py-0.5 rounded mt-0.5">
-                                        -{{ getItemDiscountPercentage(item.product) }}%
-                                        <span v-if="hasCustomDiscount(item.product)">(Custom)</span>
+                                        -{{ appliedDiscountPercentage }}%
                                     </div>
                                 </template>
                                 <template v-else>
@@ -398,8 +472,31 @@ const submitCheckout = () => {
                             <span>Subtotal</span>
                             <span>{{ subTotal.toLocaleString() }} Ks</span>
                         </div>
+                        <div class="py-2">
+                            <div class="flex items-center justify-between gap-3">
+                                <label for="order_discount_percentage" class="text-sm text-gray-600">
+                                    Discount percentage
+                                </label>
+                                <div class="relative w-24">
+                                    <input
+                                        id="order_discount_percentage"
+                                        v-model.number="checkoutForm.discount_percentage"
+                                        @input="discountManuallyAdjusted = true"
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="0.01"
+                                        class="w-full rounded-md border-gray-300 py-1.5 pr-7 text-right text-sm focus:border-gold-500 focus:ring-gold-500"
+                                    />
+                                    <span class="pointer-events-none absolute right-2 top-1.5 text-sm text-gray-400">%</span>
+                                </div>
+                            </div>
+                            <p class="mt-1 text-right text-[10px] text-gray-400">
+                                Default from {{ defaultDiscountSource }}; editable by salesperson
+                            </p>
+                        </div>
                         <div v-if="discount > 0" class="flex justify-between text-sm text-green-600">
-                            <span>Discount</span>
+                            <span>Discount ({{ appliedDiscountPercentage }}%)</span>
                             <span>-{{ discount.toLocaleString() }} Ks</span>
                         </div>
                         <div class="flex justify-between border-t border-gray-200 pt-2">
@@ -603,6 +700,13 @@ const submitCheckout = () => {
                 <h2 class="text-lg font-bold text-gray-900 mb-4">Checkout</h2>
 
                 <form @submit.prevent="submitCheckout" class="space-y-4">
+                    <div
+                        v-if="checkoutForm.errors.error"
+                        class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+                    >
+                        {{ checkoutForm.errors.error }}
+                    </div>
+
                     <div class="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                         <span class="font-bold">Customer:</span>
                         {{ customers.find(c => c.id === checkoutForm.customer_id)?.name || 'Walk-in Customer' }}
@@ -634,7 +738,19 @@ const submitCheckout = () => {
 
                     <div>
                         <InputLabel value="Amount Paid" class="text-gray-700" />
-                        <TextInput type="number" step="0.01" v-model="checkoutForm.amount_paid" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900" />
+                        <TextInput
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            v-model="checkoutForm.amount_paid"
+                            class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900"
+                        />
+                        <p v-if="amountShort > 0" class="mt-1 text-sm text-red-600">
+                            {{ amountShort.toLocaleString() }} Ks still due.
+                        </p>
+                        <p v-if="checkoutForm.errors.amount_paid" class="mt-1 text-sm text-red-600">
+                            {{ checkoutForm.errors.amount_paid }}
+                        </p>
                     </div>
 
                     <div class="pt-3 border-t border-gray-200 space-y-1">
@@ -643,9 +759,9 @@ const submitCheckout = () => {
                             <span class="text-gold-600">{{ total.toLocaleString() }} Ks</span>
                         </div>
                         <div class="flex justify-between text-sm">
-                            <span class="text-gray-500">Change</span>
-                            <span :class="checkoutForm.amount_paid < total ? 'text-red-500' : 'text-green-600'">
-                                {{ (checkoutForm.amount_paid - total).toLocaleString() }} Ks
+                            <span class="text-gray-500">{{ amountShort > 0 ? 'Balance Due' : 'Change' }}</span>
+                            <span :class="amountShort > 0 ? 'text-red-500' : 'text-green-600'">
+                                {{ (amountShort > 0 ? amountShort : amountPaid - total).toLocaleString() }} Ks
                             </span>
                         </div>
                     </div>
@@ -653,10 +769,11 @@ const submitCheckout = () => {
                     <div class="mt-6 flex justify-end gap-3">
                         <SecondaryButton @click="isCheckoutModalOpen = false">Cancel</SecondaryButton>
                         <PrimaryButton
+                            type="submit"
                             class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold"
-                            :class="{ 'opacity-25': checkoutForm.processing }"
-                            :disabled="checkoutForm.processing"
-                        >Complete Sale</PrimaryButton>
+                            :class="{ 'opacity-25': checkoutForm.processing || amountShort > 0 }"
+                            :disabled="checkoutForm.processing || amountShort > 0"
+                        >{{ checkoutForm.processing ? 'Processing…' : 'Complete Sale' }}</PrimaryButton>
                     </div>
                 </form>
             </div>

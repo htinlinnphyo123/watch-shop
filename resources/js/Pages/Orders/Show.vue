@@ -15,16 +15,20 @@ const formatTime = (d) => new Date(d).toLocaleTimeString('en-US', {
     hour: '2-digit', minute: '2-digit',
 });
 
-const lineTotal = (item) => parseInt(item.price) * item.quantity;
+const lineTotal = (item) => parseFloat(item.price) * item.quantity;
 
 const orderSubtotal = computed(() => {
     return props.order.items?.reduce((sum, item) => sum + lineTotal(item), 0) || 0;
 });
 
 const discountAmount = computed(() => {
-    const total = parseInt(props.order.total_amount) || 0;
+    const total = parseFloat(props.order.total_amount) || 0;
     return orderSubtotal.value > total ? orderSubtotal.value - total : 0;
 });
+
+const amountPaid = computed(() => parseFloat(props.order.amount_paid) || 0);
+const balanceDue = computed(() => Math.max(0, (parseFloat(props.order.total_amount) || 0) - amountPaid.value));
+const changeAmount = computed(() => Math.max(0, amountPaid.value - (parseFloat(props.order.total_amount) || 0)));
 
 // Only show serial numbers that exist — hide internal system IDs from customer view
 const customerUnits = (soldItems) =>
@@ -165,6 +169,10 @@ const approveOrder = () => {
                                     <span class="text-gray-400">Method</span>
                                     <span class="font-semibold text-gray-800 capitalize">{{ order.payment_method || 'Cash' }}</span>
                                 </div>
+                                <div v-if="order.amount_paid !== null && order.amount_paid !== undefined" class="flex justify-end gap-2">
+                                    <span class="text-gray-400">Amount paid</span>
+                                    <span class="font-semibold text-gray-800">{{ amountPaid.toLocaleString() }} Ks</span>
+                                </div>
                                 <div class="flex justify-end gap-2">
                                     <span class="text-gray-400">Status</span>
                                     <span v-if="order.status === 'completed'" class="inline-flex items-center gap-1 font-semibold" style="color: #7c9d6f;">
@@ -257,7 +265,9 @@ const approveOrder = () => {
                                 <span>{{ orderSubtotal.toLocaleString() }} Ks</span>
                             </div>
                             <div v-if="discountAmount > 0" class="flex justify-between text-sm text-red-500 mb-2">
-                                <span>Discount</span>
+                                <span>
+                                    Discount<span v-if="parseFloat(order.discount_percentage || 0) > 0"> ({{ parseFloat(order.discount_percentage) }}%)</span>
+                                </span>
                                 <span>-{{ discountAmount.toLocaleString() }} Ks</span>
                             </div>
                             <!-- Divider -->
@@ -266,9 +276,23 @@ const approveOrder = () => {
                             <div class="flex justify-between items-baseline">
                                 <span class="text-sm font-bold uppercase tracking-wider text-gray-900">Total</span>
                                 <span class="text-2xl font-bold" style="color: #b8860b;">
-                                    {{ parseInt(order.total_amount).toLocaleString() }} Ks
+                                    {{ parseFloat(order.total_amount).toLocaleString() }} Ks
                                 </span>
                             </div>
+                            <template v-if="order.amount_paid !== null && order.amount_paid !== undefined">
+                                <div class="flex justify-between text-sm text-gray-600 mt-3">
+                                    <span>Amount Paid</span>
+                                    <span>{{ amountPaid.toLocaleString() }} Ks</span>
+                                </div>
+                                <div v-if="balanceDue > 0" class="flex justify-between text-sm font-semibold text-red-600 mt-1">
+                                    <span>Balance Due</span>
+                                    <span>{{ balanceDue.toLocaleString() }} Ks</span>
+                                </div>
+                                <div v-else-if="changeAmount > 0" class="flex justify-between text-sm font-semibold text-green-600 mt-1">
+                                    <span>Change</span>
+                                    <span>{{ changeAmount.toLocaleString() }} Ks</span>
+                                </div>
+                            </template>
                         </div>
                     </div>
 
