@@ -1,14 +1,20 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
+import OrderFilters from '@/Components/OrderFilters.vue';
+import { paymentMethodLabel } from '@/utils/payments';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 
 const props = defineProps({
+    filters: { type: Object, default: () => ({}) },
     orders: {
         type: Object,
         default: () => ({ data: [], links: [] }),
     },
 });
+
+const formatMoney = amount => Number(amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+const methodLabel = method => method === 'other' ? 'Other / Unclassified' : paymentMethodLabel(method);
 
 const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -38,13 +44,17 @@ const formatDate = (dateString) => {
             </Link>
         </div>
 
+        <OrderFilters :filters="filters" route-name="orders.index" />
+
         <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
+            <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payments (net)</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sold By</th>
@@ -59,7 +69,16 @@ const formatDate = (dateString) => {
                             <span v-else class="text-gray-400 italic">Walk-in Customer</span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-gold-600 font-bold">
-                            {{ parseInt(order.total_amount).toLocaleString() }} Ks
+                            {{ formatMoney(order.total_amount) }} Ks
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <span v-if="order.payment_method === 'split'" class="mb-1 inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">Split Payment</span>
+                            <template v-if="order.payment_breakdown">
+                                <div v-for="(amount, method) in order.payment_breakdown" :key="method" class="flex justify-between gap-4 text-gray-700">
+                                    <span>{{ methodLabel(method) }}</span><span class="font-medium">{{ formatMoney(amount) }} Ks</span>
+                                </div>
+                            </template>
+                            <span v-else class="text-gray-400">Payment not recorded</span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">
                             {{ formatDate(order.created_at) }}
@@ -79,10 +98,11 @@ const formatDate = (dateString) => {
                         </td>
                     </tr>
                     <tr v-if="!orders?.data?.length">
-                        <td colspan="6" class="px-6 py-4 text-center text-gray-500">No orders found.</td>
+                        <td colspan="8" class="px-6 py-4 text-center text-gray-500">No orders found.</td>
                     </tr>
                 </tbody>
             </table>
+            </div>
 
              <!-- Pagination -->
             <div class="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
@@ -95,9 +115,9 @@ const formatDate = (dateString) => {
                          <div>
                              <p class="text-sm text-gray-700">
                                  Showing
-                                 <span class="font-medium">{{ orders.from }}</span>
+                                 <span class="font-medium">{{ orders.from || 0 }}</span>
                                  to
-                                 <span class="font-medium">{{ orders.to }}</span>
+                                 <span class="font-medium">{{ orders.to || 0 }}</span>
                                  of
                                  <span class="font-medium">{{ orders.total }}</span>
                                  results

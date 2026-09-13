@@ -9,6 +9,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import axios from 'axios';
+import { paymentMethods, paymentCents } from '@/utils/payments';
 
 const props = defineProps({
     products: { type: Array, default: () => [] },
@@ -72,8 +73,7 @@ const formatPrice = (amount) => new Intl.NumberFormat('en-US', {
 const checkoutForm = useForm({
     customer_id: '',
     discount_percentage: 0,
-    payment_method: 'cash',
-    amount_paid: 0,
+    payments: [{ method: 'cash', amount: 0 }],
     cart: [],
 });
 
@@ -156,9 +156,27 @@ const appliedDiscountPercentage = computed(() => {
 
 const discount = computed(() => subTotal.value * (appliedDiscountPercentage.value / 100));
 
-const total = computed(() => subTotal.value - discount.value);
-const amountPaid = computed(() => parseFloat(checkoutForm.amount_paid) || 0);
-const amountShort = computed(() => Math.max(0, total.value - amountPaid.value));
+const total = computed(() => paymentCents(subTotal.value - discount.value) / 100);
+const amountPaid = computed(() => checkoutForm.payments.reduce((sum, payment) => sum + paymentCents(payment.amount), 0) / 100);
+const amountShort = computed(() => Math.max(0, paymentCents(total.value) - paymentCents(amountPaid.value)) / 100);
+const changeDue = computed(() => Math.max(0, paymentCents(amountPaid.value) - paymentCents(total.value)) / 100);
+const nonCashOverpaid = computed(() => checkoutForm.payments
+    .filter(payment => payment.method !== 'cash')
+    .reduce((sum, payment) => sum + paymentCents(payment.amount), 0) > paymentCents(total.value));
+const invalidPayment = computed(() => checkoutForm.payments.some(payment =>
+    payment.amount === '' || !Number.isFinite(Number(payment.amount)) ||
+    Number(payment.amount) < 0 ||
+    (paymentCents(payment.amount) === 0 && (total.value > 0 || checkoutForm.payments.length > 1))
+));
+const addPayment = () => {
+    const method = paymentMethods.find(option => !checkoutForm.payments.some(payment => payment.method === option.value));
+    if (method) checkoutForm.payments.push({ method: method.value, amount: amountShort.value });
+    checkoutForm.clearErrors();
+};
+const removePayment = index => {
+    checkoutForm.payments.splice(index, 1);
+    checkoutForm.clearErrors();
+};
 
 watch(() => checkoutForm.customer_id, () => {
     discountManuallyAdjusted.value = false;
@@ -331,7 +349,8 @@ const removeFromCart = (index) => { cart.value.splice(index, 1); };
 
 const openCheckout = () => {
     if (cart.value.length === 0 || pendingScans.value > 0) return;
-    checkoutForm.amount_paid = total.value;
+    checkoutForm.payments = [{ method: 'cash', amount: total.value }];
+    checkoutForm.clearErrors();
     checkoutForm.cart = cart.value.map(c => ({
         product_id: c.product.id,
         item_id: c.item_id || null,
@@ -341,6 +360,7 @@ const openCheckout = () => {
 };
 
 const submitCheckout = () => {
+    if (amountShort.value > 0 || nonCashOverpaid.value || invalidPayment.value || checkoutForm.processing) return;
     checkoutForm.discount_percentage = appliedDiscountPercentage.value;
     checkoutForm.post(route('pos.checkout'), {
         onSuccess: () => {
@@ -761,41 +781,45 @@ const submitCheckout = () => {
                         </div>
                     </div>
 
-                    <div>
-                        <InputLabel value="Payment Method" class="text-gray-700" />
-                        <select v-model="checkoutForm.payment_method" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500 rounded-md shadow-sm">
-                            <option value="cash">Cash</option>
-                            <option value="card">Card</option>
-                            <option value="transfer">Bank Transfer</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <InputLabel value="Amount Paid" class="text-gray-700" />
-                        <TextInput
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            v-model="checkoutForm.amount_paid"
-                            class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900"
-                        />
-                        <p v-if="amountShort > 0" class="mt-1 text-sm text-red-600">
-                            {{ amountShort.toLocaleString() }} Ks still due.
-                        </p>
-                        <p v-if="checkoutForm.errors.amount_paid" class="mt-1 text-sm text-red-600">
-                            {{ checkoutForm.errors.amount_paid }}
-                        </p>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <h3 class="font-semibold text-gray-900">Payments</h3>
+                            <SecondaryButton v-if="checkoutForm.payments.length < paymentMethods.length" @click="addPayment">+ Add Payment</SecondaryButton>
+                        </div>
+                        <p class="text-sm text-gray-500">Split the total across payment methods. Enter the amount received for each.</p>
+                        <div v-for="(payment, index) in checkoutForm.payments" :key="index" class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                            <div class="flex flex-wrap items-end gap-3">
+                                <div class="min-w-[140px] flex-1">
+                                    <InputLabel :for="`payment-method-${index}`" value="Payment Method" />
+                                    <select :id="`payment-method-${index}`" v-model="payment.method" class="mt-1 block w-full rounded-md border-gray-300 text-gray-900">
+                                        <option v-for="method in paymentMethods" :key="method.value" :value="method.value" :disabled="checkoutForm.payments.some((other, otherIndex) => otherIndex !== index && other.method === method.value)">{{ method.label }}</option>
+                                    </select>
+                                </div>
+                                <div class="min-w-[140px] flex-1">
+                                    <InputLabel :for="`payment-amount-${index}`" value="Amount Received (Ks)" />
+                                    <TextInput :id="`payment-amount-${index}`" type="number" min="0" max="999999999999" step="0.01" required v-model="payment.amount" class="mt-1 block w-full border-gray-300 text-gray-900" />
+                                </div>
+                                <button v-if="checkoutForm.payments.length > 1" type="button" @click="removePayment(index)" class="py-2 text-sm text-red-600" :aria-label="`Remove payment ${index + 1}`">Remove</button>
+                            </div>
+                            <p v-if="checkoutForm.errors[`payments.${index}.method`]" class="mt-1 text-sm text-red-600">{{ checkoutForm.errors[`payments.${index}.method`] }}</p>
+                            <p v-if="checkoutForm.errors[`payments.${index}.amount`]" class="mt-1 text-sm text-red-600">{{ checkoutForm.errors[`payments.${index}.amount`] }}</p>
+                            <p v-else-if="paymentCents(payment.amount) <= 0 && (total > 0 || checkoutForm.payments.length > 1)" class="mt-1 text-sm text-red-600">Enter an amount greater than zero, or remove this payment.</p>
+                        </div>
+                        <p v-if="amountShort > 0" role="status" class="text-sm text-red-600">{{ amountShort.toLocaleString() }} Ks still due.</p>
+                        <p v-if="nonCashOverpaid" role="alert" class="text-sm text-red-600">Non-cash payments cannot exceed the total due. Change can only be returned from cash.</p>
+                        <p v-if="checkoutForm.errors.payments" role="alert" class="text-sm text-red-600">{{ checkoutForm.errors.payments }}</p>
                     </div>
 
                     <div class="pt-3 border-t border-gray-200 space-y-1">
+                        <div class="flex justify-between text-sm"><span>Total Received</span><span>{{ amountPaid.toLocaleString() }} Ks</span></div>
                         <div class="flex justify-between text-lg font-bold">
                             <span class="text-gray-900">Total Due</span>
                             <span class="text-gold-600">{{ total.toLocaleString() }} Ks</span>
                         </div>
                         <div class="flex justify-between text-sm">
-                            <span class="text-gray-500">{{ amountShort > 0 ? 'Balance Due' : 'Change' }}</span>
+                            <span class="text-gray-500">{{ amountShort > 0 ? 'Balance Due' : 'Cash Change' }}</span>
                             <span :class="amountShort > 0 ? 'text-red-500' : 'text-green-600'">
-                                {{ (amountShort > 0 ? amountShort : amountPaid - total).toLocaleString() }} Ks
+                                {{ (amountShort > 0 ? amountShort : changeDue).toLocaleString() }} Ks
                             </span>
                         </div>
                     </div>
@@ -805,8 +829,8 @@ const submitCheckout = () => {
                         <PrimaryButton
                             type="submit"
                             class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold"
-                            :class="{ 'opacity-25': checkoutForm.processing || amountShort > 0 }"
-                            :disabled="checkoutForm.processing || amountShort > 0"
+                            :class="{ 'opacity-25': checkoutForm.processing || amountShort > 0 || nonCashOverpaid || invalidPayment }"
+                            :disabled="checkoutForm.processing || amountShort > 0 || nonCashOverpaid || invalidPayment"
                         >{{ checkoutForm.processing ? 'Processing…' : 'Complete Sale' }}</PrimaryButton>
                     </div>
                 </form>

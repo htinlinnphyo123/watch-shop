@@ -12,6 +12,7 @@ class Order extends Model
     protected $guarded = [];
 
     protected $casts = [
+        'payments' => 'array',
         'discount_percentage' => 'decimal:2',
         'amount_paid' => 'decimal:2',
         'total_amount' => 'decimal:2',

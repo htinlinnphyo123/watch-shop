@@ -7,8 +7,10 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductItem;
 use App\Services\LowStockNotificationService;
+use App\Services\OrderPaymentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class POSController extends Controller
@@ -83,8 +85,12 @@ class POSController extends Controller
         $request->validate([
             'customer_id' => 'nullable|exists:customers,id',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
-            'payment_method' => 'required|in:cash,card,transfer',
-            'amount_paid' => 'required|numeric|min:0',
+            'payment_method' => 'required_without:payments|nullable|in:cash,kbz_pay,card,transfer,cb_pay,aya_pay,other',
+            'amount_paid' => 'required_without:payments|nullable|numeric|min:0|max:999999999999|decimal:0,2',
+            'payments' => 'sometimes|required|array|list|min:1|max:4',
+            'payments.*' => 'required|array:method,amount',
+            'payments.*.method' => 'required|in:cash,kbz_pay,card,transfer,cb_pay,aya_pay,other|distinct',
+            'payments.*.amount' => 'required|numeric|min:0|max:999999999999|decimal:0,2',
             'cart' => 'required|array|min:1',
             'cart.*.product_id' => 'required|exists:products,id',
             'cart.*.item_id' => 'nullable|exists:product_items,id',
@@ -166,22 +172,19 @@ class POSController extends Controller
                     : ($subtotal > 0 ? ($watchDiscountAmount / $subtotal) * 100 : 0));
             $discountPercentage = max(0, min(100, $discountPercentage));
             $totalAmount = round($subtotal * (1 - ($discountPercentage / 100)), 2);
-            $amountPaid = round(floatval($request->amount_paid), 2);
-
-            if ($amountPaid < $totalAmount) {
-                DB::rollBack();
-
-                return redirect()->back()->withErrors([
-                    'amount_paid' => 'Amount paid is '.number_format($totalAmount - $amountPaid, 2).' Ks short of the total due.',
-                ]);
-            }
+            $paymentDetails = (new OrderPaymentService)->summarize(
+                $request->input('payments', [[
+                    'method' => $request->payment_method,
+                    'amount' => $request->amount_paid,
+                ]]),
+                $totalAmount,
+            );
 
             $order = Order::create([
                 'user_id' => auth()->id(),
                 'customer_id' => $request->customer_id,
                 'discount_percentage' => round($discountPercentage, 2),
-                'payment_method' => $request->payment_method,
-                'amount_paid' => $amountPaid,
+                ...$paymentDetails,
                 'total_amount' => $totalAmount,
                 'status' => 'completed',
                 'order_number' => 'ORD-'.strtoupper(uniqid()),
@@ -208,6 +211,10 @@ class POSController extends Controller
             DB::commit();
 
             return redirect()->route('orders.show', $order);
+        } catch (ValidationException $e) {
+            DB::rollBack();
+
+            throw $e;
         } catch (\Exception $e) {
             DB::rollBack();
 

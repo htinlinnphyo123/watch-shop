@@ -104,7 +104,7 @@ const page = usePage();
                     POS System
                 </Link>
 
-                <Link :href="route('orders.index')" :class="{ 'text-gold-600 bg-gold-50': route().current('orders.*') }"
+                <Link :href="route('orders.index')" :class="{ 'text-gold-600 bg-gold-50': route().current('orders.*') && !route().current('orders.summary') }"
                     class="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors">
                     <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -112,6 +112,13 @@ const page = usePage();
                         </path>
                     </svg>
                     Orders & Invoices
+                </Link>
+                <Link :href="route('orders.summary')" :class="{ 'text-gold-600 bg-gold-50': route().current('orders.summary') }"
+                    class="flex items-center px-4 py-3 text-gray-600 rounded-lg hover:bg-gray-100 hover:text-gray-900 transition-colors">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6m4 6V7m4 10v-3M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    Order Summary
                 </Link>
 
                 <Link v-if="$page.props.auth.user.role === 'admin'" :href="route('low-stock-notifications.index')"

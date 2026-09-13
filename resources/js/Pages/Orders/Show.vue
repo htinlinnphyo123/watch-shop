@@ -2,6 +2,7 @@
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import { paymentMethodLabel } from '@/utils/payments';
 
 const props = defineProps({
     order: Object,
@@ -167,7 +168,11 @@ const approveOrder = () => {
                             <div class="space-y-1 text-sm">
                                 <div class="flex justify-end gap-2">
                                     <span class="text-gray-400">Method</span>
-                                    <span class="font-semibold text-gray-800 capitalize">{{ order.payment_method || 'Cash' }}</span>
+                                    <span class="font-semibold text-gray-800 capitalize">{{ paymentMethodLabel(order.payment_method) }}</span>
+                                </div>
+                                <div v-for="(payment, index) in (order.payments || [])" :key="index" class="flex justify-end gap-2">
+                                    <span class="text-gray-500">{{ paymentMethodLabel(payment.method) }}</span>
+                                    <span class="font-semibold text-gray-800">{{ Number(payment.amount).toLocaleString() }} Ks</span>
                                 </div>
                                 <div v-if="order.amount_paid !== null && order.amount_paid !== undefined" class="flex justify-end gap-2">
                                     <span class="text-gray-400">Amount paid</span>

@@ -71,6 +71,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/pos/products/{product}/available-items', [\App\Http\Controllers\POSController::class, 'availableItems'])->name('pos.products.available-items');
     Route::post('/pos/checkout', [\App\Http\Controllers\POSController::class, 'checkout'])->name('pos.checkout');
 
+    Route::get('orders/summary', [\App\Http\Controllers\OrderController::class, 'summary'])->name('orders.summary');
     Route::resource('orders', \App\Http\Controllers\OrderController::class)->only(['index', 'show']);
     Route::post('orders/{order}/approve', [\App\Http\Controllers\OrderController::class, 'approve'])->name('orders.approve');
 });
