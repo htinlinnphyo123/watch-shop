@@ -32,4 +32,9 @@ class Order extends Model
     {
         return $this->hasMany(OrderItem::class);
     }
+
+    public function fileUploads()
+    {
+        return $this->hasMany(OrderAttachment::class)->whereNotNull('uploaded_at');
+    }
 }

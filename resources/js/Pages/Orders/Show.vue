@@ -3,6 +3,7 @@ import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import { paymentMethodLabel } from '@/utils/payments';
+import OrderAttachments from '@/Components/OrderAttachments.vue';
 
 const props = defineProps({
     order: Object,
@@ -324,6 +325,7 @@ const approveOrder = () => {
                 <!-- Gold bottom accent bar -->
                 <div class="h-1.5" style="background: linear-gradient(90deg, #c9a96e, #e8c97e, #b8860b, #c9a96e);"></div>
             </div>
+            <OrderAttachments :order-id="order.id" :files="order.file_uploads || []" />
         </div>
     </AdminLayout>
 </template>

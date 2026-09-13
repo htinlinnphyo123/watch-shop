@@ -73,6 +73,9 @@ Route::middleware('auth')->group(function () {
 
     Route::get('orders/summary', [\App\Http\Controllers\OrderController::class, 'summary'])->name('orders.summary');
     Route::resource('orders', \App\Http\Controllers\OrderController::class)->only(['index', 'show']);
+    Route::post('orders/{order}/files/presign', [\App\Http\Controllers\OrderAttachmentController::class, 'presign'])->middleware('throttle:60,1')->name('orders.files.presign');
+    Route::post('orders/{order}/files/{attachment}/complete', [\App\Http\Controllers\OrderAttachmentController::class, 'complete'])->name('orders.files.complete');
+    Route::get('orders/{order}/files/{attachment}', [\App\Http\Controllers\OrderAttachmentController::class, 'download'])->name('orders.files.download');
     Route::post('orders/{order}/approve', [\App\Http\Controllers\OrderController::class, 'approve'])->name('orders.approve');
 });
 
