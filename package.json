@@ -21,8 +21,11 @@
         "@headlessui/vue": "^1.7.19",
         "@heroicons/vue": "^2.1.1",
         "@vueup/vue-quill": "^1.2.0",
+        "@zxing/browser": "^0.1.5",
+        "@zxing/library": "^0.21.3",
         "clsx": "^2.1.0",
         "fuse.js": "^7.1.0",
+        "jsbarcode": "^3.12.3",
         "lodash": "^4.17.23",
         "tailwind-merge": "^2.2.1"
     }

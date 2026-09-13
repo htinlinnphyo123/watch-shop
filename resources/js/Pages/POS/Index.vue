@@ -1,8 +1,9 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import Modal from '@/Components/Modal.vue';
+import CameraBarcodeScanner from '@/Components/CameraBarcodeScanner.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -16,7 +17,13 @@ const props = defineProps({
 });
 
 const searchInput = ref(null);
+const isCameraOpen = ref(false);
+const orderPanel = ref(null);
 const search = ref('');
+const scanMessage = ref('');
+const scanFailed = ref(false);
+const pendingScans = ref(0);
+let scanQueue = Promise.resolve();
 const productResults = ref([...props.products]);
 const productPage = ref(props.productsPagination.current_page || 1);
 const lastProductPage = ref(props.productsPagination.last_page || 1);
@@ -259,6 +266,7 @@ const confirmAddSerial = (item) => {
         product: selectedProduct.value,
         item_id: item.id,
         serial_number: item.serial_number || item.system_unique_id,
+        system_unique_id: item.system_unique_id,
         qty: 1,
     });
     closeAddModal();
@@ -266,41 +274,63 @@ const confirmAddSerial = (item) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Barcode scan ─────────────────────────────────────────────────────────────
-const handleBarcodeScan = async () => {
-    if (!search.value) return;
-    const scanValue = search.value.trim();
-
+const processBarcodeScan = async (scanValue, focusSearch = true) => {
+    scanMessage.value = '';
+    scanFailed.value = false;
     try {
         const response = await axios.get(route('pos.products.scan'), { params: { code: scanValue } });
         const { product, item } = response.data;
-
         if (item) {
             if (cart.value.find(c => c.item_id === item.id)) {
-                alert('Item is already in the cart!');
+                scanFailed.value = true;
+                scanMessage.value = 'This watch is already in the current order.';
             } else {
                 cart.value.push({
                     product,
                     item_id: item.id,
                     serial_number: item.serial_number || item.system_unique_id,
+                    system_unique_id: item.system_unique_id,
                     qty: 1,
                 });
+                scanMessage.value = `Added ${product.name} — ${item.system_unique_id || scanValue}`;
             }
         } else {
             await addToCart(product);
         }
-        search.value = '';
     } catch (error) {
-        if (error.response?.status === 404) {
-            alert('No available watch matches that barcode or serial number.');
+        scanFailed.value = true;
+        scanMessage.value = error.response?.status === 404
+            ? 'Code not found, or this watch is no longer available.'
+            : 'Could not scan this watch. Please try again.';
+    } finally {
+        pendingScans.value--;
+        await nextTick();
+        if (focusSearch && !isCameraOpen.value && !isAddModalOpen.value && !isCheckoutModalOpen.value) searchInput.value?.focus();
+        if (!focusSearch && !scanFailed.value && !isAddModalOpen.value && window.innerWidth < 768) {
+            orderPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     }
+};
+
+const handleBarcodeScan = () => {
+    const scanValue = search.value.trim();
+    if (!scanValue || isCheckoutModalOpen.value) return;
+    search.value = '';
+    pendingScans.value++;
+    scanQueue = scanQueue.then(() => processBarcodeScan(scanValue));
+};
+const handleCameraScan = (code) => {
+    isCameraOpen.value = false;
+    if (!code || isCheckoutModalOpen.value) return;
+    pendingScans.value++;
+    scanQueue = scanQueue.then(() => processBarcodeScan(code, false));
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
 const removeFromCart = (index) => { cart.value.splice(index, 1); };
 
 const openCheckout = () => {
-    if (cart.value.length === 0) return;
+    if (cart.value.length === 0 || pendingScans.value > 0) return;
     checkoutForm.amount_paid = total.value;
     checkoutForm.cart = cart.value.map(c => ({
         product_id: c.product.id,
@@ -327,20 +357,22 @@ const submitCheckout = () => {
     <Head title="POS" />
 
     <AdminLayout>
-        <div class="flex h-[calc(100vh-64px)] -m-6">
+        <div class="flex flex-col md:flex-row md:h-[calc(100vh-64px)] -m-6">
 
             <!-- ── Left: Product Grid ─────────────────────────────────────── -->
-            <div class="w-full md:w-2/3 p-6 overflow-y-auto bg-gray-100">
+            <div class="w-full md:w-2/3 p-6 max-h-[55vh] md:max-h-none overflow-y-auto bg-gray-100">
+                <p v-if="pendingScans" role="status" class="mb-2 text-sm text-gray-600">Processing scans…</p>
+                <p v-if="scanMessage" role="status" aria-live="polite" class="mb-2 text-sm" :class="scanFailed ? 'text-red-600' : 'text-green-700'">{{ scanMessage }}</p>
                 <!-- Search + currency toggle -->
-                <div class="mb-6 flex gap-3">
+                <div class="mb-3 flex flex-wrap gap-3">
                     <input
                         ref="searchInput"
                         v-model="search"
-                        @keyup.enter="handleBarcodeScan"
+                        @keydown.enter.prevent="handleBarcodeScan"
                         type="text"
                         maxlength="100"
-                        placeholder="Search by name, model, or scan barcode…"
-                        class="flex-1 bg-white border-gray-300 text-gray-900 rounded-lg focus:ring-gold-500 focus:border-gold-500 p-4 shadow-sm"
+                        placeholder="Search or scan system code…"
+                        class="min-w-0 w-full sm:w-auto flex-1 bg-white border-gray-300 text-gray-900 rounded-lg focus:ring-gold-500 focus:border-gold-500 p-4 shadow-sm"
                         autofocus
                     />
                     <div class="bg-gray-200 p-1 rounded-lg flex items-center shadow-inner self-stretch px-2 shrink-0">
@@ -357,6 +389,8 @@ const submitCheckout = () => {
                         >{{ currency }}</button>
                     </div>
                 </div>
+
+                <SecondaryButton class="mb-6" :disabled="pendingScans > 0" @click="isCameraOpen = true">Scan with Camera</SecondaryButton>
 
                 <!-- Product cards -->
                 <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -403,7 +437,7 @@ const submitCheckout = () => {
             </div>
 
             <!-- ── Right: Cart ───────────────────────────────────────────── -->
-            <div class="w-full md:w-1/3 bg-white border-l border-gray-200 flex flex-col h-full">
+            <div ref="orderPanel" class="w-full md:w-1/3 bg-white border-t md:border-t-0 md:border-l border-gray-200 flex flex-col min-h-[24rem] md:min-h-0 md:h-full">
                 <!-- Header -->
                 <div class="p-4 border-b border-gray-200 bg-gray-50 space-y-3">
                     <div class="flex justify-between items-center">
@@ -434,7 +468,7 @@ const submitCheckout = () => {
                                 <!-- Specific unit badge -->
                                 <div v-if="item.serial_number" class="mt-0.5 inline-flex items-center gap-1 bg-gold-50 border border-gold-200 text-gold-700 text-[10px] font-mono px-1.5 py-0.5 rounded">
                                     <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/></svg>
-                                    {{ item.serial_number }}
+                                    {{ item.system_unique_id ? `Code: ${item.system_unique_id}` : item.serial_number }}
                                 </div>
                                 <!-- Generic qty badge -->
                                 <div v-else class="mt-0.5 inline-flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-700 text-[10px] px-1.5 py-0.5 rounded">
@@ -778,6 +812,7 @@ const submitCheckout = () => {
                 </form>
             </div>
         </Modal>
+        <CameraBarcodeScanner :show="isCameraOpen" @close="isCameraOpen = false" @scan="handleCameraScan" />
     </AdminLayout>
 </template>
 

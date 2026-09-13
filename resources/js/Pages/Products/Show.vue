@@ -6,6 +6,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import SystemCodeLabel from '@/Components/SystemCodeLabel.vue';
 
 const props = defineProps({
     product: {
@@ -25,6 +26,8 @@ const form = useForm({
 });
 
 const editingItemId = ref(null);
+const isPrintOpen = ref(false);
+const printableItems = computed(() => props.items.filter(item => item.system_unique_id));
 const editForm = useForm({
     serial_number: '',
     system_unique_id: '',
@@ -282,7 +285,10 @@ const formatDate = (dateString) => {
                      <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
                             <h3 class="text-lg font-bold text-gray-900">Stock Inventory</h3>
-                            <span class="text-gold-600 font-bold">{{ (items || []).filter(i => i.status === 'available').length }} Available</span>
+                            <div class="flex items-center gap-4">
+                                <span class="text-gold-600 font-bold">{{ (items || []).filter(i => i.status === 'available').length }} Available</span>
+                                <PrimaryButton :disabled="printableItems.length === 0" @click="isPrintOpen = true">Print System Codes</PrimaryButton>
+                            </div>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
@@ -355,7 +361,7 @@ const formatDate = (dateString) => {
                                     </template>
                                 </tr>
                                 <tr v-if="items.length === 0">
-                                    <td colspan="5" class="px-6 py-4 text-center text-gray-500">No stock items added yet.</td>
+                                    <td colspan="6" class="px-6 py-4 text-center text-gray-500">No stock items added yet.</td>
                                 </tr>
                                 </tbody>
                             </table>
@@ -364,5 +370,6 @@ const formatDate = (dateString) => {
                  </div>
              </div>
         </div>
+        <SystemCodeLabel :show="isPrintOpen" :items="printableItems" :product="product" @close="isPrintOpen = false" />
     </AdminLayout>
 </template>
