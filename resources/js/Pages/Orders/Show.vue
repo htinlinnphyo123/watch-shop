@@ -96,7 +96,9 @@ const approveOrder = () => {
                     </svg>
                     Back to Orders
                 </Link>
-                <div class="flex gap-3">
+                <div class="flex flex-wrap gap-3">
+                    <Link :href="route('orders.history', order.id)" class="inline-flex items-center rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">View History</Link>
+                    <Link v-if="['completed', 'pending'].includes(order.status)" :href="route('pos.index', { order_id: order.id })" class="inline-flex items-center rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">Edit Order</Link>
                     <button
                         v-if="order.status === 'pending'"
                         @click="approveOrder"

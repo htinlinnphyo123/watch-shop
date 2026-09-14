@@ -67,7 +67,12 @@ class OrderController extends Controller
 
         try {
             \Illuminate\Support\Facades\DB::beginTransaction();
+            $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            if ($order->status !== 'pending') {
+                throw new \Exception('This order is no longer pending. Refresh the order before continuing.');
+            }
 
+            $auditBefore = app(\App\Services\OrderAuditService::class)->before($order);
             foreach ($order->items as $orderItem) {
                 // Find available stock
                 $availableItems = \App\Models\ProductItem::where('product_id', $orderItem->product_id)
@@ -93,7 +98,8 @@ class OrderController extends Controller
                 $this->lowStockNotifications->sync(Product::findOrFail($productId));
             }
 
-            $order->update(['status' => 'completed']);
+            $order->update(['status' => 'completed', 'edit_version' => $order->edit_version + 1]);
+            app(\App\Services\OrderAuditService::class)->record($order, 'approved', $auditBefore);
 
             \Illuminate\Support\Facades\DB::commit();
 

@@ -1,6 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { Head, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { ref, computed, watch, nextTick } from 'vue';
 import Modal from '@/Components/Modal.vue';
 import CameraBarcodeScanner from '@/Components/CameraBarcodeScanner.vue';
@@ -12,6 +12,7 @@ import axios from 'axios';
 import { paymentMethods, paymentCents } from '@/utils/payments';
 
 const props = defineProps({
+    editingOrder: { type: Object, default: null },
     products: { type: Array, default: () => [] },
     productsPagination: { type: Object, default: () => ({ current_page: 1, last_page: 1 }) },
     customers: { type: Array, default: () => [] },
@@ -32,7 +33,7 @@ const productsLoading = ref(false);
 const productLoadError = ref('');
 let searchTimer = null;
 let productRequestId = 0;
-const cart = ref([]);
+const cart = ref(props.editingOrder?.cart.map(line => ({ ...line, product: { ...line.product } })) || []);
 const isCheckoutModalOpen = ref(false);
 
 // ─── Add-to-Cart Modal state ─────────────────────────────────────────────────
@@ -50,6 +51,7 @@ const displayCurrency = ref('MMK');
 // ─── Pricing helpers ──────────────────────────────────────────────────────────
 const getMmkPrice = (product) => {
     if (!product) return 0;
+    if (product.pos_price_mmk !== undefined) return Number(product.pos_price_mmk);
     let rate = 1;
     if (product.currency && product.currency !== 'MMK') {
         rate = parseFloat(page.props.settings[product.currency.toLowerCase() + '_rate'] || 1);
@@ -71,9 +73,10 @@ const formatPrice = (amount) => new Intl.NumberFormat('en-US', {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const checkoutForm = useForm({
-    customer_id: '',
-    discount_percentage: 0,
-    payments: [{ method: 'cash', amount: 0 }],
+    customer_id: props.editingOrder?.customer_id || '',
+    discount_percentage: props.editingOrder?.discount_percentage || 0,
+    payments: props.editingOrder?.payments.map(payment => ({ ...payment })) || [{ method: 'cash', amount: 0 }],
+    edit_version: props.editingOrder?.edit_version ?? null,
     cart: [],
 });
 
@@ -88,7 +91,7 @@ const loadProducts = async (append = false) => {
 
     try {
         const response = await axios.get(route('pos.products'), {
-            params: { q: search.value.trim() || undefined, page },
+            params: { q: search.value.trim() || undefined, page, order_id: props.editingOrder?.id },
         });
         if (requestId !== productRequestId) return;
 
@@ -113,7 +116,7 @@ watch(search, () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Order discount ───────────────────────────────────────────────────────────
-const discountManuallyAdjusted = ref(false);
+const discountManuallyAdjusted = ref(!!props.editingOrder);
 
 const getActiveCustomerGroup = () => {
     if (!checkoutForm.customer_id) return null;
@@ -168,6 +171,7 @@ const invalidPayment = computed(() => checkoutForm.payments.some(payment =>
     Number(payment.amount) < 0 ||
     (paymentCents(payment.amount) === 0 && (total.value > 0 || checkoutForm.payments.length > 1))
 ));
+const checkoutPaymentMethods = computed(() => paymentMethods.some(method => method.value === 'transfer') ? paymentMethods : [...paymentMethods, { value: 'transfer', label: 'Bank Transfer' }]);
 const addPayment = () => {
     const method = paymentMethods.find(option => !checkoutForm.payments.some(payment => payment.method === option.value));
     if (method) checkoutForm.payments.push({ method: method.value, amount: amountShort.value });
@@ -229,7 +233,7 @@ const addToCart = async (product) => {
 
     if (!product.available_items_loaded) {
         try {
-            const response = await axios.get(route('pos.products.available-items', product.id));
+            const response = await axios.get(route('pos.products.available-items', product.id), { params: { order_id: props.editingOrder?.id } });
             product.items = response.data.items;
             product.available_items_loaded = true;
         } catch (error) {
@@ -260,7 +264,7 @@ const confirmAddQty = () => {
     if (qty < 1 || qty > maxQty.value) return;
 
     // Merge into existing generic cart line for this product (if any)
-    const existing = cart.value.find(c => c.product.id === selectedProduct.value.id && !c.item_id);
+    const existing = cart.value.find(c => c.product.id === selectedProduct.value.id && !c.item_id && !c.original_line_id);
     if (existing) {
         existing.qty += qty;
     } else {
@@ -281,7 +285,8 @@ const confirmAddSerial = (item) => {
         return;
     }
     cart.value.push({
-        product: selectedProduct.value,
+        product: item.pos_price_mmk !== undefined ? { ...selectedProduct.value, pos_price_mmk: item.pos_price_mmk } : selectedProduct.value,
+        original_line_id: item.original_line_id || null,
         item_id: item.id,
         serial_number: item.serial_number || item.system_unique_id,
         system_unique_id: item.system_unique_id,
@@ -296,8 +301,8 @@ const processBarcodeScan = async (scanValue, focusSearch = true) => {
     scanMessage.value = '';
     scanFailed.value = false;
     try {
-        const response = await axios.get(route('pos.products.scan'), { params: { code: scanValue } });
-        const { product, item } = response.data;
+        const response = await axios.get(route('pos.products.scan'), { params: { code: scanValue, order_id: props.editingOrder?.id } });
+        const { product, item, original_line_id } = response.data;
         if (item) {
             if (cart.value.find(c => c.item_id === item.id)) {
                 scanFailed.value = true;
@@ -305,6 +310,7 @@ const processBarcodeScan = async (scanValue, focusSearch = true) => {
             } else {
                 cart.value.push({
                     product,
+                    original_line_id,
                     item_id: item.id,
                     serial_number: item.serial_number || item.system_unique_id,
                     system_unique_id: item.system_unique_id,
@@ -349,9 +355,10 @@ const removeFromCart = (index) => { cart.value.splice(index, 1); };
 
 const openCheckout = () => {
     if (cart.value.length === 0 || pendingScans.value > 0) return;
-    checkoutForm.payments = [{ method: 'cash', amount: total.value }];
+    if (!props.editingOrder) checkoutForm.payments = [{ method: 'cash', amount: total.value }];
     checkoutForm.clearErrors();
     checkoutForm.cart = cart.value.map(c => ({
+        original_line_id: c.original_line_id || null,
         product_id: c.product.id,
         item_id: c.item_id || null,
         quantity: c.qty,
@@ -362,7 +369,7 @@ const openCheckout = () => {
 const submitCheckout = () => {
     if (amountShort.value > 0 || nonCashOverpaid.value || invalidPayment.value || checkoutForm.processing) return;
     checkoutForm.discount_percentage = appliedDiscountPercentage.value;
-    checkoutForm.post(route('pos.checkout'), {
+    checkoutForm.submit(props.editingOrder ? 'put' : 'post', props.editingOrder ? route('pos.orders.update', props.editingOrder.id) : route('pos.checkout'), {
         onSuccess: () => {
             cart.value = [];
             isCheckoutModalOpen.value = false;
@@ -374,9 +381,16 @@ const submitCheckout = () => {
 </script>
 
 <template>
-    <Head title="POS" />
+    <Head :title="editingOrder ? `Edit Order ${editingOrder.order_number}` : 'POS'" />
 
     <AdminLayout>
+        <div v-if="editingOrder" class="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gold-200 bg-gold-50 p-4">
+            <div>
+                <h1 class="font-bold text-gray-900">Editing Order {{ editingOrder.order_number }}</h1>
+                <p class="mt-1 text-sm text-gray-600">Existing watches keep their saved prices. Review payments before saving. {{ editingOrder.status === 'pending' ? 'This order will remain pending approval.' : '' }}</p>
+            </div>
+            <Link :href="route('orders.show', editingOrder.id)" class="text-sm font-semibold text-gray-700 underline">Cancel Editing</Link>
+        </div>
         <div class="flex flex-col md:flex-row md:h-[calc(100vh-64px)] -m-6">
 
             <!-- ── Left: Product Grid ─────────────────────────────────────── -->
@@ -461,7 +475,7 @@ const submitCheckout = () => {
                 <!-- Header -->
                 <div class="p-4 border-b border-gray-200 bg-gray-50 space-y-3">
                     <div class="flex justify-between items-center">
-                        <h2 class="text-xl font-bold text-gray-900">Current Order</h2>
+                        <h2 class="text-xl font-bold text-gray-900">{{ editingOrder ? 'Edit Order' : 'Current Order' }}</h2>
                         <span class="text-gray-400 text-sm">{{ cart.length }} line(s)</span>
                     </div>
                     <select
@@ -563,7 +577,7 @@ const submitCheckout = () => {
                         class="w-full justify-center py-3 bg-gold-500 hover:bg-gold-600 text-dark-900 font-bold text-base shadow-md"
                         :disabled="cart.length === 0"
                     >
-                        Checkout
+                        {{ editingOrder ? 'Review Changes' : 'Checkout' }}
                     </PrimaryButton>
                 </div>
             </div>
@@ -751,9 +765,10 @@ const submitCheckout = () => {
         ══════════════════════════════════════════════════════════════════ -->
         <Modal :show="isCheckoutModalOpen" @close="isCheckoutModalOpen = false">
             <div class="p-6 bg-white text-gray-900">
-                <h2 class="text-lg font-bold text-gray-900 mb-4">Checkout</h2>
+                <h2 class="text-lg font-bold text-gray-900 mb-4">{{ editingOrder ? 'Update Order' : 'Checkout' }}</h2>
 
                 <form @submit.prevent="submitCheckout" class="space-y-4">
+                    <p v-for="(message, key) in Object.fromEntries(Object.entries(checkoutForm.errors).filter(([key]) => key.startsWith('cart') || key === 'edit_version' || key === 'customer_id'))" :key="key" role="alert" class="text-sm text-red-600">{{ message }}</p>
                     <div
                         v-if="checkoutForm.errors.error"
                         class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
@@ -792,7 +807,7 @@ const submitCheckout = () => {
                                 <div class="min-w-[140px] flex-1">
                                     <InputLabel :for="`payment-method-${index}`" value="Payment Method" />
                                     <select :id="`payment-method-${index}`" v-model="payment.method" class="mt-1 block w-full rounded-md border-gray-300 text-gray-900">
-                                        <option v-for="method in paymentMethods" :key="method.value" :value="method.value" :disabled="checkoutForm.payments.some((other, otherIndex) => otherIndex !== index && other.method === method.value)">{{ method.label }}</option>
+                                        <option v-for="method in checkoutPaymentMethods" :key="method.value" :value="method.value" :disabled="checkoutForm.payments.some((other, otherIndex) => otherIndex !== index && other.method === method.value)">{{ method.label }}</option>
                                     </select>
                                 </div>
                                 <div class="min-w-[140px] flex-1">
@@ -831,7 +846,7 @@ const submitCheckout = () => {
                             class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold"
                             :class="{ 'opacity-25': checkoutForm.processing || amountShort > 0 || nonCashOverpaid || invalidPayment }"
                             :disabled="checkoutForm.processing || amountShort > 0 || nonCashOverpaid || invalidPayment"
-                        >{{ checkoutForm.processing ? 'Processing…' : 'Complete Sale' }}</PrimaryButton>
+                        >{{ checkoutForm.processing ? 'Saving…' : editingOrder ? 'Save Order Changes' : 'Complete Sale' }}</PrimaryButton>
                     </div>
                 </form>
             </div>

@@ -70,8 +70,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/pos/products/scan', [\App\Http\Controllers\POSController::class, 'scan'])->name('pos.products.scan');
     Route::get('/pos/products/{product}/available-items', [\App\Http\Controllers\POSController::class, 'availableItems'])->name('pos.products.available-items');
     Route::post('/pos/checkout', [\App\Http\Controllers\POSController::class, 'checkout'])->name('pos.checkout');
+    Route::put('/pos/orders/{order}', [\App\Http\Controllers\POSController::class, 'update'])->name('pos.orders.update');
 
     Route::get('orders/summary', [\App\Http\Controllers\OrderController::class, 'summary'])->name('orders.summary');
+    Route::get('orders/{order}/history', \App\Http\Controllers\OrderHistoryController::class)->name('orders.history');
     Route::resource('orders', \App\Http\Controllers\OrderController::class)->only(['index', 'show']);
     Route::post('orders/{order}/files/presign', [\App\Http\Controllers\OrderAttachmentController::class, 'presign'])->middleware('throttle:60,1')->name('orders.files.presign');
     Route::post('orders/{order}/files/{attachment}/complete', [\App\Http\Controllers\OrderAttachmentController::class, 'complete'])->name('orders.files.complete');

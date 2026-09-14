@@ -199,6 +199,7 @@ class FrontendOrderController extends Controller
                 ]);
             }
 
+            app(\App\Services\OrderAuditService::class)->record($order, 'created');
             DB::commit();
 
             return response()->json([

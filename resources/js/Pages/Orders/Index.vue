@@ -93,8 +93,10 @@ const formatDate = (dateString) => {
                             {{ order.user ? order.user.name : 'System' }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                            <Link v-if="['completed', 'pending'].includes(order.status)" :href="route('pos.index', { order_id: order.id })" class="text-gray-700 hover:text-gold-700">Edit Order</Link>
                             <Link v-if="order.id" :href="route('orders.show', order.id)" class="text-gold-600 hover:text-gold-800">View Details</Link>
                             <span v-else class="text-red-500 text-xs">Invalid ID</span>
+                            <Link v-if="order.id" :href="route('orders.history', order.id)" class="ml-3 text-gray-600 hover:text-gray-900">History</Link>
                         </td>
                     </tr>
                     <tr v-if="!orders?.data?.length">

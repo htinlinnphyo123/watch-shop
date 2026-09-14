@@ -64,19 +64,25 @@ class OrderAttachmentController extends Controller
 
     public function complete(Request $request, Order $order, OrderAttachment $attachment)
     {
-        abort_unless($attachment->order_id === $order->id, 404);
-        abort_unless($attachment->user_id === $request->user()->id, 403);
-        if ($attachment->uploaded_at) {
-            return response()->json($attachment);
-        }
-        abort_if($attachment->expires_at->isPast(), 422, 'This upload expired. Please select the file again.');
-        $disk = Storage::disk('order_attachments');
-        if (! $disk->exists($attachment->path) || $disk->size($attachment->path) !== $attachment->size) {
-            throw ValidationException::withMessages(['file' => 'The upload is missing or incomplete. Please retry.']);
-        }
-        $attachment->update(['uploaded_at' => now()]);
+        return DB::transaction(function () use ($request, $order, $attachment) {
+            Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $attachment = OrderAttachment::whereKey($attachment->id)->lockForUpdate()->firstOrFail();
+            abort_unless($attachment->order_id === $order->id, 404);
+            abort_unless($attachment->user_id === $request->user()->id, 403);
+            if ($attachment->uploaded_at) {
+                return response()->json($attachment);
+            }
+            abort_if($attachment->expires_at->isPast(), 422, 'This upload expired. Please select the file again.');
+            $disk = Storage::disk('order_attachments');
+            if (! $disk->exists($attachment->path) || $disk->size($attachment->path) !== $attachment->size) {
+                throw ValidationException::withMessages(['file' => 'The upload is missing or incomplete. Please retry.']);
+            }
+            $auditBefore = app(\App\Services\OrderAuditService::class)->before($order);
+            $attachment->update(['uploaded_at' => now()]);
+            app(\App\Services\OrderAuditService::class)->record($order, 'attachment_added', $auditBefore);
 
-        return response()->json($attachment);
+            return response()->json($attachment);
+        });
     }
 
     public function download(Request $request, Order $order, OrderAttachment $attachment)
