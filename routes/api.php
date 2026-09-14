@@ -36,6 +36,7 @@ Route::prefix('v1/spa')->group(function () {
 // Protected Routes
 Route::middleware('auth:sanctum')->prefix('v1/spa')->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
+    Route::get('orders', [\App\Http\Controllers\Api\FrontendOrderController::class, 'myOrders']);
     Route::post('orders/preview', [\App\Http\Controllers\Api\FrontendOrderController::class, 'preview']);
     Route::post('orders', [\App\Http\Controllers\Api\FrontendOrderController::class, 'store']);
     Route::get('user', function (Request $request) {

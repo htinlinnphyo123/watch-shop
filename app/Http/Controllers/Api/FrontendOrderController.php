@@ -11,6 +11,54 @@ use App\Models\Setting;
 
 class FrontendOrderController extends Controller
 {
+    /**
+     * GET /v1/spa/orders
+     * Returns all orders belonging to the authenticated customer.
+     */
+    public function myOrders(Request $request)
+    {
+        $user = $request->user();
+
+        $customerId = null;
+        if ($user instanceof \App\Models\Customer) {
+            $customerId = $user->id;
+        } elseif ($user && $user->customer) {
+            $customerId = $user->customer->id;
+        }
+
+        if (!$customerId) {
+            return response()->json(['error' => 'No customer profile found.'], 403);
+        }
+
+        $orders = Order::with(['items.product'])
+            ->where('customer_id', $customerId)
+            ->latest()
+            ->get()
+            ->map(function ($order) {
+                return [
+                    'id'           => $order->id,
+                    'order_number' => $order->order_number,
+                    'status'       => $order->status,
+                    'total_amount' => $order->total_amount,
+                    'notes'        => $order->notes,
+                    'created_at'   => $order->created_at,
+                    'items'        => $order->items->map(function ($item) {
+                        return [
+                            'id'         => $item->id,
+                            'product_id' => $item->product_id,
+                            'name'       => $item->product?->name ?? 'Unknown Product',
+                            'image'      => $item->product?->image ?? null,
+                            'quantity'   => $item->quantity,
+                            'price'      => $item->price,
+                            'line_total' => $item->price * $item->quantity,
+                        ];
+                    }),
+                ];
+            });
+
+        return response()->json(['success' => true, 'orders' => $orders]);
+    }
+
     public function preview(Request $request)
     {
         $request->validate([
@@ -107,9 +155,10 @@ class FrontendOrderController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'cart' => 'required|array|min:1',
-            'cart.*.id' => 'required|exists:products,id',
+            'cart'         => 'required|array|min:1',
+            'cart.*.id'    => 'required|exists:products,id',
             'cart.*.count' => 'required|integer|min:1',
+            'notes'        => 'nullable|string|max:1000',
         ]);
 
         try {
@@ -127,8 +176,6 @@ class FrontendOrderController extends Controller
                 $customerId = $user->customer->id;
                 $customerGroup = $user->customer->group;
             } else {
-                // If it's an admin user that has NO attached customer, fallback to their user->id as just a placeholder or throw error
-                // The prompt says "restrictly set to customer_id"
                 return response()->json(['error' => 'You must be a valid customer to place an order.'], 403);
             }
 
