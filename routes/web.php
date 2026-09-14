@@ -51,6 +51,10 @@ Route::middleware('auth')->group(function () {
     // Inventory management is available to every authenticated user.
     Route::resource('banners', \App\Http\Controllers\BannerController::class);
 
+    Route::resource('pre-orders', \App\Http\Controllers\PreOrderController::class)->only(['index', 'store', 'update']);
+    Route::post('pre-orders/{preOrder}/files/presign', [\App\Http\Controllers\PreOrderAttachmentController::class, 'presign'])->middleware('throttle:60,1')->name('pre-orders.files.presign');
+    Route::post('pre-orders/{preOrder}/files/{attachment}/complete', [\App\Http\Controllers\PreOrderAttachmentController::class, 'complete'])->name('pre-orders.files.complete');
+    Route::get('pre-orders/{preOrder}/files/{attachment}', [\App\Http\Controllers\PreOrderAttachmentController::class, 'download'])->name('pre-orders.files.download');
     // Admin Only Routes
     Route::middleware(['role:admin'])->group(function () {
         Route::resource('users', \App\Http\Controllers\UserController::class);

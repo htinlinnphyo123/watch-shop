@@ -26,6 +26,9 @@ const form = useForm({
 });
 
 const editingItemId = ref(null);
+const stockStatus = ref('');
+const stockStatuses = ['available', 'reserved', 'sold', 'returned', 'lost', 'damaged'];
+const filteredItems = computed(() => props.items.filter(item => !stockStatus.value || item.status === stockStatus.value));
 const isPrintOpen = ref(false);
 const printableItems = computed(() => props.items.filter(item => item.system_unique_id));
 const editForm = useForm({
@@ -283,9 +286,16 @@ const formatDate = (dateString) => {
                      
                      <!-- Stock List -->
                      <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
-                        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                        <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap gap-3 justify-between items-center bg-gray-50">
                             <h3 class="text-lg font-bold text-gray-900">Stock Inventory</h3>
-                            <div class="flex items-center gap-4">
+                            <div class="flex flex-wrap items-center gap-4">
+                                <div class="flex items-center gap-2">
+                                    <InputLabel for="stock-status-filter" value="Status" />
+                                    <select id="stock-status-filter" v-model="stockStatus" @change="cancelEdit" class="rounded-md border-gray-300 text-sm focus:border-gold-500 focus:ring-gold-500">
+                                        <option value="">All statuses ({{ items.length }})</option>
+                                        <option v-for="status in stockStatuses" :key="status" :value="status">{{ status.charAt(0).toUpperCase() + status.slice(1) }} ({{ items.filter(item => item.status === status).length }})</option>
+                                    </select>
+                                </div>
                                 <span class="text-gold-600 font-bold">{{ (items || []).filter(i => i.status === 'available').length }} Available</span>
                                 <PrimaryButton :disabled="printableItems.length === 0" @click="isPrintOpen = true">Print System Codes</PrimaryButton>
                             </div>
@@ -303,7 +313,7 @@ const formatDate = (dateString) => {
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
-                                <tr v-for="item in items" :key="item.id" class="hover:bg-gray-50 transition-colors">
+                                <tr v-for="item in filteredItems" :key="item.id" class="hover:bg-gray-50 transition-colors">
                                     <template v-if="editingItemId === item.id">
                                         <td class="px-4 py-4 whitespace-nowrap">
                                             <input type="text" v-model="editForm.serial_number" class="w-full min-w-[130px] text-sm border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500" placeholder="Optional" />
@@ -360,8 +370,8 @@ const formatDate = (dateString) => {
                                         </td>
                                     </template>
                                 </tr>
-                                <tr v-if="items.length === 0">
-                                    <td colspan="6" class="px-6 py-4 text-center text-gray-500">No stock items added yet.</td>
+                                <tr v-if="filteredItems.length === 0">
+                                    <td colspan="6" class="px-6 py-4 text-center text-gray-500">{{ items.length ? 'No stock items match the selected status.' : 'No stock items added yet.' }}</td>
                                 </tr>
                                 </tbody>
                             </table>
