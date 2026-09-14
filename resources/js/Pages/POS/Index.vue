@@ -1,22 +1,39 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { Head, useForm, usePage } from '@inertiajs/vue3';
-import { ref, computed, watch } from 'vue';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { ref, computed, watch, nextTick } from 'vue';
 import Modal from '@/Components/Modal.vue';
+import CameraBarcodeScanner from '@/Components/CameraBarcodeScanner.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
-import Fuse from 'fuse.js';
+import axios from 'axios';
+import { paymentMethods, paymentCents } from '@/utils/payments';
 
 const props = defineProps({
+    editingOrder: { type: Object, default: null },
     products: { type: Array, default: () => [] },
+    productsPagination: { type: Object, default: () => ({ current_page: 1, last_page: 1 }) },
     customers: { type: Array, default: () => [] },
 });
 
 const searchInput = ref(null);
+const isCameraOpen = ref(false);
+const orderPanel = ref(null);
 const search = ref('');
-const cart = ref([]);
+const scanMessage = ref('');
+const scanFailed = ref(false);
+const pendingScans = ref(0);
+let scanQueue = Promise.resolve();
+const productResults = ref([...props.products]);
+const productPage = ref(props.productsPagination.current_page || 1);
+const lastProductPage = ref(props.productsPagination.last_page || 1);
+const productsLoading = ref(false);
+const productLoadError = ref('');
+let searchTimer = null;
+let productRequestId = 0;
+const cart = ref(props.editingOrder?.cart.map(line => ({ ...line, product: { ...line.product } })) || []);
 const isCheckoutModalOpen = ref(false);
 
 // ─── Add-to-Cart Modal state ─────────────────────────────────────────────────
@@ -34,6 +51,7 @@ const displayCurrency = ref('MMK');
 // ─── Pricing helpers ──────────────────────────────────────────────────────────
 const getMmkPrice = (product) => {
     if (!product) return 0;
+    if (product.pos_price_mmk !== undefined) return Number(product.pos_price_mmk);
     let rate = 1;
     if (product.currency && product.currency !== 'MMK') {
         rate = parseFloat(page.props.settings[product.currency.toLowerCase() + '_rate'] || 1);
@@ -55,46 +73,77 @@ const formatPrice = (amount) => new Intl.NumberFormat('en-US', {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const checkoutForm = useForm({
-    customer_id: '',
-    payment_method: 'cash',
-    amount_paid: 0,
+    customer_id: props.editingOrder?.customer_id || '',
+    discount_percentage: props.editingOrder?.discount_percentage || 0,
+    payments: props.editingOrder?.payments.map(payment => ({ ...payment })) || [{ method: 'cash', amount: 0 }],
+    edit_version: props.editingOrder?.edit_version ?? null,
     cart: [],
 });
 
-// ─── Fuzzy search ─────────────────────────────────────────────────────────────
-const filteredProducts = computed(() => {
-    if (!props.products) return [];
-    if (!search.value) return props.products;
-    const fuse = new Fuse(props.products, {
-        keys: ['name', 'model_number', 'barcode', 'brand.name'],
-        threshold: 0.3,
-        includeScore: true,
-    });
-    return fuse.search(search.value).map(r => r.item);
+// ─── Paginated server-side product search ────────────────────────────────────
+const filteredProducts = computed(() => productResults.value);
+
+const loadProducts = async (append = false) => {
+    const requestId = ++productRequestId;
+    const page = append ? productPage.value + 1 : 1;
+    productsLoading.value = true;
+    productLoadError.value = '';
+
+    try {
+        const response = await axios.get(route('pos.products'), {
+            params: { q: search.value.trim() || undefined, page, order_id: props.editingOrder?.id },
+        });
+        if (requestId !== productRequestId) return;
+
+        productResults.value = append
+            ? [...productResults.value, ...response.data.data]
+            : response.data.data;
+        productPage.value = response.data.current_page;
+        lastProductPage.value = response.data.last_page;
+    } catch (error) {
+        if (requestId === productRequestId) {
+            productLoadError.value = 'Could not load watches. Please try again.';
+        }
+    } finally {
+        if (requestId === productRequestId) productsLoading.value = false;
+    }
+};
+
+watch(search, () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => loadProducts(false), 300);
 });
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─── Customer-group discount ──────────────────────────────────────────────────
+// ─── Order discount ───────────────────────────────────────────────────────────
+const discountManuallyAdjusted = ref(!!props.editingOrder);
+
 const getActiveCustomerGroup = () => {
     if (!checkoutForm.customer_id) return null;
     const customer = props.customers.find(c => c.id == checkoutForm.customer_id);
     return customer ? customer.group : null;
 };
 
-const hasCustomDiscount = (product) => {
+const defaultDiscountPercentage = computed(() => {
     const group = getActiveCustomerGroup();
-    if (!group) return false;
-    const override = product.customer_groups?.find(cg => cg.id === group.id);
-    return override && override.pivot.percentage !== null && override.pivot.percentage !== '';
-};
+    if (group) return parseFloat(group.percentage) || 0;
 
-const getItemDiscountPercentage = (product) => {
+    if (subTotal.value <= 0) return 0;
+    const watchDiscount = cart.value.reduce((sum, item) => {
+        const percentage = parseFloat(item.product.discount) || 0;
+        return sum + (getMmkPrice(item.product) * item.qty * percentage / 100);
+    }, 0);
+
+    return Number(((watchDiscount / subTotal.value) * 100).toFixed(2));
+});
+
+const defaultDiscountSource = computed(() => {
     const group = getActiveCustomerGroup();
-    if (!group) return 0;
-    const override = product.customer_groups?.find(cg => cg.id === group.id);
-    const percentage = (override && override.pivot.percentage !== null && override.pivot.percentage !== '')
-        ? override.pivot.percentage : group.percentage;
-    return parseFloat(percentage) || 0;
+    return group ? `${group.name} member type` : 'watch record';
+});
+
+const applyDefaultDiscount = () => {
+    checkoutForm.discount_percentage = defaultDiscountPercentage.value;
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -103,16 +152,44 @@ const subTotal = computed(() =>
     cart.value.reduce((sum, item) => sum + getMmkPrice(item.product) * item.qty, 0)
 );
 
-const discount = computed(() =>
-    cart.value.reduce((total, item) => {
-        const pct = getItemDiscountPercentage(item.product);
-        return pct > 0
-            ? total + getMmkPrice(item.product) * item.qty * (pct / 100)
-            : total;
-    }, 0)
-);
+const appliedDiscountPercentage = computed(() => {
+    const percentage = parseFloat(checkoutForm.discount_percentage) || 0;
+    return Math.max(0, Math.min(100, percentage));
+});
 
-const total = computed(() => subTotal.value - discount.value);
+const discount = computed(() => subTotal.value * (appliedDiscountPercentage.value / 100));
+
+const total = computed(() => paymentCents(subTotal.value - discount.value) / 100);
+const amountPaid = computed(() => checkoutForm.payments.reduce((sum, payment) => sum + paymentCents(payment.amount), 0) / 100);
+const amountShort = computed(() => Math.max(0, paymentCents(total.value) - paymentCents(amountPaid.value)) / 100);
+const changeDue = computed(() => Math.max(0, paymentCents(amountPaid.value) - paymentCents(total.value)) / 100);
+const nonCashOverpaid = computed(() => checkoutForm.payments
+    .filter(payment => payment.method !== 'cash')
+    .reduce((sum, payment) => sum + paymentCents(payment.amount), 0) > paymentCents(total.value));
+const invalidPayment = computed(() => checkoutForm.payments.some(payment =>
+    payment.amount === '' || !Number.isFinite(Number(payment.amount)) ||
+    Number(payment.amount) < 0 ||
+    (paymentCents(payment.amount) === 0 && (total.value > 0 || checkoutForm.payments.length > 1))
+));
+const checkoutPaymentMethods = computed(() => paymentMethods.some(method => method.value === 'transfer') ? paymentMethods : [...paymentMethods, { value: 'transfer', label: 'Bank Transfer' }]);
+const addPayment = () => {
+    const method = paymentMethods.find(option => !checkoutForm.payments.some(payment => payment.method === option.value));
+    if (method) checkoutForm.payments.push({ method: method.value, amount: amountShort.value });
+    checkoutForm.clearErrors();
+};
+const removePayment = index => {
+    checkoutForm.payments.splice(index, 1);
+    checkoutForm.clearErrors();
+};
+
+watch(() => checkoutForm.customer_id, () => {
+    discountManuallyAdjusted.value = false;
+    applyDefaultDiscount();
+});
+
+watch(cart, () => {
+    if (!discountManuallyAdjusted.value) applyDefaultDiscount();
+}, { deep: true });
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── How many of this product are already in the cart ─────────────────────────
@@ -128,7 +205,14 @@ const availableItems = computed(() => {
     return (selectedProduct.value.items || []).filter(i => !pinnedIds.includes(i.id));
 });
 
-const maxQty = computed(() => availableItems.value.length);
+const genericCartQty = computed(() => {
+    if (!selectedProduct.value) return 0;
+    return cart.value
+        .filter(c => c.product.id === selectedProduct.value.id && !c.item_id)
+        .reduce((sum, item) => sum + item.qty, 0);
+});
+
+const maxQty = computed(() => Math.max(0, availableItems.value.length - genericCartQty.value));
 
 const filteredAvailableItems = computed(() => {
     if (!serialSearch.value) return availableItems.value;
@@ -141,11 +225,23 @@ const filteredAvailableItems = computed(() => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Open add modal ───────────────────────────────────────────────────────────
-const addToCart = (product) => {
-    if (!product.items || product.items.length === 0) {
+const addToCart = async (product) => {
+    if ((product.available_items_count || 0) <= cartQtyForProduct(product.id)) {
         alert('No stock available for this product!');
         return;
     }
+
+    if (!product.available_items_loaded) {
+        try {
+            const response = await axios.get(route('pos.products.available-items', product.id), { params: { order_id: props.editingOrder?.id } });
+            product.items = response.data.items;
+            product.available_items_loaded = true;
+        } catch (error) {
+            alert(error.response?.data?.message || 'Could not load the available units.');
+            return;
+        }
+    }
+
     selectedProduct.value = product;
     addMode.value = 'quantity';
     addQty.value = 1;
@@ -168,7 +264,7 @@ const confirmAddQty = () => {
     if (qty < 1 || qty > maxQty.value) return;
 
     // Merge into existing generic cart line for this product (if any)
-    const existing = cart.value.find(c => c.product.id === selectedProduct.value.id && !c.item_id);
+    const existing = cart.value.find(c => c.product.id === selectedProduct.value.id && !c.item_id && !c.original_line_id);
     if (existing) {
         existing.qty += qty;
     } else {
@@ -189,9 +285,11 @@ const confirmAddSerial = (item) => {
         return;
     }
     cart.value.push({
-        product: selectedProduct.value,
+        product: item.pos_price_mmk !== undefined ? { ...selectedProduct.value, pos_price_mmk: item.pos_price_mmk } : selectedProduct.value,
+        original_line_id: item.original_line_id || null,
         item_id: item.id,
         serial_number: item.serial_number || item.system_unique_id,
+        system_unique_id: item.system_unique_id,
         qty: 1,
     });
     closeAddModal();
@@ -199,49 +297,68 @@ const confirmAddSerial = (item) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Barcode scan ─────────────────────────────────────────────────────────────
-const handleBarcodeScan = () => {
-    if (!search.value) return;
-    const scanValue = search.value.trim().toLowerCase();
-
-    for (const product of props.products) {
-        if (product.items) {
-            const matchedItem = product.items.find(
-                i => i.serial_number && i.serial_number.toLowerCase() === scanValue
-            );
-            if (matchedItem) {
-                if (cart.value.find(c => c.item_id === matchedItem.id)) {
-                    alert('Item is already in the cart!');
-                    search.value = '';
-                    return;
-                }
+const processBarcodeScan = async (scanValue, focusSearch = true) => {
+    scanMessage.value = '';
+    scanFailed.value = false;
+    try {
+        const response = await axios.get(route('pos.products.scan'), { params: { code: scanValue, order_id: props.editingOrder?.id } });
+        const { product, item, original_line_id } = response.data;
+        if (item) {
+            if (cart.value.find(c => c.item_id === item.id)) {
+                scanFailed.value = true;
+                scanMessage.value = 'This watch is already in the current order.';
+            } else {
                 cart.value.push({
                     product,
-                    item_id: matchedItem.id,
-                    serial_number: matchedItem.serial_number,
+                    original_line_id,
+                    item_id: item.id,
+                    serial_number: item.serial_number || item.system_unique_id,
+                    system_unique_id: item.system_unique_id,
                     qty: 1,
                 });
-                search.value = '';
-                return;
+                scanMessage.value = `Added ${product.name} — ${item.system_unique_id || scanValue}`;
             }
+        } else {
+            await addToCart(product);
+        }
+    } catch (error) {
+        scanFailed.value = true;
+        scanMessage.value = error.response?.status === 404
+            ? 'Code not found, or this watch is no longer available.'
+            : 'Could not scan this watch. Please try again.';
+    } finally {
+        pendingScans.value--;
+        await nextTick();
+        if (focusSearch && !isCameraOpen.value && !isAddModalOpen.value && !isCheckoutModalOpen.value) searchInput.value?.focus();
+        if (!focusSearch && !scanFailed.value && !isAddModalOpen.value && window.innerWidth < 768) {
+            orderPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     }
+};
 
-    const matchedProduct = props.products.find(
-        p => p.barcode && p.barcode.toLowerCase() === scanValue
-    );
-    if (matchedProduct) {
-        addToCart(matchedProduct);
-        search.value = '';
-    }
+const handleBarcodeScan = () => {
+    const scanValue = search.value.trim();
+    if (!scanValue || isCheckoutModalOpen.value) return;
+    search.value = '';
+    pendingScans.value++;
+    scanQueue = scanQueue.then(() => processBarcodeScan(scanValue));
+};
+const handleCameraScan = (code) => {
+    isCameraOpen.value = false;
+    if (!code || isCheckoutModalOpen.value) return;
+    pendingScans.value++;
+    scanQueue = scanQueue.then(() => processBarcodeScan(code, false));
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
 const removeFromCart = (index) => { cart.value.splice(index, 1); };
 
 const openCheckout = () => {
-    if (cart.value.length === 0) return;
-    checkoutForm.amount_paid = total.value;
+    if (cart.value.length === 0 || pendingScans.value > 0) return;
+    if (!props.editingOrder) checkoutForm.payments = [{ method: 'cash', amount: total.value }];
+    checkoutForm.clearErrors();
     checkoutForm.cart = cart.value.map(c => ({
+        original_line_id: c.original_line_id || null,
         product_id: c.product.id,
         item_id: c.item_id || null,
         quantity: c.qty,
@@ -250,33 +367,52 @@ const openCheckout = () => {
 };
 
 const submitCheckout = () => {
-    checkoutForm.post(route('pos.checkout'), {
+    if (amountShort.value > 0 || nonCashOverpaid.value || invalidPayment.value || checkoutForm.processing) return;
+    checkoutForm.discount_percentage = appliedDiscountPercentage.value;
+    checkoutForm.submit(props.editingOrder ? 'put' : 'post', props.editingOrder ? route('pos.orders.update', props.editingOrder.id) : route('pos.checkout'), {
         onSuccess: () => {
             cart.value = [];
             isCheckoutModalOpen.value = false;
             checkoutForm.reset();
+            discountManuallyAdjusted.value = false;
         },
     });
 };
 </script>
 
 <template>
-    <Head title="POS" />
+    <Head :title="editingOrder ? `Edit Order ${editingOrder.order_number}` : 'POS'" />
 
-    <AdminLayout>
-        <div class="flex h-[calc(100vh-64px)] -m-6">
+    <AdminLayout hide-sidebar>
+        <header class="-mx-6 -mt-6 mb-6 flex h-16 items-center justify-between gap-4 border-b border-gray-200 bg-white px-6">
+            <h1 class="text-lg font-bold text-gray-900">POS System</h1>
+            <Link :href="route('dashboard')" class="text-sm font-semibold text-gray-600 hover:text-gray-900">
+                Back to Dashboard
+            </Link>
+        </header>
+        <div v-if="editingOrder" class="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gold-200 bg-gold-50 p-4">
+            <div>
+                <h1 class="font-bold text-gray-900">Editing Order {{ editingOrder.order_number }}</h1>
+                <p class="mt-1 text-sm text-gray-600">Existing watches keep their saved prices. Review payments before saving. {{ editingOrder.status === 'pending' ? 'This order will remain pending approval.' : '' }}</p>
+            </div>
+            <Link :href="route('orders.show', editingOrder.id)" class="text-sm font-semibold text-gray-700 underline">Cancel Editing</Link>
+        </div>
+        <div class="flex flex-col md:flex-row md:h-[calc(100vh-64px)] -m-6">
 
             <!-- ── Left: Product Grid ─────────────────────────────────────── -->
-            <div class="w-full md:w-2/3 p-6 overflow-y-auto bg-gray-100">
+            <div class="w-full md:w-2/3 p-6 max-h-[55vh] md:max-h-none overflow-y-auto bg-gray-100">
+                <p v-if="pendingScans" role="status" class="mb-2 text-sm text-gray-600">Processing scans…</p>
+                <p v-if="scanMessage" role="status" aria-live="polite" class="mb-2 text-sm" :class="scanFailed ? 'text-red-600' : 'text-green-700'">{{ scanMessage }}</p>
                 <!-- Search + currency toggle -->
-                <div class="mb-6 flex gap-3">
+                <div class="mb-3 flex flex-wrap gap-3">
                     <input
                         ref="searchInput"
                         v-model="search"
-                        @keyup.enter="handleBarcodeScan"
+                        @keydown.enter.prevent="handleBarcodeScan"
                         type="text"
-                        placeholder="Search by name, model, or scan barcode…"
-                        class="flex-1 bg-white border-gray-300 text-gray-900 rounded-lg focus:ring-gold-500 focus:border-gold-500 p-4 shadow-sm"
+                        maxlength="100"
+                        placeholder="Search or scan system code…"
+                        class="min-w-0 w-full sm:w-auto flex-1 bg-white border-gray-300 text-gray-900 rounded-lg focus:ring-gold-500 focus:border-gold-500 p-4 shadow-sm"
                         autofocus
                     />
                     <div class="bg-gray-200 p-1 rounded-lg flex items-center shadow-inner self-stretch px-2 shrink-0">
@@ -294,6 +430,8 @@ const submitCheckout = () => {
                     </div>
                 </div>
 
+                <SecondaryButton class="mb-6" :disabled="pendingScans > 0" @click="isCameraOpen = true">Scan with Camera</SecondaryButton>
+
                 <!-- Product cards -->
                 <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     <div
@@ -310,7 +448,7 @@ const submitCheckout = () => {
                             />
                             <div v-else class="w-full h-full flex items-center justify-center text-gray-400 text-xs">No Image</div>
                             <div class="absolute top-2 right-2 bg-black/60 text-white text-[11px] font-semibold px-2 py-0.5 rounded-full">
-                                {{ product.items?.length || 0 }} in stock
+                                {{ product.available_items_count || 0 }} in stock
                             </div>
                         </div>
                         <div class="p-3">
@@ -324,15 +462,26 @@ const submitCheckout = () => {
                             </div>
                         </div>
                     </div>
+                    <div v-if="filteredProducts.length === 0 && !productsLoading" class="col-span-full py-16 text-center text-gray-400">
+                        {{ productLoadError || 'No available watches found.' }}
+                    </div>
+                </div>
+                <div v-if="productLoadError && filteredProducts.length > 0" class="mt-4 text-center text-sm text-red-500">
+                    {{ productLoadError }}
+                </div>
+                <div v-if="productPage < lastProductPage" class="mt-6 flex justify-center">
+                    <SecondaryButton @click="loadProducts(true)" :disabled="productsLoading">
+                        {{ productsLoading ? 'Loading…' : 'Load more watches' }}
+                    </SecondaryButton>
                 </div>
             </div>
 
             <!-- ── Right: Cart ───────────────────────────────────────────── -->
-            <div class="w-full md:w-1/3 bg-white border-l border-gray-200 flex flex-col h-full">
+            <div ref="orderPanel" class="w-full md:w-1/3 bg-white border-t md:border-t-0 md:border-l border-gray-200 flex flex-col min-h-[24rem] md:min-h-0 md:h-full">
                 <!-- Header -->
                 <div class="p-4 border-b border-gray-200 bg-gray-50 space-y-3">
                     <div class="flex justify-between items-center">
-                        <h2 class="text-xl font-bold text-gray-900">Current Order</h2>
+                        <h2 class="text-xl font-bold text-gray-900">{{ editingOrder ? 'Edit Order' : 'Current Order' }}</h2>
                         <span class="text-gray-400 text-sm">{{ cart.length }} line(s)</span>
                     </div>
                     <select
@@ -359,7 +508,7 @@ const submitCheckout = () => {
                                 <!-- Specific unit badge -->
                                 <div v-if="item.serial_number" class="mt-0.5 inline-flex items-center gap-1 bg-gold-50 border border-gold-200 text-gold-700 text-[10px] font-mono px-1.5 py-0.5 rounded">
                                     <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/></svg>
-                                    {{ item.serial_number }}
+                                    {{ item.system_unique_id ? `Code: ${item.system_unique_id}` : item.serial_number }}
                                 </div>
                                 <!-- Generic qty badge -->
                                 <div v-else class="mt-0.5 inline-flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-700 text-[10px] px-1.5 py-0.5 rounded">
@@ -368,14 +517,13 @@ const submitCheckout = () => {
                                 </div>
                             </div>
                             <div class="text-right shrink-0">
-                                <template v-if="getItemDiscountPercentage(item.product) > 0">
+                                <template v-if="appliedDiscountPercentage > 0">
                                     <div class="text-gray-400 line-through text-[10px]">{{ (getMmkPrice(item.product) * item.qty).toLocaleString() }} Ks</div>
                                     <div class="text-gold-600 font-bold text-sm leading-tight">
-                                        {{ (getMmkPrice(item.product) * item.qty * (1 - getItemDiscountPercentage(item.product) / 100)).toLocaleString() }} Ks
+                                        {{ (getMmkPrice(item.product) * item.qty * (1 - appliedDiscountPercentage / 100)).toLocaleString() }} Ks
                                     </div>
                                     <div class="text-[10px] text-green-600 bg-green-50 border border-green-100 px-1.5 py-0.5 rounded mt-0.5">
-                                        -{{ getItemDiscountPercentage(item.product) }}%
-                                        <span v-if="hasCustomDiscount(item.product)">(Custom)</span>
+                                        -{{ appliedDiscountPercentage }}%
                                     </div>
                                 </template>
                                 <template v-else>
@@ -398,8 +546,31 @@ const submitCheckout = () => {
                             <span>Subtotal</span>
                             <span>{{ subTotal.toLocaleString() }} Ks</span>
                         </div>
+                        <div class="py-2">
+                            <div class="flex items-center justify-between gap-3">
+                                <label for="order_discount_percentage" class="text-sm text-gray-600">
+                                    Discount percentage
+                                </label>
+                                <div class="relative w-24">
+                                    <input
+                                        id="order_discount_percentage"
+                                        v-model.number="checkoutForm.discount_percentage"
+                                        @input="discountManuallyAdjusted = true"
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="0.01"
+                                        class="w-full rounded-md border-gray-300 py-1.5 pr-7 text-right text-sm focus:border-gold-500 focus:ring-gold-500"
+                                    />
+                                    <span class="pointer-events-none absolute right-2 top-1.5 text-sm text-gray-400">%</span>
+                                </div>
+                            </div>
+                            <p class="mt-1 text-right text-[10px] text-gray-400">
+                                Default from {{ defaultDiscountSource }}; editable by salesperson
+                            </p>
+                        </div>
                         <div v-if="discount > 0" class="flex justify-between text-sm text-green-600">
-                            <span>Discount</span>
+                            <span>Discount ({{ appliedDiscountPercentage }}%)</span>
                             <span>-{{ discount.toLocaleString() }} Ks</span>
                         </div>
                         <div class="flex justify-between border-t border-gray-200 pt-2">
@@ -412,7 +583,7 @@ const submitCheckout = () => {
                         class="w-full justify-center py-3 bg-gold-500 hover:bg-gold-600 text-dark-900 font-bold text-base shadow-md"
                         :disabled="cart.length === 0"
                     >
-                        Checkout
+                        {{ editingOrder ? 'Review Changes' : 'Checkout' }}
                     </PrimaryButton>
                 </div>
             </div>
@@ -600,9 +771,17 @@ const submitCheckout = () => {
         ══════════════════════════════════════════════════════════════════ -->
         <Modal :show="isCheckoutModalOpen" @close="isCheckoutModalOpen = false">
             <div class="p-6 bg-white text-gray-900">
-                <h2 class="text-lg font-bold text-gray-900 mb-4">Checkout</h2>
+                <h2 class="text-lg font-bold text-gray-900 mb-4">{{ editingOrder ? 'Update Order' : 'Checkout' }}</h2>
 
                 <form @submit.prevent="submitCheckout" class="space-y-4">
+                    <p v-for="(message, key) in Object.fromEntries(Object.entries(checkoutForm.errors).filter(([key]) => key.startsWith('cart') || key === 'edit_version' || key === 'customer_id'))" :key="key" role="alert" class="text-sm text-red-600">{{ message }}</p>
+                    <div
+                        v-if="checkoutForm.errors.error"
+                        class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+                    >
+                        {{ checkoutForm.errors.error }}
+                    </div>
+
                     <div class="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                         <span class="font-bold">Customer:</span>
                         {{ customers.find(c => c.id === checkoutForm.customer_id)?.name || 'Walk-in Customer' }}
@@ -623,29 +802,45 @@ const submitCheckout = () => {
                         </div>
                     </div>
 
-                    <div>
-                        <InputLabel value="Payment Method" class="text-gray-700" />
-                        <select v-model="checkoutForm.payment_method" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500 rounded-md shadow-sm">
-                            <option value="cash">Cash</option>
-                            <option value="card">Card</option>
-                            <option value="transfer">Bank Transfer</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <InputLabel value="Amount Paid" class="text-gray-700" />
-                        <TextInput type="number" step="0.01" v-model="checkoutForm.amount_paid" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900" />
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <h3 class="font-semibold text-gray-900">Payments</h3>
+                            <SecondaryButton v-if="checkoutForm.payments.length < paymentMethods.length" @click="addPayment">+ Add Payment</SecondaryButton>
+                        </div>
+                        <p class="text-sm text-gray-500">Split the total across payment methods. Enter the amount received for each.</p>
+                        <div v-for="(payment, index) in checkoutForm.payments" :key="index" class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                            <div class="flex flex-wrap items-end gap-3">
+                                <div class="min-w-[140px] flex-1">
+                                    <InputLabel :for="`payment-method-${index}`" value="Payment Method" />
+                                    <select :id="`payment-method-${index}`" v-model="payment.method" class="mt-1 block w-full rounded-md border-gray-300 text-gray-900">
+                                        <option v-for="method in checkoutPaymentMethods" :key="method.value" :value="method.value" :disabled="checkoutForm.payments.some((other, otherIndex) => otherIndex !== index && other.method === method.value)">{{ method.label }}</option>
+                                    </select>
+                                </div>
+                                <div class="min-w-[140px] flex-1">
+                                    <InputLabel :for="`payment-amount-${index}`" value="Amount Received (Ks)" />
+                                    <TextInput :id="`payment-amount-${index}`" type="number" min="0" max="999999999999" step="0.01" required v-model="payment.amount" class="mt-1 block w-full border-gray-300 text-gray-900" />
+                                </div>
+                                <button v-if="checkoutForm.payments.length > 1" type="button" @click="removePayment(index)" class="py-2 text-sm text-red-600" :aria-label="`Remove payment ${index + 1}`">Remove</button>
+                            </div>
+                            <p v-if="checkoutForm.errors[`payments.${index}.method`]" class="mt-1 text-sm text-red-600">{{ checkoutForm.errors[`payments.${index}.method`] }}</p>
+                            <p v-if="checkoutForm.errors[`payments.${index}.amount`]" class="mt-1 text-sm text-red-600">{{ checkoutForm.errors[`payments.${index}.amount`] }}</p>
+                            <p v-else-if="paymentCents(payment.amount) <= 0 && (total > 0 || checkoutForm.payments.length > 1)" class="mt-1 text-sm text-red-600">Enter an amount greater than zero, or remove this payment.</p>
+                        </div>
+                        <p v-if="amountShort > 0" role="status" class="text-sm text-red-600">{{ amountShort.toLocaleString() }} Ks still due.</p>
+                        <p v-if="nonCashOverpaid" role="alert" class="text-sm text-red-600">Non-cash payments cannot exceed the total due. Change can only be returned from cash.</p>
+                        <p v-if="checkoutForm.errors.payments" role="alert" class="text-sm text-red-600">{{ checkoutForm.errors.payments }}</p>
                     </div>
 
                     <div class="pt-3 border-t border-gray-200 space-y-1">
+                        <div class="flex justify-between text-sm"><span>Total Received</span><span>{{ amountPaid.toLocaleString() }} Ks</span></div>
                         <div class="flex justify-between text-lg font-bold">
                             <span class="text-gray-900">Total Due</span>
                             <span class="text-gold-600">{{ total.toLocaleString() }} Ks</span>
                         </div>
                         <div class="flex justify-between text-sm">
-                            <span class="text-gray-500">Change</span>
-                            <span :class="checkoutForm.amount_paid < total ? 'text-red-500' : 'text-green-600'">
-                                {{ (checkoutForm.amount_paid - total).toLocaleString() }} Ks
+                            <span class="text-gray-500">{{ amountShort > 0 ? 'Balance Due' : 'Cash Change' }}</span>
+                            <span :class="amountShort > 0 ? 'text-red-500' : 'text-green-600'">
+                                {{ (amountShort > 0 ? amountShort : changeDue).toLocaleString() }} Ks
                             </span>
                         </div>
                     </div>
@@ -653,14 +848,16 @@ const submitCheckout = () => {
                     <div class="mt-6 flex justify-end gap-3">
                         <SecondaryButton @click="isCheckoutModalOpen = false">Cancel</SecondaryButton>
                         <PrimaryButton
+                            type="submit"
                             class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold"
-                            :class="{ 'opacity-25': checkoutForm.processing }"
-                            :disabled="checkoutForm.processing"
-                        >Complete Sale</PrimaryButton>
+                            :class="{ 'opacity-25': checkoutForm.processing || amountShort > 0 || nonCashOverpaid || invalidPayment }"
+                            :disabled="checkoutForm.processing || amountShort > 0 || nonCashOverpaid || invalidPayment"
+                        >{{ checkoutForm.processing ? 'Saving…' : editingOrder ? 'Save Order Changes' : 'Complete Sale' }}</PrimaryButton>
                     </div>
                 </form>
             </div>
         </Modal>
+        <CameraBarcodeScanner :show="isCameraOpen" @close="isCameraOpen = false" @scan="handleCameraScan" />
     </AdminLayout>
 </template>
 

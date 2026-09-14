@@ -41,6 +41,9 @@ class HandleInertiaRequests extends Middleware
             ],
             'settings' => fn () => \App\Models\Setting::pluck('value', 'key')->toArray(),
             'storage_url' => rtrim(\Illuminate\Support\Facades\Storage::url(''), '/'),
+            'low_stock_pending_count' => fn () => $request->user()?->role === 'admin'
+                ? \App\Models\LowStockNotification::where('status', 'pending')->whereNull('resolved_at')->count()
+                : 0,
         ];
     }
 }

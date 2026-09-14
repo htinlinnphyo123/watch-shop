@@ -19,7 +19,7 @@ const props = defineProps({
 const form = useForm({
     name: '',
     email: '',
-    role: 'admin',
+    role: 'user',
     password: '',
     password_confirmation: '',
 });
@@ -37,7 +37,7 @@ const openModal = (user = null) => {
         form.password_confirmation = '';
     } else {
         form.reset();
-        form.role = 'admin'; // Default
+        form.role = 'user';
     }
     isModalOpen.value = true;
 };
@@ -169,8 +169,8 @@ const deleteUser = (user) => {
                     <div>
                         <InputLabel value="Role" class="text-gray-700" />
                         <select v-model="form.role" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500 rounded-md shadow-sm">
-                            <option value="user">User</option>
-                            <!-- <option value="manager">Manager</option> -->
+                            <option value="user">Normal User</option>
+                            <option value="manager">Manager</option>
                             <option value="admin">Admin</option>
                         </select>
                         <InputError class="mt-2" :message="form.errors.role" />

@@ -139,6 +139,9 @@ const form = useForm({
   warranty_period: "12", // default 12 months
   warranty_type: "",
   description: "",
+  youtube_link: "",
+  case_material: "",
+  priority_level: 0,
   barcode: "",
   currency: "MMK",
   crystal: "",
@@ -265,6 +268,9 @@ const openModal = (product = null) => {
     form.warranty_period = product.warranty_period;
     form.warranty_type = product.warranty_type || "";
     form.description = product.description;
+    form.youtube_link = product.youtube_link || "";
+    form.case_material = product.case_material || "";
+    form.priority_level = product.priority_level ?? 0;
     form.barcode = product.barcode;
     form.currency = product.currency || "MMK";
     form.crystal = product.crystal || "";
@@ -328,6 +334,9 @@ const openModal = (product = null) => {
     form.is_active = true;
     form.is_public = true;
     form.warranty_type = "";
+    form.youtube_link = "";
+    form.case_material = "";
+    form.priority_level = 0;
     form.crystal = "";
     form.caliber_code = "";
     form.caseback_design = "";
@@ -473,13 +482,16 @@ const deleteProduct = (product) => {
         </div>
 
         <a
+          v-if="userRole === 'admin'"
           :href="route('products.export')"
           class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-bold text-xs text-white uppercase tracking-widest hover:bg-green-700 active:bg-green-900 focus:outline-none focus:border-green-900 focus:ring ring-green-300 disabled:opacity-25 transition ease-in-out duration-150 shadow-sm"
         >
           Export Excel
         </a>
 
-        <SecondaryButton @click="fileInput.click()" class="shadow-sm">
+        <SecondaryButton 
+            v-if="userRole === 'admin'"
+            @click="fileInput.click()" class="shadow-sm">
           Import Excel
         </SecondaryButton>
         <input
@@ -656,7 +668,6 @@ const deleteProduct = (product) => {
                 Category
               </th>
               <th
-                v-if="userRole === 'admin'"
                 scope="col"
                 class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
@@ -736,10 +747,17 @@ const deleteProduct = (product) => {
                 </div>
                 <span v-else class="text-xs text-gray-400">No Category</span>
               </td>
-              <td v-if="userRole === 'admin'" class="px-6 py-4 whitespace-nowrap">
+              <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-gray-900 font-bold text-lg">
                   {{ formatPrice(getDisplayPrice(product)) }}
                   {{ displayCurrency }}
+                </div>
+                <div
+                  v-if="userRole === 'admin' && product.cost_price !== null && product.cost_price !== undefined"
+                  class="text-xs text-gray-500 mt-1"
+                >
+                  Cost: {{ parseFloat(product.cost_price).toLocaleString() }}
+                  {{ product.currency }}
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
@@ -1030,7 +1048,7 @@ const deleteProduct = (product) => {
                 required
               />
             </div>
-            <div>
+            <div v-if="userRole === 'admin'">
               <InputLabel
                 :value="'Cost Price (' + form.currency + ')'"
                 class="text-gray-700"
@@ -1102,6 +1120,32 @@ const deleteProduct = (product) => {
                 <option value="shop_warranty">Shop Warranty</option>
               </select>
               <InputError class="mt-2" :message="form.errors.warranty_type" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <InputLabel value="YouTube Link" class="text-gray-700" />
+              <TextInput
+                type="url"
+                class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900"
+                v-model="form.youtube_link"
+                placeholder="https://www.youtube.com/watch?v=..."
+              />
+              <InputError class="mt-2" :message="form.errors.youtube_link" />
+            </div>
+            <div>
+              <InputLabel value="Priority Level" class="text-gray-700" />
+              <select
+                class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900"
+                v-model="form.priority_level"
+              >
+                <option :value="0">0</option>
+                <option :value="1">1</option>
+                <option :value="2">2</option>
+                <option :value="3">3</option>
+              </select>
+              <InputError class="mt-2" :message="form.errors.priority_level" />
             </div>
           </div>
 
@@ -1320,6 +1364,24 @@ const deleteProduct = (product) => {
                     :value="opt"
                   ></option>
                 </datalist>
+              </div>
+              <div>
+                <InputLabel value="Case Material" class="text-gray-700 text-xs" />
+                <TextInput
+                  type="text"
+                  list="case_material_options"
+                  class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 text-sm"
+                  v-model="form.case_material"
+                  placeholder="e.g. Stainless Steel, Titanium"
+                />
+                <datalist id="case_material_options">
+                  <option
+                    v-for="opt in specOptions.case_material"
+                    :key="opt"
+                    :value="opt"
+                  ></option>
+                </datalist>
+                <InputError class="mt-2" :message="form.errors.case_material" />
               </div>
               <div>
                 <InputLabel

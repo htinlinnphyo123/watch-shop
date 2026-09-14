@@ -31,9 +31,7 @@ return new class extends Migration
             }
 
             Schema::table('products', function (Blueprint $table) {
-                if (\Illuminate\Support\Facades\DB::getDriverName() !== 'sqlite') {
-                    $table->dropForeign(['category_id']);
-                }
+                $table->dropForeign(['category_id']);
                 $table->dropColumn('category_id');
             });
         }

@@ -6,6 +6,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import SystemCodeLabel from '@/Components/SystemCodeLabel.vue';
 
 const props = defineProps({
     product: {
@@ -25,6 +26,8 @@ const form = useForm({
 });
 
 const editingItemId = ref(null);
+const isPrintOpen = ref(false);
+const printableItems = computed(() => props.items.filter(item => item.system_unique_id));
 const editForm = useForm({
     serial_number: '',
     system_unique_id: '',
@@ -70,6 +73,35 @@ const finalPrice = computed(()=>{
   return price;
 })
 
+const youtubeEmbedUrl = computed(() => {
+    if (!props.product.youtube_link) return null;
+
+    try {
+        const url = new URL(props.product.youtube_link);
+        const hostname = url.hostname.replace(/^www\./, '').toLowerCase();
+        let videoId = null;
+
+        if (hostname === 'youtu.be') {
+            videoId = url.pathname.split('/').filter(Boolean)[0];
+        } else if (['youtube.com', 'm.youtube.com'].includes(hostname)) {
+            if (url.pathname === '/watch') {
+                videoId = url.searchParams.get('v');
+            } else {
+                const parts = url.pathname.split('/').filter(Boolean);
+                if (['shorts', 'embed', 'live'].includes(parts[0])) {
+                    videoId = parts[1];
+                }
+            }
+        }
+
+        return /^[A-Za-z0-9_-]{11}$/.test(videoId || '')
+            ? `https://www.youtube-nocookie.com/embed/${videoId}`
+            : null;
+    } catch {
+        return null;
+    }
+});
+
 const deleteItem = (item) => {
     if (confirm('Are you sure you want to remove this item from stock?')) {
         useForm({}).delete(route('items.destroy', item.id));
@@ -106,6 +138,19 @@ const formatDate = (dateString) => {
                              <img :src="$page.props.storage_url + '/' + product.image" class="w-full h-64 object-cover rounded shadow-sm" />
                          </div>
                          <div v-else class="w-full h-64 bg-gray-100 rounded mb-4 flex items-center justify-center text-gray-400">No Image</div>
+
+                         <div v-if="youtubeEmbedUrl" class="w-full mb-4">
+                             <iframe
+                                 :src="youtubeEmbedUrl"
+                                 class="w-full rounded shadow-sm border-0"
+                                 style="aspect-ratio: 16 / 9"
+                                 title="YouTube video player"
+                                 loading="lazy"
+                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                 referrerpolicy="strict-origin-when-cross-origin"
+                                 allowfullscreen
+                             ></iframe>
+                         </div>
                          
                          <h1 class="text-2xl font-bold text-gray-900">{{ product.name }}</h1>
                          <p class="text-gold-600 font-bold text-xl mt-2">Price - {{ parseInt(product.price).toLocaleString() }} {{ product.currency }}</p>                  
@@ -147,6 +192,14 @@ const formatDate = (dateString) => {
                              <div class="flex justify-between border-b border-gray-100 pb-2">
                                  <span class="text-gray-500">Warranty</span>
                                  <span class="text-gray-900 font-medium">{{ product.warranty_period }} Months</span>
+                             </div>
+                             <div class="flex justify-between border-b border-gray-100 pb-2">
+                                 <span class="text-gray-500">Priority Level</span>
+                                 <span class="text-gray-900 font-medium">{{ product.priority_level ?? 0 }}</span>
+                             </div>
+                             <div v-if="$page.props.auth.user.role === 'admin'" class="flex justify-between border-b border-gray-100 pb-2">
+                                 <span class="text-gray-500">Cost Price</span>
+                                 <span class="text-gray-900 font-medium">{{ product.cost_price ? parseFloat(product.cost_price).toLocaleString() + ' ' + product.currency : '-' }}</span>
                              </div>
                              <div class="flex justify-between border-b border-gray-100 pb-2">
                                  <span class="text-gray-500">Warranty Type</span>
@@ -232,7 +285,10 @@ const formatDate = (dateString) => {
                      <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
                             <h3 class="text-lg font-bold text-gray-900">Stock Inventory</h3>
-                            <span class="text-gold-600 font-bold">{{ (items || []).filter(i => i.status === 'available').length }} Available</span>
+                            <div class="flex items-center gap-4">
+                                <span class="text-gold-600 font-bold">{{ (items || []).filter(i => i.status === 'available').length }} Available</span>
+                                <PrimaryButton :disabled="printableItems.length === 0" @click="isPrintOpen = true">Print System Codes</PrimaryButton>
+                            </div>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
@@ -305,7 +361,7 @@ const formatDate = (dateString) => {
                                     </template>
                                 </tr>
                                 <tr v-if="items.length === 0">
-                                    <td colspan="5" class="px-6 py-4 text-center text-gray-500">No stock items added yet.</td>
+                                    <td colspan="6" class="px-6 py-4 text-center text-gray-500">No stock items added yet.</td>
                                 </tr>
                                 </tbody>
                             </table>
@@ -314,5 +370,6 @@ const formatDate = (dateString) => {
                  </div>
              </div>
         </div>
+        <SystemCodeLabel :show="isPrintOpen" :items="printableItems" :product="product" @close="isPrintOpen = false" />
     </AdminLayout>
 </template>

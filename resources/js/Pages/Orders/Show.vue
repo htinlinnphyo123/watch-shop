@@ -2,6 +2,8 @@
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import { paymentMethodLabel } from '@/utils/payments';
+import OrderAttachments from '@/Components/OrderAttachments.vue';
 
 const props = defineProps({
     order: Object,
@@ -15,16 +17,20 @@ const formatTime = (d) => new Date(d).toLocaleTimeString('en-US', {
     hour: '2-digit', minute: '2-digit',
 });
 
-const lineTotal = (item) => parseInt(item.price) * item.quantity;
+const lineTotal = (item) => parseFloat(item.price) * item.quantity;
 
 const orderSubtotal = computed(() => {
     return props.order.items?.reduce((sum, item) => sum + lineTotal(item), 0) || 0;
 });
 
 const discountAmount = computed(() => {
-    const total = parseInt(props.order.total_amount) || 0;
+    const total = parseFloat(props.order.total_amount) || 0;
     return orderSubtotal.value > total ? orderSubtotal.value - total : 0;
 });
+
+const amountPaid = computed(() => parseFloat(props.order.amount_paid) || 0);
+const balanceDue = computed(() => Math.max(0, (parseFloat(props.order.total_amount) || 0) - amountPaid.value));
+const changeAmount = computed(() => Math.max(0, amountPaid.value - (parseFloat(props.order.total_amount) || 0)));
 
 // Only show serial numbers that exist — hide internal system IDs from customer view
 const customerUnits = (soldItems) =>
@@ -90,7 +96,9 @@ const approveOrder = () => {
                     </svg>
                     Back to Orders
                 </Link>
-                <div class="flex gap-3">
+                <div class="flex flex-wrap gap-3">
+                    <Link :href="route('orders.history', order.id)" class="inline-flex items-center rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">View History</Link>
+                    <Link v-if="['completed', 'pending'].includes(order.status)" :href="route('pos.index', { order_id: order.id })" class="inline-flex items-center rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">Edit Order</Link>
                     <button
                         v-if="order.status === 'pending'"
                         @click="approveOrder"
@@ -163,7 +171,15 @@ const approveOrder = () => {
                             <div class="space-y-1 text-sm">
                                 <div class="flex justify-end gap-2">
                                     <span class="text-gray-400">Method</span>
-                                    <span class="font-semibold text-gray-800 capitalize">{{ order.payment_method || 'Cash' }}</span>
+                                    <span class="font-semibold text-gray-800 capitalize">{{ paymentMethodLabel(order.payment_method) }}</span>
+                                </div>
+                                <div v-for="(payment, index) in (order.payments || [])" :key="index" class="flex justify-end gap-2">
+                                    <span class="text-gray-500">{{ paymentMethodLabel(payment.method) }}</span>
+                                    <span class="font-semibold text-gray-800">{{ Number(payment.amount).toLocaleString() }} Ks</span>
+                                </div>
+                                <div v-if="order.amount_paid !== null && order.amount_paid !== undefined" class="flex justify-end gap-2">
+                                    <span class="text-gray-400">Amount paid</span>
+                                    <span class="font-semibold text-gray-800">{{ amountPaid.toLocaleString() }} Ks</span>
                                 </div>
                                 <div class="flex justify-end gap-2">
                                     <span class="text-gray-400">Status</span>
@@ -257,7 +273,9 @@ const approveOrder = () => {
                                 <span>{{ orderSubtotal.toLocaleString() }} Ks</span>
                             </div>
                             <div v-if="discountAmount > 0" class="flex justify-between text-sm text-red-500 mb-2">
-                                <span>Discount</span>
+                                <span>
+                                    Discount<span v-if="parseFloat(order.discount_percentage || 0) > 0"> ({{ parseFloat(order.discount_percentage) }}%)</span>
+                                </span>
                                 <span>-{{ discountAmount.toLocaleString() }} Ks</span>
                             </div>
                             <!-- Divider -->
@@ -266,9 +284,23 @@ const approveOrder = () => {
                             <div class="flex justify-between items-baseline">
                                 <span class="text-sm font-bold uppercase tracking-wider text-gray-900">Total</span>
                                 <span class="text-2xl font-bold" style="color: #b8860b;">
-                                    {{ parseInt(order.total_amount).toLocaleString() }} Ks
+                                    {{ parseFloat(order.total_amount).toLocaleString() }} Ks
                                 </span>
                             </div>
+                            <template v-if="order.amount_paid !== null && order.amount_paid !== undefined">
+                                <div class="flex justify-between text-sm text-gray-600 mt-3">
+                                    <span>Amount Paid</span>
+                                    <span>{{ amountPaid.toLocaleString() }} Ks</span>
+                                </div>
+                                <div v-if="balanceDue > 0" class="flex justify-between text-sm font-semibold text-red-600 mt-1">
+                                    <span>Balance Due</span>
+                                    <span>{{ balanceDue.toLocaleString() }} Ks</span>
+                                </div>
+                                <div v-else-if="changeAmount > 0" class="flex justify-between text-sm font-semibold text-green-600 mt-1">
+                                    <span>Change</span>
+                                    <span>{{ changeAmount.toLocaleString() }} Ks</span>
+                                </div>
+                            </template>
                         </div>
                     </div>
 
@@ -295,6 +327,7 @@ const approveOrder = () => {
                 <!-- Gold bottom accent bar -->
                 <div class="h-1.5" style="background: linear-gradient(90deg, #c9a96e, #e8c97e, #b8860b, #c9a96e);"></div>
             </div>
+            <OrderAttachments :order-id="order.id" :files="order.file_uploads || []" />
         </div>
     </AdminLayout>
 </template>

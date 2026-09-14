@@ -4,10 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\ProductItem;
+use App\Services\LowStockNotificationService;
 use Illuminate\Http\Request;
 
 class ProductItemController extends Controller
 {
+    public function __construct(private readonly LowStockNotificationService $lowStockNotifications)
+    {
+    }
+
     /**
      * Bulk-add stock items.
      * User provides: quantity (required), optional serial numbers (one per line), purchase_date, status.
@@ -33,6 +38,8 @@ class ProductItemController extends Controller
             ]);
         }
 
+        $this->lowStockNotifications->sync($product);
+
         return redirect()->back()->with('success', "{$qty} stock item(s) added successfully.");
     }
 
@@ -54,13 +61,17 @@ class ProductItemController extends Controller
         }
 
         $item->update($validated);
+        $this->lowStockNotifications->sync($item->product);
 
         return redirect()->back();
     }
 
     public function destroy(ProductItem $item)
     {
+        $product = $item->product;
         $item->delete();
+        $this->lowStockNotifications->sync($product);
+
         return redirect()->back();
     }
 

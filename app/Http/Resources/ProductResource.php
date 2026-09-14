@@ -4,7 +4,6 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Auth;
 
 class ProductResource extends JsonResource
 {
@@ -21,19 +20,22 @@ class ProductResource extends JsonResource
         $data = [
             'id' => $this->id,
             'name' => $this->name,
-            'image' => $this->images ? asset(config('app.aws_url') . '/' . $this->images[0]) : null,
+            'image' => $this->images ? asset(config('app.aws_url').'/'.$this->images[0]) : null,
             'images' => $this->images ? array_map(function ($image) {
-                return asset(config('app.aws_url') . '/' . $image);
+                return asset(config('app.aws_url').'/'.$image);
             }, $this->images) : [],
             'brand' => $this->whenLoaded('brand'),
             'categories' => $this->whenLoaded('categories'),
             'model_number' => $this->model_number,
             'description' => $this->description,
+            'youtube_link' => $this->youtube_link,
+            'case_material' => $this->case_material,
+            'priority_level' => $this->priority_level,
         ];
 
         if ($isAuthenticated) {
             $price = $this->price;
-            
+
             // Apply Group Discount if applicable
             if ($user->customer && $user->customer->group) {
                 $discountPercentage = $user->customer->group->percentage;
@@ -44,12 +46,12 @@ class ProductResource extends JsonResource
             $data['price'] = $price;
             $data['original_price'] = $this->price;
             $data['stock'] = $this->stock_quantity ?? 10; // Fallback if column missing
-            // Check if stock exists in items or directly on product? 
+            // Check if stock exists in items or directly on product?
             // In my previous work I used items sum for stock, but let's assume simplified now or check column?
             // Wait, previous conversation mentioned items relationship.
             // But let's keep it simple. If items exist, use count.
             if ($this->relationLoaded('items')) {
-                 $data['stock'] = $this->items->where('status', 'available')->count();
+                $data['stock'] = $this->items->where('status', 'available')->count();
             }
         } else {
             $data['message'] = 'Login to see price';

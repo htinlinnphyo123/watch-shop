@@ -3,22 +3,59 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\Product;
+use App\Services\LowStockNotificationService;
+use App\Services\OrderSummaryService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class OrderController extends Controller
 {
-    public function index()
+    public function __construct(private readonly LowStockNotificationService $lowStockNotifications) {}
+
+    public function index(Request $request, OrderSummaryService $summaryService)
     {
+        $filters = $this->filters($request);
+        $query = $summaryService->filter(Order::query(), $filters);
+        $orders = $query->with(['customer', 'user'])->latest()->orderByDesc('id')->paginate(10)->withQueryString();
+        $orders->through(function (Order $order) use ($summaryService) {
+            $payments = $summaryService->retainedPayments($order);
+
+            return [...$order->toArray(), 'payment_breakdown' => $payments === null
+                ? null : array_map(fn ($amount) => $amount / 100, $payments)];
+        });
+
         return Inertia::render('Orders/Index', [
-            'orders' => Order::with(['customer', 'user', 'items.product', 'items.soldItems'])->latest()->paginate(10),
+            'orders' => $orders,
+            'filters' => $filters,
+        ]);
+    }
+
+    public function summary(Request $request, OrderSummaryService $summaryService)
+    {
+        $filters = $this->filters($request);
+        $query = $summaryService->filter(Order::query(), $filters);
+
+        return Inertia::render('Orders/Summary', [
+            'filters' => $filters,
+            'summary' => $summaryService->summarize($query),
+        ]);
+    }
+
+    private function filters(Request $request): array
+    {
+        return $request->validate([
+            'payment_method' => 'nullable|in:cash,kbz_pay,card,transfer,cb_pay,aya_pay,other',
+            'payment_type' => 'nullable|in:single,split',
+            'date_from' => 'nullable|date_format:Y-m-d',
+            'date_to' => ['nullable', 'date_format:Y-m-d', ...($request->filled('date_from') ? ['after_or_equal:date_from'] : [])],
         ]);
     }
 
     public function show(Order $order)
     {
         return Inertia::render('Orders/Show', [
-            'order' => $order->load(['customer', 'user', 'items.product', 'items.soldItems']),
+            'order' => $order->load(['customer', 'user', 'items.product', 'items.soldItems', 'fileUploads']),
         ]);
     }
 
@@ -30,7 +67,12 @@ class OrderController extends Controller
 
         try {
             \Illuminate\Support\Facades\DB::beginTransaction();
+            $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            if ($order->status !== 'pending') {
+                throw new \Exception('This order is no longer pending. Refresh the order before continuing.');
+            }
 
+            $auditBefore = app(\App\Services\OrderAuditService::class)->before($order);
             foreach ($order->items as $orderItem) {
                 // Find available stock
                 $availableItems = \App\Models\ProductItem::where('product_id', $orderItem->product_id)
@@ -40,7 +82,7 @@ class OrderController extends Controller
                     ->get();
 
                 if ($availableItems->count() < $orderItem->quantity) {
-                    $productName = $orderItem->product ? $orderItem->product->name : ('ID: ' . $orderItem->product_id);
+                    $productName = $orderItem->product ? $orderItem->product->name : ('ID: '.$orderItem->product_id);
                     throw new \Exception("Not enough stock for \"{$productName}\". Requested: {$orderItem->quantity}, Available: {$availableItems->count()}.");
                 }
 
@@ -52,7 +94,12 @@ class OrderController extends Controller
                 ]);
             }
 
-            $order->update(['status' => 'completed']);
+            foreach ($order->items->pluck('product_id')->unique() as $productId) {
+                $this->lowStockNotifications->sync(Product::findOrFail($productId));
+            }
+
+            $order->update(['status' => 'completed', 'edit_version' => $order->edit_version + 1]);
+            app(\App\Services\OrderAuditService::class)->record($order, 'approved', $auditBefore);
 
             \Illuminate\Support\Facades\DB::commit();
 
@@ -60,7 +107,8 @@ class OrderController extends Controller
 
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\DB::rollBack();
-            return redirect()->back()->withErrors(['error' => 'Approval failed: ' . $e->getMessage()]);
+
+            return redirect()->back()->withErrors(['error' => 'Approval failed: '.$e->getMessage()]);
         }
     }
 }
