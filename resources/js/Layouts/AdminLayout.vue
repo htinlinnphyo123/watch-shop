@@ -6,6 +6,10 @@ import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
 
+defineProps({
+    hideSidebar: { type: Boolean, default: false },
+});
+
 const showingNavigationDropdown = ref(false);
 const page = usePage();
 </script>
@@ -14,6 +18,7 @@ const page = usePage();
     <div class="min-h-screen bg-gray-100 font-sans">
         <!-- Sidebar (Desktop) -->
         <aside
+            v-if="!hideSidebar"
             class="fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 hidden md:flex flex-col z-20 transition-colors duration-300">
             <div class="flex items-center justify-center border-b border-gray-900 px-4 py-5 bg-black">
                 <Link :href="route('dashboard')">
@@ -235,9 +240,9 @@ const page = usePage();
         </aside>
 
         <!-- Main Content (With top bar for mobile) -->
-        <main class="md:ml-64 min-h-screen transition-all duration-300">
+        <main :class="{ 'md:ml-64': !hideSidebar }" class="min-h-screen transition-all duration-300">
             <!-- Mobile Header -->
-            <header class="md:hidden flex items-center justify-between p-2 bg-black border-b border-gray-800">
+            <header v-if="!hideSidebar" class="md:hidden flex items-center justify-between p-2 bg-black border-b border-gray-800">
                 <Link :href="route('dashboard')">
                     <img src="/assets/timeonyou.jpg" alt="Time On You" class="w-auto h-20" />
                 </Link>

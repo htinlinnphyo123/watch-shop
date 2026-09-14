@@ -383,7 +383,13 @@ const submitCheckout = () => {
 <template>
     <Head :title="editingOrder ? `Edit Order ${editingOrder.order_number}` : 'POS'" />
 
-    <AdminLayout>
+    <AdminLayout hide-sidebar>
+        <header class="-mx-6 -mt-6 mb-6 flex h-16 items-center justify-between gap-4 border-b border-gray-200 bg-white px-6">
+            <h1 class="text-lg font-bold text-gray-900">POS System</h1>
+            <Link :href="route('dashboard')" class="text-sm font-semibold text-gray-600 hover:text-gray-900">
+                Back to Dashboard
+            </Link>
+        </header>
         <div v-if="editingOrder" class="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gold-200 bg-gold-50 p-4">
             <div>
                 <h1 class="font-bold text-gray-900">Editing Order {{ editingOrder.order_number }}</h1>
