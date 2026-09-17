@@ -10,3 +10,5 @@ vendor
 /.vscode
 /.idea
 /bootstrap/cache
+
+/storage/app/private/database-backups/

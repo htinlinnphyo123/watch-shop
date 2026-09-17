@@ -19,7 +19,7 @@ class HomeController extends Controller
 {
    public function index()
     {
-        $baseProductQuery = Product::withItemCounts()
+        $baseProductQuery = Product::where('kind', 'watch')->withItemCounts()
             ->where('is_active', true)
             ->where('is_public', true);
 

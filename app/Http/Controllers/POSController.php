@@ -37,11 +37,13 @@ class POSController extends Controller
     {
         $request->validate([
             'q' => 'nullable|string|max:100',
+            'kind' => 'nullable|in:watch,accessory',
             'page' => 'nullable|integer|min:1',
         ]);
 
         return response()->json(
-            $this->productQuery($request->string('q')->trim()->toString(), $this->editingOrder($request))->paginate(24)
+            $this->productQuery($request->string('q')->trim()->toString(), $this->editingOrder($request))
+                ->when($request->filled('kind'), fn ($q) => $q->where('kind', $request->kind))->paginate(24)
         );
     }
 
@@ -84,7 +86,7 @@ class POSController extends Controller
             ? $this->productQuery(null, $editingOrder)->whereKey($item->product_id)->first()
             : $this->productQuery(null, $editingOrder)->where('barcode', $code)->first();
 
-        abort_unless($product, 404, 'No available watch matches that code.');
+        abort_unless($product, 404, 'No available product matches that code.');
 
         $originalLine = $editingOrder && $item ? $editingOrder->items()->whereKey($item->order_item_id)->first() : null;
         if ($originalLine) {
@@ -176,6 +178,10 @@ class POSController extends Controller
                 }
                 if ($originalLine && $editingOrder->status === 'completed' && ! $originalLine->soldItems->contains('id', $cartLine['item_id'] ?? null)) {
                     throw ValidationException::withMessages(['cart' => 'The original price belongs to a different watch unit.']);
+                }
+
+                if ($product->kind === 'accessory' && ! $product->is_active && ! $originalLine) {
+                    throw ValidationException::withMessages(['cart' => 'This accessory is inactive and cannot be sold.']);
                 }
 
                 // ── Resolve the actual ProductItem record(s) ──────────────────
@@ -360,7 +366,15 @@ class POSController extends Controller
                 'currency',
                 'price',
                 'discount',
+                'kind',
+                'accessory_attributes',
             ])
+            ->where(function ($q) use ($editingOrder) {
+                $q->where('kind', 'watch')->orWhere('is_active', true);
+                if ($editingOrder) {
+                    $q->orWhereIn('id', $editingOrder->items()->select('product_id'));
+                }
+            })
             ->withCount(['items as available_items_count' => function ($query) use ($editingOrder) {
                 $this->stockQuery($query, $editingOrder);
             }])

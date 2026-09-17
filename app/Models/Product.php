@@ -15,6 +15,7 @@ class Product extends Model
 
     protected $casts = [
         'specifications' => 'array',
+        'accessory_attributes' => 'array',
         'images' => 'array',
         'is_featured' => 'boolean',
         'is_banner' => 'boolean',
@@ -32,6 +33,11 @@ class Product extends Model
         }
 
         return $data;
+    }
+
+    public function accessoryType()
+    {
+        return $this->belongsTo(AccessoryType::class);
     }
 
     public function brand()

@@ -86,3 +86,14 @@ Route::middleware('auth')->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+// Accessory administration; public consumers use the API routes.
+Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
+    Route::get('accessories', [\App\Http\Controllers\AccessoryController::class, 'index'])->name('accessories.index');
+    Route::post('accessories', [\App\Http\Controllers\AccessoryController::class, 'store'])->name('accessories.store');
+    Route::put('accessories/{accessory}', [\App\Http\Controllers\AccessoryController::class, 'update'])->name('accessories.update');
+    Route::post('accessories/{accessory}/labels', [\App\Http\Controllers\AccessoryController::class, 'labels'])->name('accessories.labels');
+    Route::post('accessories/{accessory}/stock', [\App\Http\Controllers\AccessoryController::class, 'stock'])->name('accessories.stock');
+    Route::post('accessory-types', [\App\Http\Controllers\AccessoryController::class, 'saveType'])->name('accessory-types.store');
+    Route::put('accessory-types/{type}', [\App\Http\Controllers\AccessoryController::class, 'saveType'])->name('accessory-types.update');
+});

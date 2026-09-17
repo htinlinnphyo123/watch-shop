@@ -22,6 +22,7 @@ class ProductItemController extends Controller
      */
     public function store(Request $request, Product $product)
     {
+        abort_if($product->kind === 'accessory' && $request->user()->role !== 'admin', 403);
         $request->validate([
             'quantity' => 'required|integer|min:1|max:500',
             'purchase_date' => 'nullable|date',
@@ -33,7 +34,7 @@ class ProductItemController extends Controller
         for ($i = 0; $i < $qty; $i++) {
             $product->items()->create([
                 'serial_number' => null,
-                'system_unique_id' => $this->generateUniqueSystemId(),
+                'system_unique_id' => app(\App\Services\StockCodeService::class)->generate(),
                 'purchase_date' => $request->purchase_date ?: null,
                 'status' => $request->status,
             ]);
@@ -49,6 +50,7 @@ class ProductItemController extends Controller
      */
     public function update(Request $request, ProductItem $item)
     {
+        abort_if($item->product?->kind === 'accessory' && auth()->user()->role !== 'admin', 403);
         $validated = $request->validate([
             'serial_number' => 'nullable|string|unique:product_items,serial_number,'.$item->id,
             'status' => 'required|in:available,sold,reserved,returned,lost,damaged',
@@ -75,6 +77,7 @@ class ProductItemController extends Controller
 
     public function destroy(ProductItem $item)
     {
+        abort_if($item->product?->kind === 'accessory' && auth()->user()->role !== 'admin', 403);
         $product = $item->product;
         DB::transaction(function () use ($item) {
             $locked = ProductItem::whereKey($item->id)->lockForUpdate()->firstOrFail();
@@ -93,15 +96,4 @@ class ProductItemController extends Controller
         }
     }
 
-    private function generateUniqueSystemId(): string
-    {
-        do {
-            $id = '';
-            for ($i = 0; $i < 12; $i++) {
-                $id .= mt_rand(0, 9);
-            }
-        } while (ProductItem::where('system_unique_id', $id)->exists());
-
-        return $id;
-    }
 }

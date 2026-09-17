@@ -35,6 +35,7 @@ class FrontendOrderController extends Controller
 
             foreach ($request->cart as $cartLine) {
                 $product = Product::with('customerGroups')->findOrFail($cartLine['id']);
+                abort_if($product->kind === 'accessory' && (! $product->is_active || ! $product->is_public), 404);
                 $qty = (int) $cartLine['count'];
                 // Check stock availability
                 $availableStock = \App\Models\ProductItem::where('product_id', $product->id)
@@ -138,6 +139,7 @@ class FrontendOrderController extends Controller
 
             foreach ($request->cart as $cartLine) {
                 $product = Product::with('customerGroups')->findOrFail($cartLine['id']);
+                abort_if($product->kind === 'accessory' && (! $product->is_active || ! $product->is_public), 404);
                 $qty = (int) $cartLine['count'];
                 // Check stock availability
                 $availableStock = \App\Models\ProductItem::where('product_id', $product->id)

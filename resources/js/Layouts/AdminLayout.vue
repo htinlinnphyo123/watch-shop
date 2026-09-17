@@ -99,6 +99,13 @@ const page = usePage();
                     Watches
                 </Link>
 
+                <Link v-if="$page.props.auth.user.role === 'admin'" :href="route('accessories.index')"
+                    :class="{ 'text-gold-600 bg-gold-50': route().current('accessories.*') }"
+                    class="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14v12H5V8zm-1-4h16v4H4V4zm6 8h4" /></svg>
+                    Accessories
+                </Link>
+
                 <Link :href="route('pos.index')" :class="{ 'text-gold-600 bg-gold-50': route().current('pos.*') }"
                     class="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors">
                     <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
