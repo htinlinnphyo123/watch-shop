@@ -44,6 +44,29 @@ class AccessoryController extends Controller
         ]);
     }
 
+    public function show(Request $request, Product $accessory)
+    {
+        abort_unless($accessory->kind === 'accessory', 404);
+        $filters = $request->validate([
+            'search' => 'nullable|string|max:100',
+            'status' => 'nullable|in:available,sold,reserved,returned,lost,damaged',
+        ]);
+        $counts = $accessory->items()->selectRaw('status, COUNT(*) as total')->groupBy('status')->pluck('total', 'status');
+        $items = $accessory->items()->with('orderItem:id,order_id')
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $filters['status']))
+            ->when($request->filled('search'), fn ($q) => $q->where(fn ($q) => $q
+                ->where('system_unique_id', 'like', '%'.$filters['search'].'%')
+                ->orWhereRaw('LOWER(serial_number) LIKE ?', ['%'.mb_strtolower($filters['search']).'%'])))
+            ->latest('id')->paginate(25)->withQueryString();
+
+        return Inertia::render('Accessories/Show', [
+            'accessory' => $accessory->load('accessoryType'),
+            'items' => $items,
+            'counts' => $counts,
+            'filters' => $filters,
+        ]);
+    }
+
     public function store(Request $request)
     {
         return $this->save($request);

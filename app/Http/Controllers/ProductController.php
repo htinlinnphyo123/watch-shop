@@ -384,7 +384,7 @@ class ProductController extends Controller
     public function show(Product $product)
     {
         if ($product->kind === 'accessory') {
-            return redirect()->route('accessories.index');
+            return redirect()->route('accessories.show', $product);
         }
         return Inertia::render('Products/Show', [
             'product' => $product->load(['brand', 'categories', 'items']),

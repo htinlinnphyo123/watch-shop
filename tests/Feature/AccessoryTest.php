@@ -41,6 +41,41 @@ class AccessoryTest extends TestCase
         return Product::create($this->payload($overrides) + ['kind' => 'accessory']);
     }
 
+    public function test_stock_detail_tracks_a_sold_barcode_and_filters_without_changing_units(): void
+    {
+        $this->admin();
+        $accessory = $this->accessory();
+        $sold = $accessory->items()->create(['status' => 'available', 'system_unique_id' => '000123456789']);
+        $available = $accessory->items()->create(['status' => 'available', 'system_unique_id' => '000123456788']);
+        $accessory->items()->create(['status' => 'reserved']);
+        $this->accessory()->items()->create(['status' => 'available', 'system_unique_id' => '000123456787']);
+        $this->post('/pos/checkout', ['payments' => [['method' => 'cash', 'amount' => 15000]], 'cart' => [['product_id' => $accessory->id, 'item_id' => $sold->id]]])->assertSessionHasNoErrors();
+        $url = route('accessories.show', $accessory);
+        $this->get($url)->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+            ->component('Accessories/Show')->has('items.data', 3)
+            ->where('counts.available', 1)->where('counts.sold', 1)->where('counts.reserved', 1));
+        $this->get($url.'?search=000123456789&status=sold')->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+            ->has('items.data', 1)->where('items.data.0.id', $sold->id)
+            ->where('items.data.0.system_unique_id', '000123456789')->where('items.data.0.status', 'sold')
+            ->where('items.data.0.order_item.order_id', Order::firstOrFail()->id));
+        $this->get($url.'?status=available')->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+            ->has('items.data', 1)->where('items.data.0.id', $available->id));
+        $this->get($url.'?search=000123456789&status=available')->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page->has('items.data', 0));
+        $this->assertSame('000123456789', $sold->fresh()->system_unique_id);
+        $this->get(route('products.show', $accessory))->assertRedirect($url);
+    }
+
+    public function test_stock_detail_is_admin_only_and_rejects_watches(): void
+    {
+        $accessory = $this->accessory();
+        $this->get(route('accessories.show', $accessory))->assertRedirect(route('login'));
+        $this->actingAs(User::factory()->create(['role' => 'staff']));
+        $this->get(route('accessories.show', $accessory))->assertForbidden();
+        $this->admin();
+        $accessory->update(['kind' => 'watch']);
+        $this->get(route('accessories.show', $accessory))->assertNotFound();
+    }
+
     public function test_admin_can_create_edit_custom_types_and_accessories_with_images(): void
     {
         $this->admin();

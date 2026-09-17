@@ -91,6 +91,7 @@ require __DIR__.'/auth.php';
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::get('accessories', [\App\Http\Controllers\AccessoryController::class, 'index'])->name('accessories.index');
     Route::post('accessories', [\App\Http\Controllers\AccessoryController::class, 'store'])->name('accessories.store');
+    Route::get('accessories/{accessory}', [\App\Http\Controllers\AccessoryController::class, 'show'])->name('accessories.show');
     Route::put('accessories/{accessory}', [\App\Http\Controllers\AccessoryController::class, 'update'])->name('accessories.update');
     Route::post('accessories/{accessory}/labels', [\App\Http\Controllers\AccessoryController::class, 'labels'])->name('accessories.labels');
     Route::post('accessories/{accessory}/stock', [\App\Http\Controllers\AccessoryController::class, 'stock'])->name('accessories.stock');
