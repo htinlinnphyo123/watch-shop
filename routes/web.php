@@ -64,6 +64,12 @@ Route::middleware('auth')->group(function () {
         Route::patch('low-stock-notifications/{lowStockNotification}', [\App\Http\Controllers\LowStockNotificationController::class, 'update'])->name('low-stock-notifications.update');
     });
 
+    // Admin + Manager Routes
+    Route::middleware(['role:admin,manager'])->group(function () {
+        Route::resource('attendance', \App\Http\Controllers\AttendanceController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+    });
+
     // Shared Routes (Staff & Admin)
     Route::resource('customers', \App\Http\Controllers\CustomerController::class);
 
