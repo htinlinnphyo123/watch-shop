@@ -19,7 +19,7 @@ const props = defineProps({
 const form = useForm({
     name: '',
     email: '',
-    role: 'user',
+    role: 'staff',
     password: '',
     password_confirmation: '',
 });
@@ -37,7 +37,7 @@ const openModal = (user = null) => {
         form.password_confirmation = '';
     } else {
         form.reset();
-        form.role = 'user';
+        form.role = 'staff';
     }
     isModalOpen.value = true;
 };
@@ -97,7 +97,12 @@ const deleteUser = (user) => {
                         <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">{{ user.name }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ user.email }}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span :class="{'bg-gold-100 text-gold-800': user.role === 'admin', 'bg-blue-100 text-blue-800': user.role === 'manager', 'bg-gray-100 text-gray-800': user.role === 'user'}" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full uppercase">
+                            <span :class="{
+                                'bg-yellow-100 text-yellow-800': user.role === 'admin',
+                                'bg-blue-100 text-blue-800':    user.role === 'manager',
+                                'bg-green-100 text-green-800':  user.role === 'staff',
+                                'bg-gray-100 text-gray-800':    user.role === 'user',
+                            }" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full uppercase">
                                 {{ user.role }}
                             </span>
                         </td>
@@ -169,9 +174,10 @@ const deleteUser = (user) => {
                     <div>
                         <InputLabel value="Role" class="text-gray-700" />
                         <select v-model="form.role" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500 rounded-md shadow-sm">
-                            <option value="user">Normal User</option>
+                            <option value="staff">Staff</option>
                             <option value="manager">Manager</option>
                             <option value="admin">Admin</option>
+                            <option value="user">Normal User (Customer)</option>
                         </select>
                         <InputError class="mt-2" :message="form.errors.role" />
                     </div>
