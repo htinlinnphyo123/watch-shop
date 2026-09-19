@@ -18,6 +18,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    sourceOptions: {
+        type: Object,
+        default: () => ({}),
+    },
 });
 
 const form = useForm({
@@ -27,12 +31,25 @@ const form = useForm({
     password: '',
     address: '',
     customer_group_id: null,
+    source: '',
+    source_details: '',
 });
+
+const profileUrl = (value) => {
+    if (!value) return null;
+    try {
+        const url = new URL(value);
+        return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
+    } catch {
+        return null;
+    }
+};
 
 const isModalOpen = ref(false);
 const editingCustomer = ref(null);
 
 const openModal = (customer = null) => {
+    form.clearErrors();
     editingCustomer.value = customer;
     if (customer) {
         form.name = customer.name;
@@ -41,6 +58,8 @@ const openModal = (customer = null) => {
         form.password = '';
         form.address = customer.address;
         form.customer_group_id = customer.customer_group_id;
+        form.source = customer.source || '';
+        form.source_details = customer.source_details || '';
     } else {
         form.reset();
         form.password = '';
@@ -89,7 +108,7 @@ const deleteCustomer = (customer) => {
             </PrimaryButton>
         </div>
 
-        <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
+        <div class="bg-white overflow-x-auto shadow-sm sm:rounded-lg border border-gray-200">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
@@ -97,6 +116,7 @@ const deleteCustomer = (customer) => {
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer source</th>
                         <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
@@ -106,13 +126,18 @@ const deleteCustomer = (customer) => {
                         <td class="px-6 py-4 whitespace-nowrap text-gold-600 text-sm font-mono">{{ customer.phone }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ customer.email || '-' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ customer.address || '-' }}</td>
+                        <td class="px-6 py-4 text-sm min-w-[200px] max-w-xs">
+                            <p class="font-medium text-gray-800">{{ sourceOptions[customer.source] || 'Not specified' }}</p>
+                            <a v-if="profileUrl(customer.source_details)" :href="profileUrl(customer.source_details)" target="_blank" rel="noopener noreferrer" class="mt-1 block break-words text-gold-600 underline hover:text-gold-800">{{ customer.source_details }}</a>
+                            <p v-else-if="customer.source_details" class="mt-1 break-words text-gray-500">{{ customer.source_details }}</p>
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                             <button @click="openModal(customer)" class="text-gold-600 hover:text-gold-800">Edit</button>
                             <button @click="deleteCustomer(customer)" class="text-red-600 hover:text-red-800">Delete</button>
                         </td>
                     </tr>
                     <tr v-if="!customers?.data?.length">
-                        <td colspan="5" class="px-6 py-4 text-center text-gray-500">No customers found.</td>
+                        <td colspan="6" class="px-6 py-4 text-center text-gray-500">No customers found.</td>
                     </tr>
                 </tbody>
             </table>
@@ -204,6 +229,24 @@ const deleteCustomer = (customer) => {
                         <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900" v-model="form.address" />
                         <InputError class="mt-2" :message="form.errors.address" />
                     </div>
+
+                    <fieldset class="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
+                        <legend class="px-1 text-sm font-semibold text-gray-800">How did this customer find us?</legend>
+                        <div>
+                            <InputLabel for="customer_source" value="Customer source (optional)" />
+                            <select id="customer_source" v-model="form.source" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-gold-500 focus:ring-gold-500">
+                                <option value="">Not specified</option>
+                                <option v-for="(label, value) in sourceOptions" :key="value" :value="value">{{ label }}</option>
+                            </select>
+                            <InputError class="mt-2" :message="form.errors.source" />
+                        </div>
+                        <div>
+                            <InputLabel for="customer_source_details" :value="form.source === 'referral' ? 'Referrer name or profile link (optional)' : 'Profile link, name, or source details (optional)'" />
+                            <TextInput id="customer_source_details" type="text" v-model="form.source_details" maxlength="2048" class="mt-1 block w-full border-gray-300" :placeholder="form.source === 'referral' ? 'e.g. Referred by Aung Aung' : 'e.g. https://www.facebook.com/username'" aria-describedby="customer_source_help" />
+                            <p id="customer_source_help" class="mt-2 text-xs text-gray-500">Add the customer's profile link, the person who referred them, or details about another source.</p>
+                            <InputError class="mt-2" :message="form.errors.source_details" />
+                        </div>
+                    </fieldset>
 
                     <div class="mt-6 flex justify-end">
                         <SecondaryButton @click="closeModal" class="bg-white text-gray-700 border-gray-300 hover:bg-gray-50"> Cancel </SecondaryButton>

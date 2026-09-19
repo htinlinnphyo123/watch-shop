@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class CustomerController extends Controller
@@ -14,6 +15,7 @@ class CustomerController extends Controller
         return Inertia::render('Customers/Index', [
             'customers' => Customer::with('group')->latest('updated_at')->paginate(10),
             'groups' => CustomerGroup::all(),
+            'sourceOptions' => Customer::SOURCES,
         ]);
     }
 
@@ -26,6 +28,8 @@ class CustomerController extends Controller
             'password' => 'nullable|string|min:6',
             'customer_group_id' => 'nullable|exists:customer_groups,id',
             'address' => 'nullable|string',
+            'source' => ['nullable', Rule::in(array_keys(Customer::SOURCES))],
+            'source_details' => 'nullable|string|max:2048',
         ]);
 
         if (!empty($validated['password'])) {
@@ -47,6 +51,8 @@ class CustomerController extends Controller
             'password' => 'nullable|string|min:6',
             'customer_group_id' => 'nullable|exists:customer_groups,id',
             'address' => 'nullable|string',
+            'source' => ['nullable', Rule::in(array_keys(Customer::SOURCES))],
+            'source_details' => 'nullable|string|max:2048',
         ]);
 
         if (!empty($validated['password'])) {

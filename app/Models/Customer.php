@@ -9,6 +9,15 @@ use Laravel\Sanctum\HasApiTokens;
 
 class Customer extends Authenticatable
 {
+    public const SOURCES = [
+        'tiktok' => 'TikTok',
+        'facebook' => 'Facebook',
+        'instagram' => 'Instagram',
+        'referral' => 'Referred by a person',
+        'walk_in' => 'Walk-in',
+        'other' => 'Other',
+    ];
+
     use HasApiTokens, HasFactory, SoftDeletes;
 
     protected $guarded = [];
