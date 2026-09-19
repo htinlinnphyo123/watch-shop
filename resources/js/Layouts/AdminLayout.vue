@@ -1,17 +1,59 @@
 <script setup>
-import { ref, watch } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Link, usePage } from "@inertiajs/vue3";
 import Dropdown from "@/Components/Dropdown.vue";
 import DropdownLink from "@/Components/DropdownLink.vue";
 import NavLink from "@/Components/NavLink.vue";
 import ResponsiveNavLink from "@/Components/ResponsiveNavLink.vue";
 
-defineProps({
+const props = defineProps({
   hideSidebar: { type: Boolean, default: false },
 });
 
 const showingNavigationDropdown = ref(false);
+const sidebar = ref(null);
+const menuButton = ref(null);
+const closeButton = ref(null);
+let desktopMedia;
+const closeNavigation = () => { showingNavigationDropdown.value = false; };
+const onBreakpointChange = () => { if (desktopMedia.matches) closeNavigation(); };
+onMounted(() => {
+  desktopMedia = window.matchMedia('(min-width: 768px)');
+  desktopMedia.addEventListener('change', onBreakpointChange);
+});
+onBeforeUnmount(() => desktopMedia?.removeEventListener('change', onBreakpointChange));
+watch(showingNavigationDropdown, async (open, previous, onCleanup) => {
+  if (open) {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    onCleanup(() => { document.body.style.overflow = previousOverflow; });
+    await nextTick();
+    if (showingNavigationDropdown.value) closeButton.value?.focus();
+  } else if (menuButton.value?.offsetParent) {
+    menuButton.value.focus();
+  }
+}, { flush: 'post' });
+const handleNavigationKey = (event) => {
+  if (!showingNavigationDropdown.value) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeNavigation();
+  } else if (event.key === 'Tab') {
+    const controls = [...sidebar.value.querySelectorAll('a[href], button:not([disabled])')].filter(el => el.offsetParent !== null);
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  }
+};
 const page = usePage();
+watch(() => page.url, closeNavigation);
+watch(() => props.hideSidebar, closeNavigation);
 const dismissedFlash = ref({ success: null, error: null });
 watch(() => page.props.flash?.success, () => { dismissedFlash.value.success = null; });
 watch(() => page.props.flash?.error, () => { dismissedFlash.value.error = null; });
@@ -19,10 +61,19 @@ watch(() => page.props.flash?.error, () => { dismissedFlash.value.error = null; 
 
 <template>
   <div class="min-h-screen bg-gray-100 font-sans">
-    <!-- Sidebar (Desktop) -->
+    <div v-if="!hideSidebar && showingNavigationDropdown" class="fixed inset-0 z-40 bg-black/50 md:hidden" aria-hidden="true" @click="closeNavigation" />
+    <!-- Shared desktop sidebar and mobile navigation drawer -->
     <aside
       v-if="!hideSidebar"
-      class="fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 hidden md:flex flex-col z-20 transition-colors duration-300"
+      id="admin-navigation"
+      ref="sidebar"
+      :class="showingNavigationDropdown ? 'flex' : 'hidden md:flex'"
+      :role="showingNavigationDropdown ? 'dialog' : undefined"
+      :aria-modal="showingNavigationDropdown ? 'true' : undefined"
+      aria-label="Main navigation"
+      class="fixed inset-y-0 left-0 w-64 max-w-[85vw] bg-white border-r border-gray-200 flex-col z-50 md:z-20"
+      @keydown="handleNavigationKey"
+      @click="event => { if (event.target.closest('a[href]')) closeNavigation(); }"
     >
       <div
         class="flex items-center justify-center border-b border-gray-900 px-4 py-5 bg-black"
@@ -34,9 +85,12 @@ watch(() => page.props.flash?.error, () => { dismissedFlash.value.error = null; 
             class="w-32 h-auto object-contain"
           />
         </Link>
+        <button ref="closeButton" type="button" class="ml-3 rounded-lg p-2 text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gold-500 md:hidden" aria-label="Close navigation" @click="closeNavigation">
+          <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke-width="2" stroke-linecap="round" /></svg>
+        </button>
       </div>
 
-      <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+      <nav class="min-h-0 flex-1 px-4 py-6 space-y-2 overflow-y-auto overscroll-contain">
         <Link
           :href="route('dashboard')"
           :class="{ 'text-gold-600 bg-gold-50': route().current('dashboard') }"
@@ -533,6 +587,7 @@ watch(() => page.props.flash?.error, () => { dismissedFlash.value.error = null; 
 
     <!-- Main Content (With top bar for mobile) -->
     <main
+      :inert="showingNavigationDropdown && !hideSidebar ? true : undefined"
       :class="{ 'md:ml-64': !hideSidebar }"
       class="min-h-screen transition-all duration-300"
     >
@@ -549,8 +604,13 @@ watch(() => page.props.flash?.error, () => { dismissedFlash.value.error = null; 
           />
         </Link>
         <button
+          ref="menuButton"
+          type="button"
+          aria-label="Open navigation"
+          aria-controls="admin-navigation"
+          :aria-expanded="showingNavigationDropdown"
           @click="showingNavigationDropdown = !showingNavigationDropdown"
-          class="text-gray-400 hover:text-white"
+          class="rounded-lg p-3 text-gray-200 hover:bg-gray-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-gold-500"
         >
           <svg
             class="w-6 h-6"

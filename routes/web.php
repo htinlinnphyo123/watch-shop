@@ -19,9 +19,7 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [\App\Http\Controllers\CustomerInsightsController::class, 'dashboard'])->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -77,6 +75,7 @@ Route::middleware('auth')->group(function () {
     });
 
     // Shared Routes (Staff & Admin)
+    Route::get('customers/leaderboard', [\App\Http\Controllers\CustomerInsightsController::class, 'index'])->middleware('role:admin')->name('customers.leaderboard');
     Route::resource('customers', \App\Http\Controllers\CustomerController::class);
 
     Route::get('/pos', [\App\Http\Controllers\POSController::class, 'index'])->name('pos.index');

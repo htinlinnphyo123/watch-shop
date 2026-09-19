@@ -103,6 +103,7 @@ const deleteCustomer = (customer) => {
 
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-gray-900">Customers</h1>
+            <Link v-if="$page.props.auth.user.role === 'admin'" :href="route('customers.leaderboard')" class="ml-auto mr-3 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700">Leaderboard &amp; sources</Link>
             <PrimaryButton @click="openModal()" class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold">
                 Add Customer
             </PrimaryButton>
