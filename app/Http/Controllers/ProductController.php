@@ -381,14 +381,36 @@ class ProductController extends Controller
         return redirect()->back();
     }
 
-    public function show(Product $product)
+    public function show(Request $request, Product $product)
     {
         if ($product->kind === 'accessory') {
             return redirect()->route('accessories.show', $product);
         }
+
+        abort_unless($product->kind === 'watch', 404);
+        $filters = $request->validate([
+            'search' => 'nullable|string|max:100',
+            'status' => 'nullable|in:available,sold,reserved,returned,lost,damaged',
+        ]);
+        $counts = $product->items()
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+        $items = $product->items()
+            ->with('orderItem:id,order_id')
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $filters['status']))
+            ->when($request->filled('search'), fn ($query) => $query->where(fn ($search) => $search
+                ->where('system_unique_id', 'like', '%'.$filters['search'].'%')
+                ->orWhereRaw('LOWER(serial_number) LIKE ?', ['%'.mb_strtolower($filters['search']).'%'])))
+            ->latest('id')
+            ->paginate(25)
+            ->withQueryString();
+
         return Inertia::render('Products/Show', [
-            'product' => $product->load(['brand', 'categories', 'items']),
-            'items' => $product->items,
+            'product' => $product->load(['brand', 'categories']),
+            'items' => $items,
+            'counts' => $counts,
+            'filters' => $filters,
         ]);
     }
 

@@ -1,385 +1,111 @@
 <script setup>
-import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { Head, useForm, Link } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import TextInput from '@/Components/TextInput.vue';
-import InputError from '@/Components/InputError.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { ArrowLeftIcon, ChevronDownIcon, CubeIcon, MagnifyingGlassIcon, PencilSquareIcon, PhotoIcon, PlusIcon, PrinterIcon, TrashIcon } from '@heroicons/vue/24/outline';
+import AdminLayout from '@/Layouts/AdminLayout.vue';
+import AccessoryDialog from '@/Components/Accessories/AccessoryDialog.vue';
 import SystemCodeLabel from '@/Components/SystemCodeLabel.vue';
 
-const props = defineProps({
-    product: {
-        type: Object,
-        default: () => ({}),
-    },
-    items: {
-        type: Array,
-        default: () => [],
-    },
-});
-
-const form = useForm({
-    quantity: 1,
-    purchase_date: '',
-    status: 'available',
-});
-
-const editingItemId = ref(null);
-const stockStatus = ref('');
-const stockStatuses = ['available', 'reserved', 'sold', 'returned', 'lost', 'damaged'];
-const filteredItems = computed(() => props.items.filter(item => !stockStatus.value || item.status === stockStatus.value));
-const isPrintOpen = ref(false);
-const printableItems = computed(() => props.items.filter(item => item.system_unique_id));
-const editForm = useForm({
-    serial_number: '',
-    system_unique_id: '',
-    purchase_date: '',
-    status: '',
-});
-
-const startEdit = (item) => {
-    editingItemId.value = item.id;
-    editForm.serial_number = item.serial_number || '';
-    editForm.system_unique_id = item.system_unique_id || '';
-    editForm.purchase_date = item.purchase_date ? item.purchase_date.substring(0, 10) : '';
-    editForm.status = item.status;
-};
-
-const cancelEdit = () => {
-    editingItemId.value = null;
-    editForm.reset();
-    editForm.clearErrors();
-};
-
-const saveEdit = (item) => {
-    editForm.put(route('items.update', item.id), {
-        onSuccess: () => {
-            editingItemId.value = null;
-            editForm.reset();
-        },
-    });
-};
-
-const submitItem = () => {
-    form.post(route('products.items.store', props.product.id), {
-        onSuccess: () => form.reset(),
-    });
-};
-
-const finalPrice = computed(()=>{
-  let price = props.product.price;
-  let discount = props.product.discount;
-  if(props.product.discount){
-    return price - (price * discount / 100);
-  }
-  return price;
-})
-
+const props = defineProps({ product: Object, items: Object, counts: Object, filters: Object });
+const page = usePage();
+const statuses = ['available', 'sold', 'reserved', 'returned', 'lost', 'damaged'];
+const search = ref(props.filters.search || '');
+const status = ref(props.filters.status || '');
+const total = computed(() => Object.values(props.counts).reduce((sum, value) => sum + Number(value), 0));
+const filter = () => router.get(route('products.show', props.product.id), { search: search.value, status: status.value }, { preserveState: true, preserveScroll: true, replace: true });
+const clearFilters = () => { search.value = ''; status.value = ''; filter(); };
+const setStatus = value => { status.value = value; filter(); };
+const date = value => value ? new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+const money = value => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
+const mainImage = computed(() => props.product.images?.[0] || props.product.image || null);
+const imageUrl = path => `${page.props.storage_url}/${path}`;
+const finalPrice = computed(() => Number(props.product.price || 0) * (1 - Number(props.product.discount || 0) / 100));
 const youtubeEmbedUrl = computed(() => {
     if (!props.product.youtube_link) return null;
-
     try {
         const url = new URL(props.product.youtube_link);
-        const hostname = url.hostname.replace(/^www\./, '').toLowerCase();
-        let videoId = null;
-
-        if (hostname === 'youtu.be') {
-            videoId = url.pathname.split('/').filter(Boolean)[0];
-        } else if (['youtube.com', 'm.youtube.com'].includes(hostname)) {
-            if (url.pathname === '/watch') {
-                videoId = url.searchParams.get('v');
-            } else {
-                const parts = url.pathname.split('/').filter(Boolean);
-                if (['shorts', 'embed', 'live'].includes(parts[0])) {
-                    videoId = parts[1];
-                }
-            }
-        }
-
-        return /^[A-Za-z0-9_-]{11}$/.test(videoId || '')
-            ? `https://www.youtube-nocookie.com/embed/${videoId}`
-            : null;
-    } catch {
-        return null;
-    }
+        const host = url.hostname.replace(/^www\./, '').toLowerCase();
+        let videoId = host === 'youtu.be' ? url.pathname.split('/').filter(Boolean)[0] : url.searchParams.get('v');
+        if (!videoId && ['youtube.com', 'm.youtube.com'].includes(host)) videoId = url.pathname.split('/').filter(Boolean)[1];
+        return /^[A-Za-z0-9_-]{11}$/.test(videoId || '') ? `https://www.youtube-nocookie.com/embed/${videoId}` : null;
+    } catch { return null; }
 });
+const statusClass = value => ({ available: 'bg-emerald-50 text-emerald-700', sold: 'bg-blue-50 text-blue-700', reserved: 'bg-amber-50 text-amber-700', returned: 'bg-purple-50 text-purple-700', lost: 'bg-red-50 text-red-700', damaged: 'bg-red-50 text-red-700' }[value] || 'bg-gray-100 text-gray-600');
+const details = computed(() => [
+    ['Brand', props.product.brand?.name], ['Categories', props.product.categories?.map(category => category.name).join(', ')], ['Model', props.product.model_number], ['Product barcode', props.product.barcode],
+    ['Warranty', props.product.warranty_period ? `${props.product.warranty_period} months` : null], ['Warranty type', props.product.warranty_type?.replaceAll('_', ' ')],
+    ['Web price', props.product.web_price ? `${money(props.product.web_price)} ${props.product.currency}` : null], ['Cost price', props.product.cost_price ? `${money(props.product.cost_price)} ${props.product.currency}` : null],
+].filter(([, value]) => value));
+const specifications = computed(() => [
+    ['Watch type', props.product.watch_type], ['Gender', props.product.gender], ['Movement', props.product.movement], ['Glass / crystal', props.product.glass || props.product.crystal],
+    ['Water resistance', props.product.water_resistant], ['Case shape', props.product.shape || props.product.case_shape], ['Dial size', props.product.dial_size], ['Dial color', props.product.dial_color],
+    ['Dial markings', props.product.dial_markings], ['Band material', props.product.band || props.product.strap_material], ['Band color', props.product.band_color || props.product.strap_color],
+    ['Band size', props.product.band_size || props.product.strap_size], ['Lug width', props.product.lug_width], ['Clasp type', props.product.strap_buckle || props.product.clasp_type],
+    ['Case material', props.product.case_material], ['Case color', props.product.case_color], ['Case thickness', props.product.case_thickness], ['Case finish', props.product.case_finish],
+    ['Battery type', props.product.battery_type], ['Couple watch', props.product.couple], ['Origin', props.product.origin], ['Quick release', props.product.quick_release],
+    ['Caliber code', props.product.caliber_code], ['Caseback', props.product.caseback_design],
+].filter(([, value]) => value));
 
-const deleteItem = (item) => {
-    if (confirm('Are you sure you want to remove this item from stock?')) {
-        useForm({}).delete(route('items.destroy', item.id));
-    }
-};
-
-const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString();
-};
+const stockOpen = ref(false);
+const stockForm = useForm({ quantity: 1, purchase_date: '', status: 'available' });
+const openStock = () => { stockForm.reset(); stockForm.clearErrors(); stockOpen.value = true; };
+const addStock = () => stockForm.post(route('products.items.store', props.product.id), { preserveScroll: true, onSuccess: () => stockOpen.value = false });
+const editItem = ref(null);
+const editForm = useForm({ serial_number: '', system_unique_id: '', purchase_date: '', status: '' });
+const openEdit = item => { editItem.value = item; editForm.clearErrors(); editForm.serial_number = item.serial_number || ''; editForm.system_unique_id = item.system_unique_id || ''; editForm.purchase_date = item.purchase_date?.substring(0, 10) || ''; editForm.status = item.status; };
+const saveEdit = () => editForm.put(route('items.update', editItem.value.id), { preserveScroll: true, onSuccess: () => editItem.value = null });
+const deleteItem = item => { if (confirm(`Remove unit ${item.system_unique_id || `#${item.id}`} from stock?`)) router.delete(route('items.destroy', item.id), { preserveScroll: true }); };
+const labelsOpen = ref(false);
+const labelItems = ref([]);
+const printItem = item => { labelItems.value = [item]; labelsOpen.value = true; };
+const printPage = () => { labelItems.value = props.items.data.filter(item => item.system_unique_id); labelsOpen.value = true; };
 </script>
 
 <template>
-    <Head :title="product.name" />
-
+    <Head :title="`${product.name} · Stock`" />
     <AdminLayout>
-        <template #header>
-            <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-                {{ product.name }}
-            </h2>
-        </template>
+        <div class="watch-stock mx-auto max-w-7xl space-y-6">
+            <Link :href="route('products.index')" class="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900"><ArrowLeftIcon class="h-4 w-4" />Back to watches</Link>
+            <header class="flex flex-wrap items-start justify-between gap-5">
+                <div class="flex min-w-0 items-start gap-4">
+                    <div class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"><img v-if="mainImage" :src="imageUrl(mainImage)" :alt="product.name" class="h-full w-full object-contain" /><PhotoIcon v-else class="h-7 w-7 text-gray-300" /></div>
+                    <div class="min-w-0"><p class="text-xs font-semibold uppercase tracking-wider text-gold-700">{{ product.brand?.name || 'Watch' }} · Stock management</p><h1 class="mt-2 text-2xl font-semibold text-gray-900">{{ product.name }}</h1><p class="mt-2 text-sm text-gray-500">{{ product.model_number || 'No model number' }} · {{ money(finalPrice) }} {{ product.currency }}</p><div class="mt-3 flex flex-wrap gap-2"><span v-if="product.barcode" class="tag">SKU {{ product.barcode }}</span><span class="tag">{{ product.is_active ? 'Active' : 'Inactive' }}</span><span v-if="product.discount" class="tag">{{ product.discount }}% discount</span></div></div>
+                </div>
+                <div class="flex flex-wrap gap-2"><Link :href="route('products.edit', product.id)" class="secondary"><PencilSquareIcon class="h-4 w-4" />Edit watch</Link><button class="secondary" :disabled="!items.data.some(item => item.system_unique_id)" @click="printPage"><PrinterIcon class="h-4 w-4" />Print page labels</button><button class="primary" @click="openStock"><PlusIcon class="h-4 w-4" />Add stock</button></div>
+            </header>
+            <div class="grid grid-cols-2 gap-4 lg:grid-cols-4"><button v-for="card in [{ label: 'Total units', value: '', count: total }, { label: 'Available', value: 'available', count: counts.available || 0 }, { label: 'Sold', value: 'sold', count: counts.sold || 0 }, { label: 'Reserved', value: 'reserved', count: counts.reserved || 0 }]" :key="card.label" @click="setStatus(card.value)" :aria-pressed="status === card.value" class="summary-card" :class="status === card.value ? 'border-gold-400 ring-1 ring-gold-100' : 'border-gray-200'"><p class="text-sm text-gray-500">{{ card.label }}</p><p class="mt-2 text-3xl font-semibold text-gray-900">{{ card.count }}</p></button></div>
 
-        <div class="mb-6">
-             <Link :href="route('products.index')" class="text-gray-500 hover:text-gray-900 mb-4 inline-block transition-colors">&larr; Back to Watches</Link>
-             
-             <div class="flex flex-col md:flex-row gap-8">
-                 <!-- Product Info -->
-                 <div class="md:w-1/3 bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-                     <div class="flex flex-col items-center">
-                         <div v-if="product.images && product.images.length > 0" class="w-full grid gap-4 mb-4">
-                             <img v-for="image in product.images" :key="image" :src="$page.props.storage_url + '/' + image" class="w-full h-64 object-cover rounded shadow-sm" />
-                         </div>
-                         <div v-else-if="product.image" class="w-full mb-4">
-                             <img :src="$page.props.storage_url + '/' + product.image" class="w-full h-64 object-cover rounded shadow-sm" />
-                         </div>
-                         <div v-else class="w-full h-64 bg-gray-100 rounded mb-4 flex items-center justify-center text-gray-400">No Image</div>
+            <section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                <div class="border-b border-gray-100 px-6 py-5"><h2 class="font-semibold text-gray-900">Individual watch units</h2><p class="mt-1 text-sm text-gray-500">Search by system barcode or manufacturer serial number. POS sales update the exact unit automatically.</p></div>
+                <form @submit.prevent="filter" class="flex flex-wrap gap-3 border-b border-gray-100 p-4 sm:px-6"><div class="relative min-w-56 flex-1"><MagnifyingGlassIcon class="pointer-events-none absolute left-3 top-3 h-4 w-4 text-gray-400" /><input v-model="search" class="field search-input" placeholder="Scan or search barcode / serial…" aria-label="Search watch stock" maxlength="100" /></div><select v-model="status" @change="filter" class="field status-filter" aria-label="Stock status"><option value="">All statuses</option><option v-for="value in statuses" :key="value" :value="value">{{ value.charAt(0).toUpperCase() + value.slice(1) }}</option></select><button class="secondary">Search</button><button v-if="search || status" type="button" class="text-sm text-gray-500 hover:text-gray-900" @click="clearFilters">Clear</button></form>
+                <div v-if="items.data.length" class="overflow-x-auto"><table class="w-full text-left text-sm"><thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500"><tr><th>System barcode</th><th>Serial number</th><th>Status</th><th>Purchase date</th><th>Sale order</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody class="divide-y divide-gray-100"><tr v-for="item in items.data" :key="item.id" class="hover:bg-gray-50/60"><td><p class="font-mono font-medium text-gray-900">{{ item.system_unique_id || 'Not generated' }}</p><p class="mt-1 text-xs text-gray-400">Unit #{{ item.id }} · Added {{ date(item.created_at) }}</p></td><td class="font-mono text-gray-600">{{ item.serial_number || '—' }}</td><td><span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize" :class="statusClass(item.status)">{{ item.status }}</span></td><td class="whitespace-nowrap text-gray-500">{{ date(item.purchase_date) }}</td><td><Link v-if="item.order_item?.order_id" :href="route('orders.show', item.order_item.order_id)" class="font-medium text-gold-700 hover:underline">Order #{{ item.order_item.order_id }}</Link><span v-else class="text-gray-400">—</span></td><td><div class="flex justify-end gap-2"><button v-if="item.system_unique_id" class="icon-button" :aria-label="`Print barcode ${item.system_unique_id}`" title="Print label" @click="printItem(item)"><PrinterIcon class="h-4 w-4" /></button><button class="icon-button" :aria-label="`Edit unit ${item.id}`" title="Edit unit" @click="openEdit(item)"><PencilSquareIcon class="h-4 w-4" /></button><button v-if="item.status === 'available'" class="icon-button text-red-600" :aria-label="`Remove unit ${item.id}`" title="Remove available unit" @click="deleteItem(item)"><TrashIcon class="h-4 w-4" /></button></div></td></tr></tbody></table></div>
+                <div v-else class="px-6 py-14 text-center"><CubeIcon class="mx-auto h-9 w-9 text-gray-300" /><h3 class="mt-4 font-semibold text-gray-900">{{ total ? 'No matching watches' : 'No stock yet' }}</h3><p class="mt-2 text-sm text-gray-500">{{ total ? 'Try another barcode, serial number, or status.' : 'Add stock to generate a unique barcode for each watch.' }}</p><button v-if="search || status" class="secondary mx-auto mt-5" @click="clearFilters">Clear filters</button><button v-else class="primary mx-auto mt-5" @click="openStock">Add stock</button></div>
+                <footer class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-6 py-4 text-xs text-gray-500"><p>{{ items.total ? `${items.from}–${items.to} of ${items.total} units` : '0 units' }}</p><div class="flex items-center gap-3"><Link v-if="items.prev_page_url" :href="items.prev_page_url" preserve-scroll class="secondary">Previous</Link><span>Page {{ items.current_page }} of {{ items.last_page }}</span><Link v-if="items.next_page_url" :href="items.next_page_url" preserve-scroll class="secondary">Next</Link></div></footer>
+            </section>
 
-                         <div v-if="youtubeEmbedUrl" class="w-full mb-4">
-                             <iframe
-                                 :src="youtubeEmbedUrl"
-                                 class="w-full rounded shadow-sm border-0"
-                                 style="aspect-ratio: 16 / 9"
-                                 title="YouTube video player"
-                                 loading="lazy"
-                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                 referrerpolicy="strict-origin-when-cross-origin"
-                                 allowfullscreen
-                             ></iframe>
-                         </div>
-                         
-                         <h1 class="text-2xl font-bold text-gray-900">{{ product.name }}</h1>
-                         <p class="text-gold-600 font-bold text-xl mt-2">Price - {{ parseInt(product.price).toLocaleString() }} {{ product.currency }}</p>                  
-                         <div v-if="product.discount" class="mt-1 flex items-center gap-2">
-                             <span class="text-gray-400 text-xs uppercase tracking-wider">Discount</span>
-                             <span class="text-gray-600 font-semibold text-sm">{{ product.discount }}%</span>
-                         </div>
-                         <div v-if="product.discount" class="mt-1 flex items-center gap-2">
-                            <span class="text-gray-400 text-xs uppercase tracking-wider">Final Price </span>
-                            <p v-if="product.web_price">{{ parseInt(finalPrice).toLocaleString() }} {{ product.currency }}</p>
-                         </div>
-                         <div v-if="product.web_price" class="mt-1 flex items-center gap-2">
-                             <span class="text-gray-400 text-xs uppercase tracking-wider">Web Price</span>
-                             <span class="text-gray-600 font-semibold text-sm">{{ parseInt(product.web_price).toLocaleString() }} {{ product.currency }}</span>
-                         </div>
-                         <div v-if="product.web_price && product.discount" class="mt-1 flex items-center gap-2">
-                             <span class="text-gray-400 text-xs uppercase tracking-wider">Final Discount %</span>
-                             <span class="text-gray-600 font-semibold text-sm">{{ (100 - finalPrice / product.web_price * 100).toLocaleString() }} %</span>
-                         </div>
-                         
-                         
-                         <div class="w-full mt-6 space-y-3 text-sm">
-                             <div class="flex justify-between border-b border-gray-100 pb-2">
-                                 <span class="text-gray-500">Brand</span>
-                                 <span class="text-gray-900 font-medium">{{ product.brand?.name }}</span>
-                             </div>
-                             <div class="flex justify-between border-b border-gray-100 pb-2">
-                                 <span class="text-gray-500">Categories</span>
-                                 <span class="text-gray-900 font-medium text-right ml-2">{{ product.categories?.map(c => c.name).join(', ') || '-' }}</span>
-                             </div>
-                             <div class="flex justify-between border-b border-gray-100 pb-2">
-                                 <span class="text-gray-500">Model</span>
-                                 <span class="text-gray-900 font-medium">{{ product.model_number }}</span>
-                             </div>
-                             <div class="flex justify-between border-b border-gray-100 pb-2">
-                                 <span class="text-gray-500">Barcode</span>
-                                 <span class="text-gray-900 font-medium">{{ product.barcode }}</span>
-                             </div>
-                             <div class="flex justify-between border-b border-gray-100 pb-2">
-                                 <span class="text-gray-500">Warranty</span>
-                                 <span class="text-gray-900 font-medium">{{ product.warranty_period }} Months</span>
-                             </div>
-                             <div class="flex justify-between border-b border-gray-100 pb-2">
-                                 <span class="text-gray-500">Priority Level</span>
-                                 <span class="text-gray-900 font-medium">{{ product.priority_level ?? 0 }}</span>
-                             </div>
-                             <div v-if="$page.props.auth.user.role === 'admin'" class="flex justify-between border-b border-gray-100 pb-2">
-                                 <span class="text-gray-500">Cost Price</span>
-                                 <span class="text-gray-900 font-medium">{{ product.cost_price ? parseFloat(product.cost_price).toLocaleString() + ' ' + product.currency : '-' }}</span>
-                             </div>
-                             <div class="flex justify-between border-b border-gray-100 pb-2">
-                                 <span class="text-gray-500">Warranty Type</span>
-                                 <span v-if="product.warranty_type === 'international_warranty'"
-                                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
-                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064"/></svg>
-                                     International
-                                 </span>
-                                 <span v-else-if="product.warranty_type === 'shop_warranty'"
-                                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
-                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                                     Shop Warranty
-                                 </span>
-                                 <span v-else class="text-gray-400 text-sm">-</span>
-                             </div>
-                         </div>
-
-                         <!-- Specifications Grid -->
-                         <div class="w-full mt-6 pt-6 border-t border-gray-100">
-                             <h3 class="text-md font-bold text-gray-900 mb-4">Specifications</h3>
-                             <div class="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Watch Type</span><span class="text-gray-900 font-medium">{{ product.watch_type || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Gender</span><span class="text-gray-900 font-medium">{{ product.gender || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Movement</span><span class="text-gray-900 font-medium">{{ product.movement || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Glass / Crystal</span><span class="text-gray-900 font-medium">{{ product.glass || product.crystal || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Water Resistant</span><span class="text-gray-900 font-medium">{{ product.water_resistant || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Case Shape</span><span class="text-gray-900 font-medium">{{ product.shape || product.case_shape || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Dial Size</span><span class="text-gray-900 font-medium">{{ product.dial_size || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Dial Color</span><span class="text-gray-900 font-medium">{{ product.dial_color || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Dial Markings</span><span class="text-gray-900 font-medium">{{ product.dial_markings || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Band Material</span><span class="text-gray-900 font-medium">{{ product.band || product.strap_material || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Band Color</span><span class="text-gray-900 font-medium">{{ product.band_color || product.strap_color || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Band Size</span><span class="text-gray-900 font-medium">{{ product.band_size || product.strap_size || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Lug Width</span><span class="text-gray-900 font-medium">{{ product.lug_width || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Clasp Type</span><span class="text-gray-900 font-medium">{{ product.strap_buckle || product.clasp_type || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Case Material</span><span class="text-gray-900 font-medium">{{ product.case_material || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Case Color</span><span class="text-gray-900 font-medium">{{ product.case_color || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Case Thickness</span><span class="text-gray-900 font-medium">{{ product.case_thickness || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Case Finish</span><span class="text-gray-900 font-medium">{{ product.case_finish || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Battery Type</span><span class="text-gray-900 font-medium">{{ product.battery_type || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Couple Watch</span><span class="text-gray-900 font-medium">{{ product.couple || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Origin</span><span class="text-gray-900 font-medium">{{ product.origin || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Quick Release</span><span class="text-gray-900 font-medium">{{ product.quick_release || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Caliber Code</span><span class="text-gray-900 font-medium">{{ product.caliber_code || '-' }}</span></div>
-                                 <div class="flex flex-col"><span class="text-gray-500 text-xs uppercase tracking-wider">Caseback Design</span><span class="text-gray-900 font-medium">{{ product.caseback_design || '-' }}</span></div>
-                             </div>
-                         </div>
-                     </div>
-                 </div>
-                 
-                 <!-- Stock Management -->
-                 <div class="md:w-2/3 space-y-6">
-                      <!-- Add Stock Form -->
-                      <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-                          <h3 class="text-lg font-bold text-gray-900 mb-1">Add Stock</h3>
-                          <p class="text-xs text-gray-500 mb-4">Enter quantity — each unit gets an auto system code. Optionally paste serial numbers (one per line).</p>
-                          <form @submit.prevent="submitItem" class="space-y-4">
-                              <div class="flex items-end gap-4">
-                                  <div class="w-28">
-                                      <InputLabel value="Quantity *" class="text-gray-600" />
-                                      <TextInput type="number" v-model="form.quantity" min="1" max="500" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500" required />
-                                      <InputError :message="form.errors.quantity" class="mt-1" />
-                                  </div>
-                                  <div class="w-44">
-                                      <InputLabel value="Purchase Date" class="text-gray-600" />
-                                      <TextInput type="date" v-model="form.purchase_date" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500" />
-                                  </div>
-                                  <div class="flex-1">
-                                      <InputLabel value="Status" class="text-gray-600" />
-                                      <select v-model="form.status" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900 focus:border-gold-500 focus:ring-gold-500 rounded-md shadow-sm text-sm">
-                                          <option value="available">Available</option>
-                                          <option value="reserved">Reserved</option>
-                                      </select>
-                                  </div>
-                                  <PrimaryButton class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold" :disabled="form.processing">
-                                      Add {{ form.quantity }} Item{{ form.quantity > 1 ? 's' : '' }}
-                                  </PrimaryButton>
-                              </div>
-                          </form>
-                      </div>
-                     
-                     <!-- Stock List -->
-                     <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
-                        <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap gap-3 justify-between items-center bg-gray-50">
-                            <h3 class="text-lg font-bold text-gray-900">Stock Inventory</h3>
-                            <div class="flex flex-wrap items-center gap-4">
-                                <div class="flex items-center gap-2">
-                                    <InputLabel for="stock-status-filter" value="Status" />
-                                    <select id="stock-status-filter" v-model="stockStatus" @change="cancelEdit" class="rounded-md border-gray-300 text-sm focus:border-gold-500 focus:ring-gold-500">
-                                        <option value="">All statuses ({{ items.length }})</option>
-                                        <option v-for="status in stockStatuses" :key="status" :value="status">{{ status.charAt(0).toUpperCase() + status.slice(1) }} ({{ items.filter(item => item.status === status).length }})</option>
-                                    </select>
-                                </div>
-                                <span class="text-gold-600 font-bold">{{ (items || []).filter(i => i.status === 'available').length }} Available</span>
-                                <PrimaryButton :disabled="printableItems.length === 0" @click="isPrintOpen = true">Print System Codes</PrimaryButton>
-                            </div>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                <tr>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial Number</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">System Code</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purchase Date</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Added On</th>
-                                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                                <tr v-for="item in filteredItems" :key="item.id" class="hover:bg-gray-50 transition-colors">
-                                    <template v-if="editingItemId === item.id">
-                                        <td class="px-4 py-4 whitespace-nowrap">
-                                            <input type="text" v-model="editForm.serial_number" class="w-full min-w-[130px] text-sm border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500" placeholder="Optional" />
-                                            <InputError :message="editForm.errors.serial_number" class="mt-1" />
-                                        </td>
-                                        <td class="px-4 py-4 whitespace-nowrap">
-                                            <input type="text" v-model="editForm.system_unique_id" class="w-full min-w-[120px] text-sm border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500" placeholder="System Code" />
-                                            <InputError :message="editForm.errors.system_unique_id" class="mt-1" />
-                                        </td>
-                                        <td class="px-4 py-4 whitespace-nowrap">
-                                            <input type="date" v-model="editForm.purchase_date" class="w-full min-w-[140px] text-sm border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500" />
-                                            <InputError :message="editForm.errors.purchase_date" class="mt-1" />
-                                        </td>
-                                        <td class="px-4 py-4 whitespace-nowrap">
-                                            <select v-model="editForm.status" class="w-full min-w-[110px] text-sm border-gray-300 rounded focus:border-gold-500 focus:ring-gold-500">
-                                                <option value="available">Available</option>
-                                                <option value="sold">Sold</option>
-                                                <option value="reserved">Reserved</option>
-                                                <option value="returned">Returned</option>
-                                                <option value="lost">Lost</option>
-                                                <option value="damaged">Damaged</option>
-                                            </select>
-                                            <InputError :message="editForm.errors.status" class="mt-1" />
-                                        </td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-gray-500 text-sm">-</td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                                            <button @click="saveEdit(item)" class="inline-flex items-center px-3 py-1.5 bg-green-500 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-600 focus:bg-green-600 active:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition ease-in-out duration-150" :disabled="editForm.processing">Save</button>
-                                            <button @click="cancelEdit()" class="inline-flex items-center px-3 py-1.5 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-25 transition ease-in-out duration-150">Cancel</button>
-                                        </td>
-                                    </template>
-                                    <template v-else>
-                                        <td class="px-6 py-4 whitespace-nowrap font-mono">
-                                            <span v-if="item.serial_number" class="text-gray-900">{{ item.serial_number }}</span>
-                                            <span v-else class="text-gray-400 italic text-xs">No serial</span>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-gray-600 font-mono text-xs">{{ item.system_unique_id || '-' }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ item.purchase_date ? formatDate(item.purchase_date) : '-' }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
-                                                :class="{
-                                                    'bg-green-100 text-green-800': item.status === 'available',
-                                                    'bg-red-100 text-red-800': item.status === 'sold',
-                                                    'bg-yellow-100 text-yellow-800': item.status === 'reserved' || item.status === 'returned',
-                                                    'bg-gray-100 text-gray-800': item.status === 'lost',
-                                                    'bg-orange-100 text-orange-800': item.status === 'damaged'
-                                                }">
-                                                {{ item.status }}
-                                            </span>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ formatDate(item.created_at) }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                                            <button @click="startEdit(item)" class="text-gold-600 hover:text-gold-800">Edit</button>
-                                            <button v-if="item.status === 'available'" @click="deleteItem(item)" class="text-red-600 hover:text-red-800">Remove</button>
-                                        </td>
-                                    </template>
-                                </tr>
-                                <tr v-if="filteredItems.length === 0">
-                                    <td colspan="6" class="px-6 py-4 text-center text-gray-500">{{ items.length ? 'No stock items match the selected status.' : 'No stock items added yet.' }}</td>
-                                </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                 </div>
-             </div>
+            <details class="group overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"><summary class="flex cursor-pointer list-none items-center justify-between px-6 py-5"><div><h2 class="font-semibold text-gray-900">Watch information</h2><p class="mt-1 text-sm text-gray-500">Pricing, product details, specifications, images, and description</p></div><ChevronDownIcon class="h-5 w-5 text-gray-400 transition group-open:rotate-180" /></summary><div class="grid gap-8 border-t border-gray-100 p-6 lg:grid-cols-[280px_1fr]"><div><div class="overflow-hidden rounded-xl border border-gray-100 bg-gray-50"><img v-if="mainImage" :src="imageUrl(mainImage)" :alt="product.name" class="aspect-square w-full object-contain" /><div v-else class="flex aspect-square items-center justify-center"><PhotoIcon class="h-10 w-10 text-gray-300" /></div></div><div v-if="product.images?.length > 1" class="mt-3 grid grid-cols-4 gap-2"><img v-for="image in product.images.slice(1)" :key="image" :src="imageUrl(image)" :alt="product.name" class="aspect-square rounded-lg border border-gray-100 object-cover" /></div><iframe v-if="youtubeEmbedUrl" :src="youtubeEmbedUrl" class="mt-4 aspect-video w-full rounded-xl border-0" title="Watch video" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen /></div><div class="space-y-7"><div><h3 class="section-title">Product details</h3><dl class="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-2"><div v-for="([label, value]) in details" :key="label" class="border-b border-gray-100 pb-3"><dt class="text-xs text-gray-400">{{ label }}</dt><dd class="mt-1 text-sm font-medium capitalize text-gray-800">{{ value }}</dd></div></dl></div><div v-if="specifications.length"><h3 class="section-title">Specifications</h3><dl class="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3"><div v-for="([label, value]) in specifications" :key="label"><dt class="text-xs text-gray-400">{{ label }}</dt><dd class="mt-1 text-sm font-medium text-gray-800">{{ value }}</dd></div></dl></div><div v-if="product.description"><h3 class="section-title">Description</h3><p class="mt-3 whitespace-pre-line text-sm leading-6 text-gray-600">{{ product.description }}</p></div></div></div></details>
+            <p class="text-xs text-gray-500">Sold and reserved watches stay in inventory history. Use the sale order link to trace a sold barcode.</p>
         </div>
-        <SystemCodeLabel :show="isPrintOpen" :items="printableItems" :product="product" @close="isPrintOpen = false" />
+
+        <AccessoryDialog :show="stockOpen" title="Add watch stock" :description="product.name" :busy="stockForm.processing" @close="stockOpen = false"><form class="watch-stock" @submit.prevent="addStock"><div class="space-y-5 p-6"><div class="grid gap-4 sm:grid-cols-3"><label class="label">Quantity <span class="text-red-500">*</span><input v-model="stockForm.quantity" class="field mt-2" type="number" min="1" max="500" required /></label><label class="label">Purchase date<input v-model="stockForm.purchase_date" class="field mt-2" type="date" /></label><label class="label">Initial status<select v-model="stockForm.status" class="field mt-2"><option value="available">Available</option><option value="reserved">Reserved</option></select></label></div><p class="hint">Every new watch receives its own 12-digit system barcode. You can add its manufacturer serial number afterward.</p><p v-for="message in stockForm.errors" :key="message" role="alert" class="text-sm text-red-600">{{ message }}</p></div><footer class="dialog-footer"><button type="button" class="secondary" :disabled="stockForm.processing" @click="stockOpen = false">Cancel</button><button class="primary" :disabled="stockForm.processing">{{ stockForm.processing ? 'Adding…' : `Add ${stockForm.quantity} watch${Number(stockForm.quantity) === 1 ? '' : 'es'}` }}</button></footer></form></AccessoryDialog>
+        <AccessoryDialog :show="!!editItem" title="Edit stock unit" :description="editItem?.system_unique_id || `Unit #${editItem?.id}`" :busy="editForm.processing" @close="editItem = null"><form class="watch-stock" @submit.prevent="saveEdit"><div class="space-y-5 p-6"><div class="grid gap-4 sm:grid-cols-2"><label class="label">Manufacturer serial<input v-model="editForm.serial_number" class="field mt-2" maxlength="255" placeholder="Optional" /></label><label class="label">System barcode<input v-model="editForm.system_unique_id" class="field mt-2 font-mono" maxlength="12" inputmode="numeric" placeholder="12 digits" /></label><label class="label">Purchase date<input v-model="editForm.purchase_date" class="field mt-2" type="date" /></label><label class="label">Status<select v-model="editForm.status" class="field mt-2"><option v-for="value in statuses" :key="value" :value="value">{{ value.charAt(0).toUpperCase() + value.slice(1) }}</option></select></label></div><p v-for="message in editForm.errors" :key="message" role="alert" class="text-sm text-red-600">{{ message }}</p></div><footer class="dialog-footer"><button type="button" class="secondary" :disabled="editForm.processing" @click="editItem = null">Cancel</button><button class="primary" :disabled="editForm.processing">{{ editForm.processing ? 'Saving…' : 'Save unit' }}</button></footer></form></AccessoryDialog>
+        <SystemCodeLabel :show="labelsOpen" :items="labelItems" :product="product" @close="labelsOpen = false" />
     </AdminLayout>
 </template>
+
+<style scoped>
+.primary { @apply inline-flex items-center justify-center gap-2 rounded-lg bg-gold-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-gold-700 disabled:opacity-50; }
+.secondary { @apply inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50; }
+.icon-button { @apply inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50; }
+.summary-card { @apply rounded-xl border bg-white p-5 text-left shadow-sm transition hover:border-gold-400; }
+.field { @apply block w-full rounded-lg border-gray-200 text-sm focus:border-gold-500 focus:ring-gold-500; }
+.field.search-input { @apply pl-9; }
+.field.status-filter { @apply w-auto; }
+.label { @apply text-sm font-medium text-gray-700; }
+.hint { @apply text-xs leading-relaxed text-gray-500; }
+.tag { @apply rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600; }
+.section-title { @apply text-sm font-semibold uppercase tracking-wide text-gray-800; }
+.dialog-footer { @apply flex justify-end gap-3 border-t border-gray-100 p-4; }
+th { @apply px-6 py-3 font-medium; }
+td { @apply px-6 py-4; }
+</style>
