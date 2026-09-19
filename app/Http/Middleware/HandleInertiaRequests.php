@@ -40,7 +40,7 @@ class HandleInertiaRequests extends Middleware
                 'import_errors' => $request->session()->get('import_errors'),
             ],
             'settings' => fn () => \App\Models\Setting::pluck('value', 'key')->toArray(),
-            'storage_url' => rtrim(\Illuminate\Support\Facades\Storage::url(''), '/'),
+            'storage_url' => rtrim(\Illuminate\Support\Facades\Storage::disk('s3')->url(''), '/'),
             'low_stock_pending_count' => fn () => $request->user()?->role === 'admin'
                 ? \App\Models\LowStockNotification::where('status', 'pending')->whereNull('resolved_at')->count()
                 : 0,

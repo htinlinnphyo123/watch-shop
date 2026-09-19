@@ -22,6 +22,7 @@ const searchInput = ref(null);
 const isCameraOpen = ref(false);
 const orderPanel = ref(null);
 const search = ref('');
+const productKind = ref('');
 const scanMessage = ref('');
 const scanFailed = ref(false);
 const pendingScans = ref(0);
@@ -91,7 +92,7 @@ const loadProducts = async (append = false) => {
 
     try {
         const response = await axios.get(route('pos.products'), {
-            params: { q: search.value.trim() || undefined, page, order_id: props.editingOrder?.id },
+            params: { q: search.value.trim() || undefined, kind: productKind.value || undefined, page, order_id: props.editingOrder?.id },
         });
         if (requestId !== productRequestId) return;
 
@@ -102,14 +103,14 @@ const loadProducts = async (append = false) => {
         lastProductPage.value = response.data.last_page;
     } catch (error) {
         if (requestId === productRequestId) {
-            productLoadError.value = 'Could not load watches. Please try again.';
+            productLoadError.value = 'Could not load products. Please try again.';
         }
     } finally {
         if (requestId === productRequestId) productsLoading.value = false;
     }
 };
 
-watch(search, () => {
+watch([search, productKind], () => {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => loadProducts(false), 300);
 });
@@ -139,7 +140,7 @@ const defaultDiscountPercentage = computed(() => {
 
 const defaultDiscountSource = computed(() => {
     const group = getActiveCustomerGroup();
-    return group ? `${group.name} member type` : 'watch record';
+    return group ? `${group.name} member type` : 'product record';
 });
 
 const applyDefaultDiscount = () => {
@@ -306,7 +307,7 @@ const processBarcodeScan = async (scanValue, focusSearch = true) => {
         if (item) {
             if (cart.value.find(c => c.item_id === item.id)) {
                 scanFailed.value = true;
-                scanMessage.value = 'This watch is already in the current order.';
+                scanMessage.value = 'This product is already in the current order.';
             } else {
                 cart.value.push({
                     product,
@@ -324,8 +325,8 @@ const processBarcodeScan = async (scanValue, focusSearch = true) => {
     } catch (error) {
         scanFailed.value = true;
         scanMessage.value = error.response?.status === 404
-            ? 'Code not found, or this watch is no longer available.'
-            : 'Could not scan this watch. Please try again.';
+            ? 'Code not found, or this product is no longer available.'
+            : 'Could not scan this product. Please try again.';
     } finally {
         pendingScans.value--;
         await nextTick();
@@ -386,14 +387,17 @@ const submitCheckout = () => {
     <AdminLayout hide-sidebar>
         <header class="-mx-6 -mt-6 mb-6 flex h-16 items-center justify-between gap-4 border-b border-gray-200 bg-white px-6">
             <h1 class="text-lg font-bold text-gray-900">POS System</h1>
-            <Link :href="route('dashboard')" class="text-sm font-semibold text-gray-600 hover:text-gray-900">
-                Back to Dashboard
-            </Link>
+            <div class="flex items-center gap-4">
+                <Link :href="route('pre-orders.index')" class="text-sm font-semibold text-gray-600 hover:text-gray-900">Pre Orders</Link>
+                <Link :href="route('dashboard')" class="text-sm font-semibold text-gray-600 hover:text-gray-900">
+                    Back to Dashboard
+                </Link>
+            </div>
         </header>
         <div v-if="editingOrder" class="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gold-200 bg-gold-50 p-4">
             <div>
                 <h1 class="font-bold text-gray-900">Editing Order {{ editingOrder.order_number }}</h1>
-                <p class="mt-1 text-sm text-gray-600">Existing watches keep their saved prices. Review payments before saving. {{ editingOrder.status === 'pending' ? 'This order will remain pending approval.' : '' }}</p>
+                <p class="mt-1 text-sm text-gray-600">Existing products keep their saved prices. Review payments before saving. {{ editingOrder.status === 'pending' ? 'This order will remain pending approval.' : '' }}</p>
             </div>
             <Link :href="route('orders.show', editingOrder.id)" class="text-sm font-semibold text-gray-700 underline">Cancel Editing</Link>
         </div>
@@ -432,6 +436,12 @@ const submitCheckout = () => {
 
                 <SecondaryButton class="mb-6" :disabled="pendingScans > 0" @click="isCameraOpen = true">Scan with Camera</SecondaryButton>
 
+                <div class="flex gap-2 mb-4" aria-label="Product type">
+                    <button v-for="option in [{ value: '', label: 'All products' }, { value: 'watch', label: 'Watches' }, { value: 'accessory', label: 'Accessories' }]"
+                        :key="option.value" @click="productKind = option.value" :aria-pressed="productKind === option.value"
+                        class="px-4 py-2 text-sm font-semibold rounded-lg border transition-colors"
+                        :class="productKind === option.value ? 'bg-gold-50 border-gold-300 text-gold-800' : 'bg-white border-gray-200 text-gray-600'">{{ option.label }}</button>
+                </div>
                 <!-- Product cards -->
                 <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     <div
@@ -453,7 +463,8 @@ const submitCheckout = () => {
                         </div>
                         <div class="p-3">
                             <h3 class="text-gray-900 font-bold text-sm truncate group-hover:text-gold-600">{{ product.name }}</h3>
-                            <p class="text-gray-400 text-xs truncate">{{ product.model_number }}</p>
+                            <p class="text-gray-400 text-xs truncate">{{ product.kind === 'accessory' ? 'Accessory' : product.model_number }}</p>
+                            <p v-if="product.kind === 'accessory'" class="text-gray-500 text-xs">{{ (product.accessory_attributes || []).map(a => `${a.name}: ${a.value}`).join(' · ') }}</p>
                             <div class="mt-2 flex justify-between items-end">
                                 <span class="text-gold-600 font-bold text-sm">
                                     {{ formatPrice(getDisplayPrice(product)) }}
@@ -463,7 +474,7 @@ const submitCheckout = () => {
                         </div>
                     </div>
                     <div v-if="filteredProducts.length === 0 && !productsLoading" class="col-span-full py-16 text-center text-gray-400">
-                        {{ productLoadError || 'No available watches found.' }}
+                        {{ productLoadError || 'No available products found.' }}
                     </div>
                 </div>
                 <div v-if="productLoadError && filteredProducts.length > 0" class="mt-4 text-center text-sm text-red-500">
@@ -471,7 +482,7 @@ const submitCheckout = () => {
                 </div>
                 <div v-if="productPage < lastProductPage" class="mt-6 flex justify-center">
                     <SecondaryButton @click="loadProducts(true)" :disabled="productsLoading">
-                        {{ productsLoading ? 'Loading…' : 'Load more watches' }}
+                        {{ productsLoading ? 'Loading…' : 'Load more products' }}
                     </SecondaryButton>
                 </div>
             </div>

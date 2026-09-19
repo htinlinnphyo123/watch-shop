@@ -1,12 +1,16 @@
 <script setup>
-import { onBeforeUnmount, ref } from 'vue';
+import { onBeforeUnmount, ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 
-const props = defineProps({ orderId: { type: Number, required: true }, files: { type: Array, default: () => [] } });
+const props = defineProps({ orderId: { type: Number, required: true }, files: { type: Array, default: () => [] }, preOrder: { type: Boolean, default: false } });
+const emit = defineEmits(['busy']);
+const routePrefix = props.preOrder ? 'pre-orders.files' : 'orders.files';
+const recordKey = props.preOrder ? 'preOrder' : 'order';
 const queue = ref([]);
 const busy = ref(false);
+watch(busy, value => emit('busy', value));
 const message = ref('');
 const error = ref('');
 let uploadController;
@@ -15,7 +19,7 @@ let nextFileId = 0;
 const accepted = '.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip';
 const readableSize = size => size >= 1048576 ? `${(size / 1048576).toFixed(1)} MB` : `${Math.ceil(size / 1024)} KB`;
 const isImage = file => ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.mime_type);
-const fileUrl = (file, preview = false) => route('orders.files.download', { order: props.orderId, attachment: file.id, ...(preview ? { preview: 1 } : {}) });
+const fileUrl = (file, preview = false) => route(`${routePrefix}.download`, { [recordKey]: props.orderId, attachment: file.id, ...(preview ? { preview: 1 } : {}) });
 
 const selectFiles = event => {
     error.value = '';
@@ -27,7 +31,7 @@ const selectFiles = event => {
         } else if (!file.size || file.size > 20 * 1048576) {
             error.value = `${file.name}: choose a non-empty file up to 20 MB.`;
         } else if (props.files.length + queue.value.length >= 20) {
-            error.value = 'An order can have up to 20 attachments.';
+            error.value = 'Up to 20 attachments are allowed.';
             break;
         } else {
             queue.value.push({ id: ++nextFileId, file, status: 'Ready', error: '', signed: null, uploaded: false });
@@ -50,7 +54,7 @@ const upload = async () => {
             try {
                 entry.status = 'Preparing';
                 if (!entry.signed || Date.parse(entry.signed.expires_at) <= Date.now()) {
-                    const response = await axios.post(route('orders.files.presign', props.orderId), {
+                    const response = await axios.post(route(`${routePrefix}.presign`, props.orderId), {
                         name: entry.file.name, size: entry.file.size,
                     }, { signal: uploadController.signal });
                     entry.signed = response.data;
@@ -70,7 +74,7 @@ const upload = async () => {
                     entry.uploaded = true;
                 }
                 entry.status = 'Verifying';
-                await axios.post(route('orders.files.complete', { order: props.orderId, attachment: entry.signed.id }), {}, { signal: uploadController.signal });
+                await axios.post(route(`${routePrefix}.complete`, { [recordKey]: props.orderId, attachment: entry.signed.id }), {}, { signal: uploadController.signal });
                 entry.status = 'Uploaded';
                 uploaded++;
             } catch (cause) {
@@ -85,7 +89,7 @@ const upload = async () => {
             queue.value = queue.value.filter(entry => entry.status !== 'Uploaded');
             if (uploaded) {
                 message.value = `${uploaded} file(s) uploaded.`;
-                router.reload({ only: ['order'], onFinish: () => { busy.value = false; } });
+                router.reload({ only: [props.preOrder ? 'preOrders' : 'order'], onFinish: () => { busy.value = false; } });
             } else busy.value = false;
         }
     }
@@ -96,7 +100,7 @@ onBeforeUnmount(() => { disposed = true; uploadController?.abort(); });
 <template>
     <section class="no-print mt-6 rounded-xl border border-gray-200 bg-white p-6" aria-labelledby="order-attachments-title">
         <h2 id="order-attachments-title" class="text-lg font-bold text-gray-900">Attachments</h2>
-        <p class="mt-1 text-sm text-gray-500">Upload payment slips, photos, or supporting documents for this order. Up to 20 files, 20 MB each.</p>
+        <p class="mt-1 text-sm text-gray-500">Upload payment slips, photos, or supporting documents for this {{ preOrder ? 'pre-order' : 'order' }}. Up to 20 files, 20 MB each.</p>
         <label :for="`order-files-${orderId}`" class="mt-4 block text-sm font-medium text-gray-700">Choose files</label>
         <input :id="`order-files-${orderId}`" name="file_upload[]" type="file" multiple :accept="accepted" :disabled="busy" @change="selectFiles" class="mt-2 block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2" />
         <p class="mt-2 text-xs text-gray-500">Images, PDF, Word, Excel, CSV, text, and ZIP files.</p>

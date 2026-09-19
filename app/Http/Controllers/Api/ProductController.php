@@ -32,7 +32,7 @@ class ProductController extends Controller
 
     private function baseQuery()
     {
-        return Product::query()
+        return Product::query()->where('kind', 'watch')
             ->with(['brand', 'categories',])
             ->withItemCounts()
             ->where('is_active', true)
@@ -80,8 +80,8 @@ class ProductController extends Controller
         }
 
         $query->when($request->search, function ($q, $search) {
-            $q->where('name', 'ilike', "%{$search}%")
-                ->orWhere('model_number', 'ilike', "%{$search}%");
+            $q->where(fn ($searchQuery) => $searchQuery->where('name', 'ilike', "%{$search}%")
+                ->orWhere('model_number', 'ilike', "%{$search}%"));
         });
 
         $brandIds = $this->getArrayParam($request, 'brandId');
@@ -181,6 +181,7 @@ class ProductController extends Controller
 
     public function show(Product $product)
     {
+        abort_unless($product->kind === 'watch' && $product->is_active && $product->is_public, 404);
         $product->load(['brand', 'categories'])->loadCount([
             'items as total_items',
             'items as available_items' => function ($q) {

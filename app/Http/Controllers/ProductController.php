@@ -38,7 +38,7 @@ class ProductController extends Controller
                 ->pluck($field);
         }
 
-        $query = Product::with(['brand', 'categories', 'customerGroups'])
+        $query = Product::where('kind', 'watch')->with(['brand', 'categories', 'customerGroups'])
             ->withCount(['items as available_stock_count' => function ($q) {
                 $q->where('status', 'available');
             }]);
@@ -178,19 +178,19 @@ class ProductController extends Controller
         $validated['priority_level'] = $validated['priority_level'] ?? 0;
 
         if ($request->hasFile('image')) {
-            $validated['image'] = $request->file('image')->store('products', env('FILESYSTEM_DISK', 's3'));
+            $validated['image'] = $request->file('image')->store('products', 's3');
         } elseif (is_string($request->image)) {
             $validated['image'] = $request->image;
         }
 
         if ($request->hasFile('preview_photo')) {
-            $validated['preview_photo'] = $request->file('preview_photo')->store('products', env('FILESYSTEM_DISK', 's3'));
+            $validated['preview_photo'] = $request->file('preview_photo')->store('products', 's3');
         } elseif (is_string($request->preview_photo)) {
             $validated['preview_photo'] = $request->preview_photo;
         }
 
         if ($request->hasFile('preview_bg_photo')) {
-            $validated['preview_bg_photo'] = $request->file('preview_bg_photo')->store('products', env('FILESYSTEM_DISK', 's3'));
+            $validated['preview_bg_photo'] = $request->file('preview_bg_photo')->store('products', 's3');
         } elseif (is_string($request->preview_bg_photo)) {
             $validated['preview_bg_photo'] = $request->preview_bg_photo;
         }
@@ -199,7 +199,7 @@ class ProductController extends Controller
             $uploadedImages = [];
             foreach ($request->images as $item) {
                 if ($item instanceof \Illuminate\Http\UploadedFile) {
-                    $uploadedImages[] = $item->store('products/gallery', env('FILESYSTEM_DISK', 's3'));
+                    $uploadedImages[] = $item->store('products/gallery', 's3');
                 } elseif (is_string($item)) {
                     $uploadedImages[] = $item;
                 }
@@ -235,6 +235,7 @@ class ProductController extends Controller
 
     public function update(Request $request, Product $product)
     {
+        abort_unless($product->kind === 'watch', 404);
         $validated = $request->validate([
             'name' => 'required',
             'brand_id' => 'required|exists:brands,id',
@@ -294,9 +295,9 @@ class ProductController extends Controller
 
         if ($request->hasFile('image')) {
             if ($product->image) {
-                Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($product->image);
+                Storage::disk('s3')->delete($product->image);
             }
-            $validated['image'] = $request->file('image')->store('products', env('FILESYSTEM_DISK', 's3'));
+            $validated['image'] = $request->file('image')->store('products', 's3');
         } elseif (is_string($request->image) && trim($request->image) !== '') {
             $validated['image'] = $request->image;
         } else {
@@ -305,9 +306,9 @@ class ProductController extends Controller
 
         if ($request->hasFile('preview_photo')) {
             if ($product->preview_photo) {
-                Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($product->preview_photo);
+                Storage::disk('s3')->delete($product->preview_photo);
             }
-            $validated['preview_photo'] = $request->file('preview_photo')->store('products', env('FILESYSTEM_DISK', 's3'));
+            $validated['preview_photo'] = $request->file('preview_photo')->store('products', 's3');
         } elseif (is_string($request->preview_photo) && trim($request->preview_photo) !== '') {
             $validated['preview_photo'] = $request->preview_photo;
         } else {
@@ -316,9 +317,9 @@ class ProductController extends Controller
 
         if ($request->hasFile('preview_bg_photo')) {
             if ($product->preview_bg_photo) {
-                Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($product->preview_bg_photo);
+                Storage::disk('s3')->delete($product->preview_bg_photo);
             }
-            $validated['preview_bg_photo'] = $request->file('preview_bg_photo')->store('products', env('FILESYSTEM_DISK', 's3'));
+            $validated['preview_bg_photo'] = $request->file('preview_bg_photo')->store('products', 's3');
         } elseif (is_string($request->preview_bg_photo) && trim($request->preview_bg_photo) !== '') {
             $validated['preview_bg_photo'] = $request->preview_bg_photo;
         } else {
@@ -330,7 +331,7 @@ class ProductController extends Controller
         if ($request->has('images')) {
             foreach ($request->images as $item) {
                 if ($item instanceof \Illuminate\Http\UploadedFile) {
-                    $uploadedImages[] = $item->store('products/gallery', env('FILESYSTEM_DISK', 's3'));
+                    $uploadedImages[] = $item->store('products/gallery', 's3');
                 } elseif (is_string($item) && ! in_array($item, $uploadedImages)) {
                     $uploadedImages[] = $item;
                 }
@@ -343,7 +344,7 @@ class ProductController extends Controller
             foreach ($request->input('remove_images', []) as $imgToRemove) {
                 if (($key = array_search($imgToRemove, $uploadedImages)) !== false) {
                     unset($uploadedImages[$key]);
-                    Storage::disk(env('FILESYSTEM_DISK', 's3'))->delete($imgToRemove);
+                    Storage::disk('s3')->delete($imgToRemove);
                 }
             }
             $validated['images'] = array_values($uploadedImages);
@@ -373,6 +374,7 @@ class ProductController extends Controller
 
     public function destroy(Product $product)
     {
+        abort_unless($product->kind === 'watch', 404);
         // Soft delete — do NOT remove images so the product can be restored later.
         $product->delete();
 
@@ -381,6 +383,9 @@ class ProductController extends Controller
 
     public function show(Product $product)
     {
+        if ($product->kind === 'accessory') {
+            return redirect()->route('accessories.show', $product);
+        }
         return Inertia::render('Products/Show', [
             'product' => $product->load(['brand', 'categories', 'items']),
             'items' => $product->items,
@@ -655,7 +660,7 @@ class ProductController extends Controller
         $path = 'products/'.uniqid().'_'.$request->filename;
 
         // Uses AWS S3 adapter to generate a pre-signed url for client upload
-        $uploadData = Storage::disk(env('FILESYSTEM_DISK', 's3'))
+        $uploadData = Storage::disk('s3')
             ->temporaryUploadUrl($path, now()->addMinutes(10), [
                 'ContentType' => $request->contentType,
                 'ACL' => 'public-read',

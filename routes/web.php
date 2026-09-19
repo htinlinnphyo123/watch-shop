@@ -50,6 +50,10 @@ Route::middleware('auth')->group(function () {
     // Inventory management is available to every authenticated user.
     Route::resource('banners', \App\Http\Controllers\BannerController::class);
 
+    Route::resource('pre-orders', \App\Http\Controllers\PreOrderController::class)->only(['index', 'store', 'update']);
+    Route::post('pre-orders/{preOrder}/files/presign', [\App\Http\Controllers\PreOrderAttachmentController::class, 'presign'])->middleware('throttle:60,1')->name('pre-orders.files.presign');
+    Route::post('pre-orders/{preOrder}/files/{attachment}/complete', [\App\Http\Controllers\PreOrderAttachmentController::class, 'complete'])->name('pre-orders.files.complete');
+    Route::get('pre-orders/{preOrder}/files/{attachment}', [\App\Http\Controllers\PreOrderAttachmentController::class, 'download'])->name('pre-orders.files.download');
     // Admin Only Routes
     Route::middleware(['role:admin'])->group(function () {
         Route::resource('users', \App\Http\Controllers\UserController::class);
@@ -89,4 +93,16 @@ Route::middleware('auth')->group(function () {
     Route::post('orders/{order}/approve', [\App\Http\Controllers\OrderController::class, 'approve'])->name('orders.approve');
 });
 
-require __DIR__ . '/auth.php';
+require __DIR__.'/auth.php';
+
+// Accessory administration; public consumers use the API routes.
+Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
+    Route::get('accessories', [\App\Http\Controllers\AccessoryController::class, 'index'])->name('accessories.index');
+    Route::post('accessories', [\App\Http\Controllers\AccessoryController::class, 'store'])->name('accessories.store');
+    Route::get('accessories/{accessory}', [\App\Http\Controllers\AccessoryController::class, 'show'])->name('accessories.show');
+    Route::put('accessories/{accessory}', [\App\Http\Controllers\AccessoryController::class, 'update'])->name('accessories.update');
+    Route::post('accessories/{accessory}/labels', [\App\Http\Controllers\AccessoryController::class, 'labels'])->name('accessories.labels');
+    Route::post('accessories/{accessory}/stock', [\App\Http\Controllers\AccessoryController::class, 'stock'])->name('accessories.stock');
+    Route::post('accessory-types', [\App\Http\Controllers\AccessoryController::class, 'saveType'])->name('accessory-types.store');
+    Route::put('accessory-types/{type}', [\App\Http\Controllers\AccessoryController::class, 'saveType'])->name('accessory-types.update');
+});

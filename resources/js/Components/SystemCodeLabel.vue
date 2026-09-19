@@ -25,6 +25,7 @@ watch([() => props.show, () => props.items], async () => {
     error.value = '';
     if (!props.show) return;
     await nextTick();
+    if (!label.value || !props.show) return;
     try {
         for (const svg of label.value.querySelectorAll('svg[data-system-code]')) {
             JsBarcode(svg, svg.dataset.systemCode, {
@@ -36,7 +37,7 @@ watch([() => props.show, () => props.items], async () => {
     } catch {
         error.value = 'One of the system codes cannot be printed as a barcode. Please check the saved codes.';
     }
-});
+}, { immediate: true });
 
 const printLabel = async () => {
     if (error.value || !label.value || !props.items.length) return;
@@ -70,7 +71,7 @@ const printLabel = async () => {
     <Modal :show="show" max-width="2xl" @close="emit('close')">
         <div class="p-6">
             <h2 class="text-lg font-bold text-gray-900">Print System Codes</h2>
-            <p class="mt-2 text-sm text-gray-600">{{ items.length }} label(s), one for each stock item with a system code. Attach each label to its matching watch. Scanning an available watch adds it to the POS order.</p>
+            <p class="mt-2 text-sm text-gray-600">{{ items.length }} label(s), one for each stock item with a system code. Attach each label to its matching stock unit. Scanning an available unit adds it to the POS order.</p>
             <p v-if="error" role="alert" class="mt-4 text-sm text-red-600">{{ error }}</p>
             <div v-show="!error" class="my-6 max-h-96 overflow-auto rounded-lg border border-gray-200 bg-white p-4">
                 <div ref="label" style="width: 100%;">

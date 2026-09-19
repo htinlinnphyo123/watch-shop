@@ -205,47 +205,41 @@ const page = usePage();
           Sales & Operations
         </div>
 
-        <Link
-          :href="route('products.index')"
-          :class="{ 'text-gold-600 bg-gold-50': route().current('products.*') }"
-          class="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors"
-        >
-          <svg
-            class="w-5 h-5 mr-3"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-            ></path>
-          </svg>
-          Watches
-        </Link>
+                <Link :href="route('products.index')"
+                    :class="{ 'text-gold-600 bg-gold-50': route().current('products.*') }"
+                    class="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Watches
+                </Link>
 
-        <Link
-          :href="route('pos.index')"
-          :class="{ 'text-gold-600 bg-gold-50': route().current('pos.*') }"
-          class="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors"
-        >
-          <svg
-            class="w-5 h-5 mr-3"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
-            ></path>
-          </svg>
-          POS System
-        </Link>
+                <Link v-if="$page.props.auth.user.role === 'admin'" :href="route('accessories.index')"
+                    :class="{ 'text-gold-600 bg-gold-50': route().current('accessories.*') }"
+                    class="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-lg">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14v12H5V8zm-1-4h16v4H4V4zm6 8h4" /></svg>
+                    Accessories
+                </Link>
+
+                <Link :href="route('pos.index')" :class="{ 'text-gold-600 bg-gold-50': route().current('pos.*') }"
+                    class="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z">
+                        </path>
+                    </svg>
+                    POS System
+                </Link>
+
+                <Link :href="route('pre-orders.index')"
+                    :class="{ 'text-gold-600 bg-gold-50': route().current('pre-orders.*') }"
+                    class="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zm4 10h6m-6 4h3" />
+                    </svg>
+                    Pre Orders
+                </Link>
 
         <Link
           :href="route('orders.index')"

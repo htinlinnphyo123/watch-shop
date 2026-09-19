@@ -24,6 +24,8 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1/spa')->group(function () {
     Route::post('login', [AuthController::class, 'login']);
     Route::get('home', [HomeController::class, 'index']);
+    Route::get('accessories', [\App\Http\Controllers\Api\AccessoryController::class, 'index']);
+    Route::get('accessories/{accessory}', [\App\Http\Controllers\Api\AccessoryController::class, 'show']);
     Route::get('products', [ProductController::class, 'index']);
     Route::get('products/{product}', [ProductController::class, 'show']);
     Route::get('categories', [CategoryController::class, 'index']);
@@ -44,6 +46,7 @@ Route::middleware('auth:sanctum')->prefix('v1/spa')->group(function () {
         if ($user instanceof \App\Models\Customer) {
             return $user->load('group');
         }
+
         return $user->load('customer.group');
     });
 });
