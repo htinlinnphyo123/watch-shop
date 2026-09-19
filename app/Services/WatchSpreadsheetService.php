@@ -14,6 +14,12 @@ use Illuminate\Validation\ValidationException;
 
 class WatchSpreadsheetService
 {
+    private const MAX_IMPORT_ROWS = 5000;
+
+    private const MAX_STOCK_UNITS_PER_IMPORT = 2000;
+
+    private const MAX_REPORTED_ERRORS = 200;
+
     private const PRODUCT_FIELDS = [
         'name', 'model_number', 'barcode', 'price', 'cost_price', 'web_price', 'discount',
         'warranty_period', 'warranty_type', 'description', 'youtube_link', 'case_material',
@@ -83,15 +89,62 @@ class WatchSpreadsheetService
         ];
     }
 
-    public function import(Collection $rows): array
+    public function readRows(string $path): \Generator
+    {
+        $reader = str_ends_with(strtolower($path), '.csv')
+            ? new \OpenSpout\Reader\CSV\Reader
+            : new \OpenSpout\Reader\XLSX\Reader;
+        $reader->open($path);
+
+        try {
+            $sheets = $reader->getSheetIterator();
+            if (! $sheets->valid()) {
+                throw ValidationException::withMessages(['file' => ['The spreadsheet does not contain a worksheet.']]);
+            }
+            $sheet = $sheets->current();
+            $iterator = $sheet->getRowIterator();
+            $iterator->rewind();
+            if (! $iterator->valid()) {
+                throw ValidationException::withMessages(['file' => ['The spreadsheet is empty.']]);
+            }
+
+            $headers = array_map(fn ($value) => trim((string) $value), $this->values($iterator->current()));
+            $iterator->next();
+            if (! $headers || count(array_filter($headers)) !== count($headers) || count(array_unique($headers)) !== count($headers)) {
+                throw ValidationException::withMessages(['file' => ['The header row contains empty or duplicate column names.']]);
+            }
+
+            $rowNumber = 2;
+            for (; $iterator->valid(); $iterator->next(), $rowNumber++) {
+                if ($rowNumber - 1 > self::MAX_IMPORT_ROWS) {
+                    throw ValidationException::withMessages(['file' => ['Imports are limited to 5,000 data rows. Split this spreadsheet into smaller files and try again.']]);
+                }
+                $values = $this->values($iterator->current());
+                $values = array_slice(array_pad($values, count($headers), null), 0, count($headers));
+                yield $rowNumber - 2 => array_combine($headers, $values);
+            }
+        } finally {
+            $reader->close();
+        }
+    }
+
+    private function values(\OpenSpout\Common\Entity\Row $row): array
+    {
+        return array_map(fn ($cell) => $cell instanceof \OpenSpout\Common\Entity\Cell\FormulaCell
+            ? $cell->getComputedValue()
+            : $cell->getValue(), $row->getCells());
+    }
+
+    public function import(iterable $rows): array
     {
         $errors = [];
+        $errorCount = 0;
         $summary = ['created' => 0, 'updated' => 0, 'stock_added' => 0];
         $brands = $this->nameMap(Brand::pluck('id', 'name'));
         $collections = $this->nameMap(WatchCollection::pluck('id', 'name'));
         $categories = $this->nameMap(Category::pluck('id', 'name'));
 
-        return DB::transaction(function () use ($rows, &$errors, &$summary, $brands, $collections, $categories) {
+        return DB::transaction(function () use ($rows, &$errors, &$errorCount, &$summary, $brands, $collections, $categories) {
             foreach ($rows as $index => $rawRow) {
                 $rowNumber = $index + 2;
                 $row = collect($rawRow)->mapWithKeys(fn ($value, $key) => [trim((string) $key) => $this->cell($value)])->all();
@@ -132,6 +185,9 @@ class WatchSpreadsheetService
                 $data['collection_id'] = $this->relationId($row['collection'] ?? null, $collections, 'collection', false, $rowErrors);
                 $categoryIds = $this->categoryIds($row['categories'] ?? null, $categories, $rowErrors);
                 $stockToAdd = $this->stockToAdd($row, $watch, $rowErrors);
+                if ($summary['stock_added'] + $stockToAdd > self::MAX_STOCK_UNITS_PER_IMPORT) {
+                    $rowErrors[] = 'The import can add at most 2,000 stock units. Split the stock additions into smaller imports.';
+                }
 
                 $validator = validator($data, [
                     'name' => 'required|string|max:255',
@@ -158,7 +214,10 @@ class WatchSpreadsheetService
 
                 if ($rowErrors) {
                     foreach ($rowErrors as $message) {
-                        $errors[] = "Row {$rowNumber}: {$message}";
+                        $errorCount++;
+                        if (count($errors) < self::MAX_REPORTED_ERRORS) {
+                            $errors[] = "Row {$rowNumber}: {$message}";
+                        }
                     }
 
                     continue;
@@ -189,6 +248,9 @@ class WatchSpreadsheetService
             }
 
             if ($errors) {
+                if ($errorCount > self::MAX_REPORTED_ERRORS) {
+                    $errors[] = 'Only the first 200 issues are shown. Fix these and import again to see any remaining issues.';
+                }
                 throw ValidationException::withMessages(['file' => $errors]);
             }
 

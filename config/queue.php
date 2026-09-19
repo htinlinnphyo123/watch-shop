@@ -42,6 +42,14 @@ return [
             'after_commit' => false,
         ],
 
+        'watch-imports' => [
+            'driver' => 'database',
+            'table' => 'jobs',
+            'queue' => 'watch-imports',
+            'retry_after' => 960,
+            'after_commit' => false,
+        ],
+
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => 'localhost',

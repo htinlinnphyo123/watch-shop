@@ -1,7 +1,7 @@
 <script setup>
 import AdminLayout from "@/Layouts/AdminLayout.vue";
 import { Head, useForm, router, Link, usePage } from "@inertiajs/vue3";
-import { ref, watch } from "vue";
+import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import debounce from "lodash/debounce";
 import Modal from "@/Components/Modal.vue";
 import InputLabel from "@/Components/InputLabel.vue";
@@ -42,6 +42,10 @@ const props = defineProps({
   userRole: {
     type: String,
     default: "user",
+  },
+  latestImport: {
+    type: Object,
+    default: null,
   },
 });
 
@@ -186,12 +190,49 @@ const fileInput = ref(null);
 const isUploading = ref(false);
 const importingWatches = ref(false);
 const importHelpOpen = ref(false);
+const importUploadError = ref(null);
+const watchImportStatus = ref(props.latestImport ? { ...props.latestImport } : null);
+const dismissedWatchImportStatus = ref(false);
+const dismissedImportErrors = ref(false);
+let importPollTimer = null;
+const importIsPending = () => ['queued', 'processing'].includes(watchImportStatus.value?.status);
+const dismissWatchImportStatus = async () => {
+  try {
+    await window.axios.patch(route('products.imports.dismiss', watchImportStatus.value.id));
+    dismissedWatchImportStatus.value = true;
+  } catch (error) {
+    // Keep the status visible if the dismissal could not be saved.
+  }
+};
+const pollWatchImport = async () => {
+  if (!importIsPending()) return;
+  try {
+    const { data } = await window.axios.get(route('products.imports.status', watchImportStatus.value.id));
+    watchImportStatus.value = data;
+    if (data.status === 'completed') router.reload({ only: ['products'], preserveScroll: true });
+  } catch (error) {
+    // Keep showing the last known status and retry on the next poll.
+  }
+  if (importIsPending()) importPollTimer = window.setTimeout(pollWatchImport, 2500);
+};
+watch(() => props.latestImport, value => {
+  if (value && value.id !== watchImportStatus.value?.id) {
+    watchImportStatus.value = { ...value };
+    dismissedWatchImportStatus.value = false;
+    dismissedImportErrors.value = false;
+    if (importPollTimer) window.clearTimeout(importPollTimer);
+    pollWatchImport();
+  }
+}, { deep: true });
+onMounted(pollWatchImport);
+onBeforeUnmount(() => { if (importPollTimer) window.clearTimeout(importPollTimer); });
 const closeImportHelp = () => { if (!importingWatches.value) importHelpOpen.value = false; };
 const chooseImportFile = () => fileInput.value?.click();
 
 const handleImport = (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  importUploadError.value = null;
 
   const formData = new FormData();
   formData.append("file", file);
@@ -202,9 +243,11 @@ const handleImport = (e) => {
     onStart: () => { importingWatches.value = true; },
     onSuccess: (page) => {
       if (!page.props.flash?.import_errors?.length) importHelpOpen.value = false;
+      if (page.props.flash?.error) importHelpOpen.value = true;
       if (fileInput.value) fileInput.value.value = null;
     },
-    onError: () => {
+    onError: (errors) => {
+      importUploadError.value = Object.values(errors || {}).flat()[0] || 'The spreadsheet could not be uploaded. Please check the file and try again.';
       if (fileInput.value) fileInput.value.value = null;
     },
     onFinish: () => { importingWatches.value = false; },
@@ -524,7 +567,8 @@ const deleteProduct = (product) => {
             <li>If any row has an error, the whole import is cancelled and no data is changed.</li>
           </ul>
         </div>
-        <p class="mt-4 text-xs text-gray-500">Accepted files: XLSX or CSV, up to 10 MB. Images remain managed in the watch editor.</p>
+        <p class="mt-4 text-xs text-gray-500">Accepted files: XLSX or CSV, up to 10 MB, with up to 5,000 rows and 2,000 added stock units per import. Images remain managed in the watch editor.</p>
+        <p v-if="importUploadError" class="mt-3 text-sm text-red-700" role="alert">{{ importUploadError }}</p>
         <div class="mt-6 flex justify-end gap-3">
           <SecondaryButton :disabled="importingWatches" @click="importHelpOpen = false">Cancel</SecondaryButton>
           <PrimaryButton :disabled="importingWatches" @click="chooseImportFile">{{ importingWatches ? 'Importing…' : 'Choose spreadsheet' }}</PrimaryButton>
@@ -532,12 +576,38 @@ const deleteProduct = (product) => {
       </div>
     </Modal>
 
+    <section v-if="watchImportStatus && !dismissedWatchImportStatus" class="mb-6 rounded-xl border p-5 shadow-sm" :class="watchImportStatus.status === 'failed' ? 'border-red-200 bg-red-50' : watchImportStatus.status === 'completed' ? 'border-emerald-200 bg-emerald-50' : 'border-blue-200 bg-blue-50'" aria-live="polite">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 class="font-semibold" :class="watchImportStatus.status === 'failed' ? 'text-red-900' : watchImportStatus.status === 'completed' ? 'text-emerald-900' : 'text-blue-900'">
+            {{ watchImportStatus.status === 'queued' ? 'Watch import queued' : watchImportStatus.status === 'processing' ? 'Importing watches…' : watchImportStatus.status === 'completed' ? 'Watch import completed' : 'Watch import failed' }}
+          </h2>
+          <p class="mt-1 text-sm text-gray-700">{{ watchImportStatus.original_name }}</p>
+          <p v-if="watchImportStatus.status === 'queued'" class="mt-2 text-sm text-blue-800">Waiting for the server queue worker to start this import.</p>
+          <p v-else-if="watchImportStatus.status === 'processing'" class="mt-2 text-sm text-blue-800">The server is validating and saving the spreadsheet. This page will update when it finishes.</p>
+          <p v-else-if="watchImportStatus.status === 'completed'" class="mt-2 text-sm text-emerald-800">{{ watchImportStatus.summary?.created || 0 }} created, {{ watchImportStatus.summary?.updated || 0 }} updated, {{ watchImportStatus.summary?.stock_added || 0 }} stock units added.</p>
+          <p v-else-if="watchImportStatus.failure_message" class="mt-2 text-sm text-red-800">{{ watchImportStatus.failure_message }}</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="rounded-full bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide" :class="watchImportStatus.status === 'failed' ? 'text-red-800' : watchImportStatus.status === 'completed' ? 'text-emerald-800' : 'text-blue-800'">{{ watchImportStatus.status }}</span>
+          <button v-if="['failed', 'completed'].includes(watchImportStatus.status)" type="button" class="rounded p-1 text-gray-600 hover:bg-white focus:outline-none focus:ring-2 focus:ring-gray-500" aria-label="Dismiss import status" @click="dismissWatchImportStatus">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke-width="2" stroke-linecap="round" /></svg>
+          </button>
+        </div>
+      </div>
+      <div v-if="watchImportStatus.errors?.length" class="mt-4 max-h-56 overflow-y-auto rounded-lg border border-red-200 bg-white p-4">
+        <p class="mb-2 text-sm font-semibold text-red-900">{{ watchImportStatus.errors.length }} spreadsheet issue{{ watchImportStatus.errors.length === 1 ? '' : 's' }}</p>
+        <ul class="list-disc space-y-1 pl-5 text-sm text-red-800"><li v-for="(message, index) in watchImportStatus.errors" :key="index">{{ message }}</li></ul>
+      </div>
+    </section>
+
     <!-- Import Errors Alert -->
     <div
-      v-if="$page.props.flash?.import_errors?.length"
+      v-if="$page.props.flash?.import_errors?.length && !dismissedImportErrors"
       class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 shadow-sm"
     >
-      <h3 class="text-red-800 font-bold mb-2 flex items-center">
+      <div class="mb-2 flex items-start justify-between gap-3">
+      <h3 class="text-red-800 font-bold flex items-center">
         <svg
           class="w-5 h-5 mr-2"
           fill="none"
@@ -556,6 +626,10 @@ const deleteProduct = (product) => {
         }}
         errors)
       </h3>
+      <button type="button" class="rounded p-1 text-red-700 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-600" aria-label="Dismiss import errors" @click="dismissedImportErrors = true">
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke-width="2" stroke-linecap="round" /></svg>
+      </button>
+      </div>
       <ul
         class="list-disc pl-8 text-sm text-red-700 space-y-1 max-h-40 overflow-y-auto"
       >

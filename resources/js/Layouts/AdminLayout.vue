@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { Link, usePage } from "@inertiajs/vue3";
 import Dropdown from "@/Components/Dropdown.vue";
 import DropdownLink from "@/Components/DropdownLink.vue";
@@ -12,6 +12,9 @@ defineProps({
 
 const showingNavigationDropdown = ref(false);
 const page = usePage();
+const dismissedFlash = ref({ success: null, error: null });
+watch(() => page.props.flash?.success, () => { dismissedFlash.value.success = null; });
+watch(() => page.props.flash?.error, () => { dismissedFlash.value.error = null; });
 </script>
 
 <template>
@@ -569,24 +572,30 @@ const page = usePage();
       <div class="p-6">
         <!-- Flash Messages -->
         <div
-          v-if="$page.props.flash && $page.props.flash.success"
-          class="mb-4 bg-green-100 border-green-200 text-green-800 px-4 py-3 rounded relative"
+          v-if="$page.props.flash?.success && dismissedFlash.success !== $page.props.flash.success"
+          class="mb-4 bg-green-100 border border-green-200 text-green-800 px-4 py-3 rounded flex items-start justify-between gap-4"
           role="alert"
         >
-          <strong class="font-bold">Success!</strong>
-          <span class="block sm:inline ml-2">{{
-            $page.props.flash.success
-          }}</span>
+          <div>
+            <strong class="font-bold">Success!</strong>
+            <span class="block sm:inline ml-2">{{ $page.props.flash.success }}</span>
+          </div>
+          <button type="button" class="shrink-0 rounded p-1 text-green-800 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-600" aria-label="Dismiss success message" @click="dismissedFlash.success = $page.props.flash.success">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke-width="2" stroke-linecap="round" /></svg>
+          </button>
         </div>
         <div
-          v-if="$page.props.flash && $page.props.flash.error"
-          class="mb-4 bg-red-100 border-red-200 text-red-800 px-4 py-3 rounded relative"
+          v-if="$page.props.flash?.error && dismissedFlash.error !== $page.props.flash.error"
+          class="mb-4 bg-red-100 border border-red-200 text-red-800 px-4 py-3 rounded flex items-start justify-between gap-4"
           role="alert"
         >
-          <strong class="font-bold">Error!</strong>
-          <span class="block sm:inline ml-2">{{
-            $page.props.flash.error
-          }}</span>
+          <div>
+            <strong class="font-bold">Error!</strong>
+            <span class="block sm:inline ml-2">{{ $page.props.flash.error }}</span>
+          </div>
+          <button type="button" class="shrink-0 rounded p-1 text-red-800 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-600" aria-label="Dismiss error message" @click="dismissedFlash.error = $page.props.flash.error">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke-width="2" stroke-linecap="round" /></svg>
+          </button>
         </div>
 
         <slot />

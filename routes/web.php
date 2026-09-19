@@ -38,6 +38,8 @@ Route::middleware('auth')->group(function () {
     Route::get('products/export', [\App\Http\Controllers\ProductController::class, 'export'])->middleware('role:admin')->name('products.export');
     Route::post('products/presigned-url', [\App\Http\Controllers\ProductController::class, 'presignedUrl'])->name('products.presigned-url');
     Route::post('products/import', [\App\Http\Controllers\ProductController::class, 'import'])->middleware('role:admin')->name('products.import');
+    Route::get('products/imports/{watchImport}', [\App\Http\Controllers\ProductController::class, 'importStatus'])->middleware('role:admin')->name('products.imports.status');
+    Route::patch('products/imports/{watchImport}/dismiss', [\App\Http\Controllers\ProductController::class, 'dismissImport'])->middleware('role:admin')->name('products.imports.dismiss');
     Route::resource('products', \App\Http\Controllers\ProductController::class);
     Route::post('/products/{product}/items', [\App\Http\Controllers\ProductItemController::class, 'store'])->name('products.items.store');
     Route::put('/items/{item}', [\App\Http\Controllers\ProductItemController::class, 'update'])->name('items.update');

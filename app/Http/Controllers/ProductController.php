@@ -8,12 +8,13 @@ use App\Models\Collection;
 use App\Models\CustomerGroup;
 use App\Models\Product;
 use App\Models\Setting;
+use App\Models\WatchImport;
+use App\Jobs\ImportWatchesFromSpreadsheet;
 use App\Services\LowStockNotificationService;
 use App\Services\WatchSpreadsheetService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class ProductController extends Controller
@@ -111,6 +112,14 @@ class ProductController extends Controller
             }
         }
 
+        $latestImport = null;
+        if ($request->user()->role === 'admin') {
+            $latestImport = WatchImport::where('started_by', $request->user()->id)->latest('id')->first();
+            if ($latestImport?->dismissed_at) {
+                $latestImport = null;
+            }
+        }
+
         return Inertia::render('Products/Index', [
             'products' => $query->paginate(10)->withQueryString(),
             'filters' => $request->only(['search', 'category_id', 'brand_id', 'min_price', 'max_price', 'in_stock', 'sort', 'direction']),
@@ -120,6 +129,7 @@ class ProductController extends Controller
             'customer_groups' => CustomerGroup::all(),
             'specOptions' => $specOptions,
             'userRole' => $request->user()->role ?? 'user',
+            'latestImport' => $latestImport,
         ]);
     }
 
@@ -436,21 +446,51 @@ class ProductController extends Controller
             'file' => 'required|file|max:10240|extensions:xlsx,csv',
         ]);
 
+        $file = $request->file('file');
+        $import = WatchImport::create([
+            'started_by' => $request->user()->id,
+            'original_name' => substr(basename($file->getClientOriginalName()), 0, 255),
+            'file_path' => '',
+            'status' => 'queued',
+        ]);
+        $path = $file->storeAs('watch-imports', $import->id.'.'.$file->extension(), 'local');
+        if (! $path) {
+            $import->update(['status' => 'failed', 'failure_message' => 'The spreadsheet could not be saved for processing.', 'finished_at' => now()]);
+
+            return back()->with('error', 'The spreadsheet could not be saved for processing. Please try again.');
+        }
+        $import->update(['file_path' => $path]);
+
         try {
-            $rows = (new \Rap2hpoutre\FastExcel\FastExcel)->import($request->file('file'));
-            if ($rows->isEmpty()) {
-                return back()->with('import_errors', ['The spreadsheet has no data rows.']);
-            }
-            $summary = $this->watchSpreadsheets->import($rows);
-        } catch (ValidationException $exception) {
-            return back()->with('import_errors', $exception->errors()['file'] ?? ['The spreadsheet contains invalid data.']);
+            ImportWatchesFromSpreadsheet::dispatch($import->id);
         } catch (\Throwable $exception) {
             report($exception);
+            Storage::disk('local')->delete($path);
+            $import->update(['status' => 'failed', 'failure_message' => 'The import could not be added to the queue. Please try again or contact support.', 'finished_at' => now()]);
 
-            return back()->with('import_errors', ['The spreadsheet could not be read. Use the watch export file as your template and try again.']);
+            return back()->with('error', 'The import could not be queued. Please try again.');
         }
 
-        return back()->with('success', "Watch import complete: {$summary['created']} created, {$summary['updated']} updated, {$summary['stock_added']} stock units added.");
+        return back()->with('success', 'Watch import queued. You can follow its status and any row errors on this page.');
+    }
+
+    public function importStatus(Request $request, WatchImport $watchImport)
+    {
+        abort_unless($request->user()->role === 'admin' && $watchImport->started_by === $request->user()->id, 404);
+
+        return response()->json($watchImport->only([
+            'id', 'original_name', 'status', 'processed_rows', 'total_rows',
+            'summary', 'errors', 'failure_message', 'created_at', 'finished_at',
+        ]));
+    }
+
+    public function dismissImport(Request $request, WatchImport $watchImport)
+    {
+        abort_unless($request->user()->role === 'admin' && $watchImport->started_by === $request->user()->id, 404);
+
+        $watchImport->update(['dismissed_at' => now()]);
+
+        return response()->noContent();
     }
 
     public function presignedUrl(Request $request)
