@@ -184,6 +184,10 @@ const previewPhotoUrl = ref(null);
 const previewBgPhotoUrl = ref(null);
 const fileInput = ref(null);
 const isUploading = ref(false);
+const importingWatches = ref(false);
+const importHelpOpen = ref(false);
+const closeImportHelp = () => { if (!importingWatches.value) importHelpOpen.value = false; };
+const chooseImportFile = () => fileInput.value?.click();
 
 const handleImport = (e) => {
   const file = e.target.files[0];
@@ -195,20 +199,15 @@ const handleImport = (e) => {
   router.post(route("products.import"), formData, {
     preserveScroll: true,
     forceFormData: true,
+    onStart: () => { importingWatches.value = true; },
     onSuccess: (page) => {
-      if (page.props.flash?.import_errors?.length > 0) {
-        // UI will show the errors box
-        alert("Import failed. Please fix the errors listed above the table.");
-      } else {
-        alert("Products imported successfully!");
-      }
+      if (!page.props.flash?.import_errors?.length) importHelpOpen.value = false;
       if (fileInput.value) fileInput.value.value = null;
     },
-    onError: (errors) => {
-      console.error(errors);
-      alert("Import failed. Please check the file format.");
+    onError: () => {
       if (fileInput.value) fileInput.value.value = null;
     },
+    onFinish: () => { importingWatches.value = false; },
   });
 };
 
@@ -486,19 +485,20 @@ const deleteProduct = (product) => {
           :href="route('products.export')"
           class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-bold text-xs text-white uppercase tracking-widest hover:bg-green-700 active:bg-green-900 focus:outline-none focus:border-green-900 focus:ring ring-green-300 disabled:opacity-25 transition ease-in-out duration-150 shadow-sm"
         >
-          Export Excel
+          Export Watches
         </a>
 
         <SecondaryButton 
             v-if="userRole === 'admin'"
-            @click="fileInput.click()" class="shadow-sm">
-          Import Excel
+            :disabled="importingWatches"
+            @click="importHelpOpen = true" class="shadow-sm">
+          {{ importingWatches ? 'Importing…' : 'Import Watches' }}
         </SecondaryButton>
         <input
           type="file"
           ref="fileInput"
           class="hidden"
-          accept=".csv, .xlsx, .xls"
+          accept=".csv,.xlsx"
           @change="handleImport"
         />
 
@@ -510,6 +510,27 @@ const deleteProduct = (product) => {
         </PrimaryButton>
       </div>
     </div>
+
+    <Modal :show="importHelpOpen" max-width="2xl" @close="closeImportHelp">
+      <div class="p-6">
+        <h2 class="text-xl font-semibold text-gray-900">Import watches</h2>
+        <p class="mt-2 text-sm leading-6 text-gray-600">Use <strong>Export Watches</strong> as your template. This importer only creates or updates watches; accessory rows and accessory IDs are rejected.</p>
+        <div class="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+          <p class="font-medium text-gray-800">Safe stock editing</p>
+          <ul class="mt-2 list-disc space-y-1 pl-5">
+            <li>The columns ending in <code>_read_only</code> are reference values and are never imported.</li>
+            <li>Enter a number in <code>stock_to_add</code> to create new available units with unique barcodes.</li>
+            <li>Brand, collection, and category names must already exist. Matching ignores capitalization.</li>
+            <li>If any row has an error, the whole import is cancelled and no data is changed.</li>
+          </ul>
+        </div>
+        <p class="mt-4 text-xs text-gray-500">Accepted files: XLSX or CSV, up to 10 MB. Images remain managed in the watch editor.</p>
+        <div class="mt-6 flex justify-end gap-3">
+          <SecondaryButton :disabled="importingWatches" @click="importHelpOpen = false">Cancel</SecondaryButton>
+          <PrimaryButton :disabled="importingWatches" @click="chooseImportFile">{{ importingWatches ? 'Importing…' : 'Choose spreadsheet' }}</PrimaryButton>
+        </div>
+      </div>
+    </Modal>
 
     <!-- Import Errors Alert -->
     <div

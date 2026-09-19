@@ -37,7 +37,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('collections', \App\Http\Controllers\CollectionController::class);
     Route::get('products/export', [\App\Http\Controllers\ProductController::class, 'export'])->middleware('role:admin')->name('products.export');
     Route::post('products/presigned-url', [\App\Http\Controllers\ProductController::class, 'presignedUrl'])->name('products.presigned-url');
-    Route::post('products/import', [\App\Http\Controllers\ProductController::class, 'import'])->name('products.import');
+    Route::post('products/import', [\App\Http\Controllers\ProductController::class, 'import'])->middleware('role:admin')->name('products.import');
     Route::resource('products', \App\Http\Controllers\ProductController::class);
     Route::post('/products/{product}/items', [\App\Http\Controllers\ProductItemController::class, 'store'])->name('products.items.store');
     Route::put('/items/{item}', [\App\Http\Controllers\ProductItemController::class, 'update'])->name('items.update');

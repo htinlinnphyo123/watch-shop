@@ -9,17 +9,19 @@ use App\Models\CustomerGroup;
 use App\Models\Product;
 use App\Models\Setting;
 use App\Services\LowStockNotificationService;
+use App\Services\WatchSpreadsheetService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class ProductController extends Controller
 {
-    public function __construct(private readonly LowStockNotificationService $lowStockNotifications)
-    {
-    }
+    public function __construct(
+        private readonly LowStockNotificationService $lowStockNotifications,
+        private readonly WatchSpreadsheetService $watchSpreadsheets,
+    ) {}
 
     public function index(Request $request)
     {
@@ -416,260 +418,39 @@ class ProductController extends Controller
 
     public function export()
     {
-        $products = Product::with(['brand', 'collection', 'categories'])->withCount('items')->get();
+        $watches = Product::where('kind', 'watch')
+            ->with(['brand', 'collection', 'categories'])
+            ->withItemCounts()
+            ->orderBy('id')
+            ->get();
 
         $date = Carbon::now()->format('Y-m-d_H-i-s');
 
-        return (new \Rap2hpoutre\FastExcel\FastExcel($products))->download('products-'.$date.'.xlsx', function ($product) {
-            return [
-                'id' => $product->id,
-                'name' => $product->name,
-                'model_number' => $product->model_number,
-                'price' => $product->price,
-                'cost_price' => $product->cost_price,
-                'web_price' => $product->web_price,
-                'discount' => $product->discount,
-                'warranty_period' => $product->warranty_period,
-                'warranty_type' => $product->warranty_type,
-                'description' => $product->description,
-                'youtube_link' => $product->youtube_link,
-                'case_material' => $product->case_material,
-                'priority_level' => $product->priority_level,
-                'currency' => $product->currency,
-                'crystal' => $product->crystal,
-                'water_resistant' => $product->water_resistant,
-                'case_shape' => $product->case_shape,
-                'dial_size' => $product->dial_size,
-                'dial_color' => $product->dial_color,
-                'strap_material' => $product->strap_material,
-                'strap_size' => $product->strap_size,
-                'strap_color' => $product->strap_color,
-                'movement' => $product->movement,
-                'gender' => $product->gender,
-                'clasp_type' => $product->clasp_type,
-                'strap_style' => $product->strap_style,
-                'quick_release' => $product->quick_release,
-                'origin' => $product->origin,
-                'caliber_code' => $product->caliber_code,
-                'caseback_design' => $product->caseback_design,
-                'brand' => optional($product->brand)->name,
-                'collection' => optional($product->collection)->name,
-                'categories' => $product->categories ? $product->categories->pluck('name')->implode(', ') : null,
-                'items_count' => $product->items_count ?? 0,
-                'is_featured' => (int) $product->is_featured,
-                'is_banner' => (int) $product->is_banner,
-                'is_limited_collection' => (int) $product->is_limited_collection,
-                'is_latest' => (int) $product->is_latest,
-                'is_active' => (int) $product->is_active,
-                'is_public' => (int) $product->is_public,
-            ];
-        });
+        return (new \Rap2hpoutre\FastExcel\FastExcel($watches))
+            ->download('watches-'.$date.'.xlsx', fn (Product $watch) => $this->watchSpreadsheets->exportRow($watch));
     }
 
     public function import(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|mimes:xlsx,csv,xls',
+            'file' => 'required|file|max:10240|extensions:xlsx,csv',
         ]);
 
-        $errors = [];
-
         try {
-            \Illuminate\Support\Facades\DB::beginTransaction();
-
-            $collection = (new \Rap2hpoutre\FastExcel\FastExcel)->import($request->file('file'));
-
-            $brandsCache = Brand::pluck('id', 'name')->toArray();
-            $collectionsCache = Collection::pluck('id', 'name')->toArray();
-            $categoriesCache = Category::pluck('id', 'name')->toArray();
-
-            foreach ($collection as $index => $line) {
-                // Determine Excel row (index starts at 0 for row 2, since 1 is headers)
-                $rowNum = $index + 2;
-                $initialRowErrors = count($errors);
-
-                unset($line['specifications']);
-
-                if ($request->user()->role !== 'admin') {
-                    unset($line['cost_price']);
-                }
-
-                // Parse Brand
-                if (! empty($line['brand'])) {
-                    if (array_key_exists($line['brand'], $brandsCache)) {
-                        $line['brand_id'] = $brandsCache[$line['brand']];
-                    } else {
-                        $errors[] = "Row {$rowNum}, Column 'brand': Brand '{$line['brand']}' does not exist.";
-                    }
-                } else {
-                    $errors[] = "Row {$rowNum}, Column 'brand': Brand is required.";
-                }
-                unset($line['brand']);
-
-                // Parse Collection
-                if (! empty($line['collection'])) {
-                    if (array_key_exists($line['collection'], $collectionsCache)) {
-                        $line['collection_id'] = $collectionsCache[$line['collection']];
-                    } else {
-                        $errors[] = "Row {$rowNum}, Column 'collection': Collection '{$line['collection']}' does not exist.";
-                    }
-                }
-                unset($line['collection']);
-
-                // Parse Categories
-                $categoryIdsRaw = [];
-                if (! empty($line['categories'])) {
-                    $catNames = array_map('trim', explode(',', $line['categories']));
-                    foreach ($catNames as $catName) {
-                        if (array_key_exists($catName, $categoriesCache)) {
-                            $categoryIdsRaw[] = $categoriesCache[$catName];
-                        } else {
-                            $errors[] = "Row {$rowNum}, Column 'categories': Category '{$catName}' does not exist.";
-                        }
-                    }
-                }
-                unset($line['categories']);
-
-                $requestedItemsCount = isset($line['items_count']) ? (int) $line['items_count'] : 0;
-                unset($line['items_count']);
-
-                $validator = Validator::make($line, [
-                    'name' => 'required|string',
-                    'price' => 'required|numeric',
-                    'cost_price' => 'nullable|numeric',
-                    'web_price' => 'nullable|numeric',
-                    'discount' => 'nullable|numeric|min:0|max:100',
-                    'warranty_period' => 'nullable|integer',
-                    'warranty_type' => 'nullable|in:international_warranty,shop_warranty',
-                    'youtube_link' => 'nullable|url:http,https|max:2048',
-                    'case_material' => 'nullable|string|max:255',
-                    'priority_level' => 'nullable|integer|in:0,1,2,3',
-                ]);
-
-                if ($validator->fails()) {
-                    foreach ($validator->errors()->messages() as $column => $messages) {
-                        foreach ($messages as $msg) {
-                            $errors[] = "Row {$rowNum}, Column '{$column}': {$msg}";
-                        }
-                    }
-                }
-
-                if (array_key_exists('priority_level', $line) && ($line['priority_level'] === '' || $line['priority_level'] === null)) {
-                    $line['priority_level'] = 0;
-                }
-
-                if (count($errors) > $initialRowErrors) {
-                    continue; // Skip DB operations for this row if there were any validation errors
-                }
-
-                if (! empty($line['id'])) {
-                    // Update
-                    $product = Product::find($line['id']);
-                    if (! $product) {
-                        $errors[] = "Row {$rowNum}, Column 'id': Product ID {$line['id']} not found.";
-
-                        continue;
-                    }
-
-                    $currentItemsCount = $product->items()->count();
-
-                    if ($requestedItemsCount < $currentItemsCount) {
-                        $errors[] = "Row {$rowNum}, Column 'items_count': items_count ({$requestedItemsCount}) cannot be less than original count ({$currentItemsCount}).";
-                    } elseif ($requestedItemsCount > $currentItemsCount) {
-                        $diff = $requestedItemsCount - $currentItemsCount;
-                        $this->generateProductItems($product, $diff);
-                    }
-
-                    $line['web_price'] = $line['web_price'] ? $line['web_price'] : 0;
-                    $line['discount'] = $line['discount'] ? $line['discount'] : 0;
-
-                    // Remove image lines from import mapping to protect web updates
-                    unset($line['image'], $line['preview_photo'], $line['preview_bg_photo'], $line['images']);
-
-                    $product->update($line);
-
-                    if (! empty($categoryIdsRaw)) {
-                        $product->categories()->sync($categoryIdsRaw);
-                    } else {
-                        $product->categories()->detach();
-                    }
-                } else {
-                    // Create
-                    unset($line['id']);
-
-                    // Remove image lines from import mapping to protect web updates
-                    unset($line['image'], $line['preview_photo'], $line['preview_bg_photo'], $line['images']);
-
-                    if (empty($line['barcode'])) {
-                        $line['barcode'] = 'W-'.strtoupper(uniqid());
-                    }
-
-                    $line['web_price'] = $line['web_price'] ? $line['web_price'] : 0;
-                    $line['discount'] = $line['discount'] ? $line['discount'] : 0;
-
-                    $product = Product::create($line);
-
-                    if (! empty($categoryIdsRaw)) {
-                        $product->categories()->sync($categoryIdsRaw);
-                    }
-
-                    if ($requestedItemsCount > 0) {
-                        $this->generateProductItems($product, $requestedItemsCount);
-                    }
-                }
-
-                $this->lowStockNotifications->sync($product);
+            $rows = (new \Rap2hpoutre\FastExcel\FastExcel)->import($request->file('file'));
+            if ($rows->isEmpty()) {
+                return back()->with('import_errors', ['The spreadsheet has no data rows.']);
             }
+            $summary = $this->watchSpreadsheets->import($rows);
+        } catch (ValidationException $exception) {
+            return back()->with('import_errors', $exception->errors()['file'] ?? ['The spreadsheet contains invalid data.']);
+        } catch (\Throwable $exception) {
+            report($exception);
 
-            if (count($errors) > 0) {
-                \Illuminate\Support\Facades\DB::rollBack();
-
-                return redirect()->back()->with('import_errors', $errors);
-            }
-
-            \Illuminate\Support\Facades\DB::commit();
-
-        } catch (\Illuminate\Database\QueryException $e) {
-            \Illuminate\Support\Facades\DB::rollBack();
-            $errorMessage = $e->getMessage();
-            dd($errorMessage);
-
-            // Try to make Postgres numeric errors more readable as a fallback
-            if (strpos($errorMessage, 'invalid input syntax for type numeric') !== false) {
-                return redirect()->back()->with('import_errors', ['Database Error: A numeric column received invalid text. Please check that price, discount, and other numeric fields contain only numbers.']);
-            }
-
-            return redirect()->back()->with('import_errors', ['Database Error: '.$errorMessage]);
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\DB::rollBack();
-
-            return redirect()->back()->with('import_errors', ['System Error: '.$e->getMessage()]);
+            return back()->with('import_errors', ['The spreadsheet could not be read. Use the watch export file as your template and try again.']);
         }
 
-        return redirect()->back()->with('success', 'Products imported completely without errors.');
-    }
-
-    private function generateProductItems(Product $product, int $quantity)
-    {
-        for ($i = 0; $i < $quantity; $i++) {
-            $product->items()->create([
-                'serial_number' => null,
-                'system_unique_id' => $this->generateUniqueSystemId(),
-                'status' => 'available',
-            ]);
-        }
-    }
-
-    private function generateUniqueSystemId(): string
-    {
-        do {
-            $id = '';
-            for ($i = 0; $i < 12; $i++) {
-                $id .= mt_rand(0, 9);
-            }
-        } while (\App\Models\ProductItem::where('system_unique_id', $id)->exists());
-
-        return $id;
+        return back()->with('success', "Watch import complete: {$summary['created']} created, {$summary['updated']} updated, {$summary['stock_added']} stock units added.");
     }
 
     public function presignedUrl(Request $request)
