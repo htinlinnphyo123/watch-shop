@@ -321,6 +321,10 @@ watch(() => page.props.flash?.error, () => { dismissedFlash.value.error = null; 
           </svg>
           Order Summary
         </Link>
+        <Link :href="route('sales.analytics')" :class="{ 'text-gold-600 bg-gold-50': route().current('sales.analytics') }" class="flex items-center px-4 py-3 text-gray-600 rounded-lg hover:bg-gray-100 hover:text-gray-900 transition-colors">
+          <svg class="w-5 h-5 mr-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 4v16h16M8 16v-4m4 4V8m4 8V5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          Sales Analytics
+        </Link>
 
         <Link
           v-if="$page.props.auth.user.role === 'admin'"
