@@ -87,6 +87,10 @@ Route::middleware('auth')->group(function () {
 
     Route::get('orders/summary', [\App\Http\Controllers\OrderController::class, 'summary'])->name('orders.summary');
     Route::get('sales/analytics', \App\Http\Controllers\SalesAnalyticsController::class)->name('sales.analytics');
+    Route::resource('watch-services', \App\Http\Controllers\WatchServiceController::class)
+        ->only(['index', 'store', 'show', 'update'])->middleware('role:admin');
+    Route::post('watch-services/{watch_service}/expenses', [\App\Http\Controllers\WatchServiceController::class, 'expense'])->middleware('role:admin')->name('watch-services.expenses.store');
+    Route::patch('watch-services/{watch_service}/expenses/{expense}/void', [\App\Http\Controllers\WatchServiceController::class, 'voidExpense'])->middleware('role:admin')->name('watch-services.expenses.void');
     Route::get('orders/{order}/history', \App\Http\Controllers\OrderHistoryController::class)->name('orders.history');
     Route::resource('orders', \App\Http\Controllers\OrderController::class)->only(['index', 'show']);
     Route::post('orders/{order}/files/presign', [\App\Http\Controllers\OrderAttachmentController::class, 'presign'])->middleware('throttle:60,1')->name('orders.files.presign');
