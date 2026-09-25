@@ -70,6 +70,7 @@ Route::middleware('auth')->group(function () {
 
     // Admin + Manager Routes
     Route::middleware(['role:admin,manager'])->group(function () {
+        Route::get('attendance/export', [\App\Http\Controllers\AttendanceController::class, 'export'])->name('attendance.export');
         Route::resource('attendance', \App\Http\Controllers\AttendanceController::class)
             ->only(['index', 'store', 'update', 'destroy']);
     });

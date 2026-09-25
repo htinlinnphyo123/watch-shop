@@ -8,6 +8,7 @@ import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import SearchableSelect from '@/Components/SearchableSelect.vue';
 
 const props = defineProps({
     attendances: { type: Object, default: () => ({ data: [], links: [] }) },
@@ -72,8 +73,11 @@ const openEdit = (record) => {
     editingRecord.value = record;
     form.user_id         = record.user_id;
     form.attendance_date = record.attendance_date;
-    form.check_in_time   = record.check_in_time  || '';
-    form.check_out_time  = record.check_out_time || '';
+    // Strip seconds from DB time values ("09:00:00" → "09:00") so the
+    // HTML time input and the backend H:i validator both accept the value.
+    const toHHMM = (t) => (t ? t.substring(0, 5) : '');
+    form.check_in_time   = toHHMM(record.check_in_time);
+    form.check_out_time  = toHHMM(record.check_out_time);
     form.status          = record.status;
     form.remarks         = record.remarks || '';
     isModalOpen.value    = true;
@@ -129,6 +133,22 @@ const totalPresent  = computed(() => props.attendances.data.filter(a => a.status
 const totalAbsent   = computed(() => props.attendances.data.filter(a => a.status === 'absent').length);
 const totalLate     = computed(() => props.attendances.data.filter(a => a.status === 'late').length);
 const totalLeave    = computed(() => props.attendances.data.filter(a => a.status === 'on_leave').length);
+
+// Normalised options for SearchableSelect
+const staffOptions = computed(() =>
+    props.users.map(u => ({ value: u.id, label: `${u.name} (${u.role})` }))
+);
+
+// Build the export URL with active filters so the Excel file matches the current view
+const exportUrl = computed(() => {
+    const params = new URLSearchParams();
+    if (filterForm.value.user_id)   params.set('user_id',   filterForm.value.user_id);
+    if (filterForm.value.status)    params.set('status',    filterForm.value.status);
+    if (filterForm.value.date_from) params.set('date_from', filterForm.value.date_from);
+    if (filterForm.value.date_to)   params.set('date_to',   filterForm.value.date_to);
+    const qs = params.toString();
+    return route('attendance.export') + (qs ? '?' + qs : '');
+});
 </script>
 
 <template>
@@ -142,15 +162,31 @@ const totalLeave    = computed(() => props.attendances.data.filter(a => a.status
                     <h1 class="text-2xl font-bold text-gray-900">Attendance Management</h1>
                     <p class="text-sm text-gray-500 mt-0.5">Record and manage staff attendance. Only admins and managers can access this page.</p>
                 </div>
-                <button
-                    @click="openCreate"
-                    class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg transition-colors"
-                >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                    </svg>
-                    Add Attendance
-                </button>
+                <div class="flex items-center gap-3">
+                    <!-- Export Excel -->
+                    <a
+                        :href="exportUrl"
+                        class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                        title="Export current filtered results to CSV (opens in Excel)"
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Export CSV
+                    </a>
+
+                    <!-- Add Attendance -->
+                    <button
+                        @click="openCreate"
+                        class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        Add Attendance
+                    </button>
+                </div>
             </div>
 
             <!-- ── Summary Cards ────────────────────────────────────────────── -->
@@ -179,12 +215,13 @@ const totalLeave    = computed(() => props.attendances.data.filter(a => a.status
                     <!-- Staff member -->
                     <div>
                         <label class="block text-xs font-semibold text-gray-500 mb-1">Staff Member</label>
-                        <select v-model="filterForm.user_id"
-                            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none">
-                            <option value="">All Staff</option>
-                            <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
-                        </select>
+                        <SearchableSelect
+                            v-model="filterForm.user_id"
+                            :options="[{ value: '', label: 'All Staff' }, ...staffOptions]"
+                            placeholder="All Staff"
+                        />
                     </div>
+
                     <!-- Status -->
                     <div>
                         <label class="block text-xs font-semibold text-gray-500 mb-1">Status</label>
@@ -342,13 +379,12 @@ const totalLeave    = computed(() => props.attendances.data.filter(a => a.status
                     <!-- Staff Member -->
                     <div>
                         <InputLabel for="user_id" value="Staff Member *" />
-                        <select id="user_id" v-model="form.user_id"
-                            class="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none">
-                            <option value="">— Select staff member —</option>
-                            <option v-for="u in users" :key="u.id" :value="u.id">
-                                {{ u.name }} ({{ u.role }})
-                            </option>
-                        </select>
+                        <SearchableSelect
+                            id="user_id"
+                            v-model="form.user_id"
+                            :options="staffOptions"
+                            placeholder="— Select staff member —"
+                        />
                         <InputError :message="form.errors.user_id" class="mt-1" />
                     </div>
 
