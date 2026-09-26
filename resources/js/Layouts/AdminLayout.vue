@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Link, usePage } from "@inertiajs/vue3";
 import Dropdown from "@/Components/Dropdown.vue";
 import DropdownLink from "@/Components/DropdownLink.vue";
@@ -52,6 +52,7 @@ const handleNavigationKey = (event) => {
   }
 };
 const page = usePage();
+const isStaff = computed(() => page.props.auth.user.role === 'staff');
 watch(() => page.url, closeNavigation);
 watch(() => props.hideSidebar, closeNavigation);
 const dismissedFlash = ref({ success: null, error: null });
@@ -92,6 +93,7 @@ watch(() => page.props.flash?.error, () => { dismissedFlash.value.error = null; 
 
       <nav class="min-h-0 flex-1 px-4 py-6 space-y-2 overflow-y-auto overscroll-contain">
         <Link
+          v-if="!isStaff"
           :href="route('dashboard')"
           :class="{ 'text-gold-600 bg-gold-50': route().current('dashboard') }"
           class="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors"
@@ -112,7 +114,7 @@ watch(() => page.props.flash?.error, () => { dismissedFlash.value.error = null; 
           Dashboard
         </Link>
 
-        <div>
+        <div v-if="!isStaff">
           <div
             class="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-2 ml-4"
           >
@@ -239,7 +241,7 @@ watch(() => page.props.flash?.error, () => { dismissedFlash.value.error = null; 
           Sales & Operations
         </div>
 
-                <Link :href="route('products.index')"
+                <Link v-if="!isStaff" :href="route('products.index')"
                     :class="{ 'text-gold-600 bg-gold-50': route().current('products.*') }"
                     class="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors">
                     <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -299,6 +301,7 @@ watch(() => page.props.flash?.error, () => { dismissedFlash.value.error = null; 
           Orders & Invoices
         </Link>
         <Link
+          v-if="!isStaff"
           :href="route('orders.summary')"
           :class="{
             'text-gold-600 bg-gold-50': route().current('orders.summary'),
@@ -321,17 +324,17 @@ watch(() => page.props.flash?.error, () => { dismissedFlash.value.error = null; 
           </svg>
           Order Summary
         </Link>
-        <Link :href="route('sales.analytics')" :class="{ 'text-gold-600 bg-gold-50': route().current('sales.analytics') }" class="flex items-center px-4 py-3 text-gray-600 rounded-lg hover:bg-gray-100 hover:text-gray-900 transition-colors">
+        <Link v-if="!isStaff" :href="route('sales.analytics')" :class="{ 'text-gold-600 bg-gold-50': route().current('sales.analytics') }" class="flex items-center px-4 py-3 text-gray-600 rounded-lg hover:bg-gray-100 hover:text-gray-900 transition-colors">
           <svg class="w-5 h-5 mr-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 4v16h16M8 16v-4m4 4V8m4 8V5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
           Sales Analytics
         </Link>
-        <Link v-if="$page.props.auth.user.role === 'admin'" :href="route('watch-services.index')" :class="{ 'text-gold-600 bg-gold-50': route().current('watch-services.*') }" class="flex items-center px-4 py-3 text-gray-600 rounded-lg hover:bg-gray-100 hover:text-gray-900 transition-colors">
+        <Link v-if="['admin', 'manager', 'staff'].includes($page.props.auth.user.role)" :href="route('watch-services.index')" :class="{ 'text-gold-600 bg-gold-50': route().current('watch-services.*') }" class="flex items-center px-4 py-3 text-gray-600 rounded-lg hover:bg-gray-100 hover:text-gray-900 transition-colors">
           <svg class="w-5 h-5 mr-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3zm-4 9l3 3 5-6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
           Repairs &amp; Service
         </Link>
 
         <Link
-          v-if="$page.props.auth.user.role === 'admin'"
+          v-if="['admin', 'manager', 'staff'].includes($page.props.auth.user.role)"
           :href="route('low-stock-notifications.index')"
           :class="{
             'text-gold-600 bg-gold-50': route().current(

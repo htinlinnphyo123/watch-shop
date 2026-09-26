@@ -17,6 +17,9 @@ class OrderController extends Controller
     {
         $filters = $this->filters($request);
         $query = $summaryService->filter(Order::query(), $filters);
+        if ($request->user()->role === 'staff') {
+            $query->where('user_id', $request->user()->id);
+        }
         $orders = $query->with(['customer', 'user'])->latest()->orderByDesc('id')->paginate(10)->withQueryString();
         $orders->through(function (Order $order) use ($summaryService) {
             $payments = $summaryService->retainedPayments($order);

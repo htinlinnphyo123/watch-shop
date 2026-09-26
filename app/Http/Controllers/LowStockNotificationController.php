@@ -34,11 +34,12 @@ class LowStockNotificationController extends Controller
     public function update(Request $request, LowStockNotification $lowStockNotification)
     {
         $validated = $request->validate([
-            'status' => ['required', Rule::in(LowStockNotification::STATUSES)],
+            'status' => ['sometimes', 'required', Rule::in(LowStockNotification::STATUSES)],
+            'ordered_count' => ['sometimes', 'required', 'integer', 'min:0', 'max:2147483647'],
         ]);
 
         $lowStockNotification->update($validated);
 
-        return redirect()->back()->with('success', 'Notification status updated.');
+        return redirect()->back()->with('success', 'Low-stock record updated.');
     }
 }

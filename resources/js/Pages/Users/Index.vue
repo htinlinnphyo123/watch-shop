@@ -177,7 +177,6 @@ const deleteUser = (user) => {
                             <option value="staff">Staff</option>
                             <option value="manager">Manager</option>
                             <option value="admin">Admin</option>
-                            <option value="user">Normal User (Customer)</option>
                         </select>
                         <InputError class="mt-2" :message="form.errors.role" />
                     </div>

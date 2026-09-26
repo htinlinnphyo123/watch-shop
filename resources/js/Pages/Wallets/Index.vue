@@ -49,6 +49,7 @@ const form = useForm({
 const editingTransaction = ref(null);
 
 const resetForm = () => {
+    form.transform(data => data);
     editingTransaction.value = null;
     form.reset();
     form.user_id = props.isAdmin ? '' : props.currentWallet?.user_id;
@@ -64,11 +65,11 @@ const submitTransaction = () => {
     };
 
     if (editingTransaction.value) {
-        form.put(route('wallet.transactions.update', editingTransaction.value.id), options);
+        form.transform(data => ({ ...data, _method: 'put' })).post(route('wallet.transactions.update', editingTransaction.value.id), options);
         return;
     }
 
-    form.post(route('wallet.transactions.store'), options);
+    form.transform(data => data).post(route('wallet.transactions.store'), options);
 };
 
 const editTransaction = (transaction) => {
@@ -87,7 +88,7 @@ const editTransaction = (transaction) => {
 const deleteTransaction = (transaction) => {
     if (!confirm('Delete this wallet record? The wallet balance will be recalculated.')) return;
 
-    form.delete(route('wallet.transactions.destroy', transaction.id), {
+    router.delete(route('wallet.transactions.destroy', transaction.id), {
         preserveScroll: true,
         onSuccess: () => {
             if (editingTransaction.value?.id === transaction.id) resetForm();
@@ -106,7 +107,7 @@ const transactionTypeLabel = (type) => type === 'credit' ? 'In' : 'Out';
 
 const canManageTransaction = (transaction) => props.isAdmin || (
     transaction.type === 'debit'
-    && Number(transaction.created_by) === Number(props.currentWallet?.user_id)
+    && Number(transaction.created_by?.id ?? transaction.created_by) === Number(props.currentWallet?.user_id)
 );
 
 const applyFilters = () => {

@@ -1,6 +1,8 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
+import InputError from '@/Components/InputError.vue';
 
 const props = defineProps({
     notifications: {
@@ -18,6 +20,19 @@ const props = defineProps({
 });
 
 const statuses = ['pending', 'processing', 'completed'];
+const page = usePage();
+const canEdit = computed(() => page.props.auth.user.role === 'admin');
+const editingId = ref(null);
+const orderForm = useForm({ ordered_count: 0 });
+const editOrderedCount = (notification) => {
+    editingId.value = notification.id;
+    orderForm.ordered_count = notification.ordered_count;
+    orderForm.clearErrors();
+};
+const saveOrderedCount = () => orderForm.patch(route('low-stock-notifications.update', editingId.value), {
+    preserveScroll: true,
+    onSuccess: () => editingId.value = null,
+});
 
 const filterByStatus = (status) => {
     router.get(route('low-stock-notifications.index'), status ? { status } : {}, {
@@ -55,7 +70,7 @@ const formatDate = (value) => new Date(value).toLocaleString();
 
         <div class="mb-6">
             <h1 class="text-3xl font-bold text-gray-900">Low Stock Notifications</h1>
-            <p class="mt-1 text-sm text-gray-500">Priority 2 and 3 watches appear here when available stock falls below 2.</p>
+            <p class="mt-1 text-sm text-gray-500">Priority 2 and 3 watches appear when available stock falls below their alert threshold. Admins can record the quantity ordered from the company after contacting them.</p>
         </div>
 
         <div class="flex flex-wrap gap-2 mb-5">
@@ -86,6 +101,7 @@ const formatDate = (value) => new Date(value).toLocaleString();
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Watch</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Available Stock</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ordered Count</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     </tr>
@@ -93,9 +109,10 @@ const formatDate = (value) => new Date(value).toLocaleString();
                 <tbody class="bg-white divide-y divide-gray-200">
                     <tr v-for="notification in notifications.data" :key="notification.id" class="hover:bg-gray-50">
                         <td class="px-6 py-4">
-                            <Link v-if="notification.product" :href="route('products.show', notification.product.id)" class="font-medium text-gray-900 hover:text-gold-600">
+                            <Link v-if="notification.product && $page.props.auth.user.role !== 'staff'" :href="route('products.show', notification.product.id)" class="font-medium text-gray-900 hover:text-gold-600">
                                 {{ notification.product.name }}
                             </Link>
+                            <span v-else class="font-medium text-gray-900">{{ notification.product?.name || 'Deleted watch' }}</span>
                             <div class="text-xs text-gray-500">{{ notification.product?.brand?.name || 'No brand' }}</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
@@ -106,11 +123,20 @@ const formatDate = (value) => new Date(value).toLocaleString();
                         <td class="px-6 py-4 whitespace-nowrap font-bold" :class="notification.stock_quantity === 0 ? 'text-red-600' : 'text-orange-600'">
                             {{ notification.stock_quantity }}
                         </td>
+                        <td class="px-6 py-4 text-sm">
+                            <form v-if="canEdit && editingId === notification.id" @submit.prevent="saveOrderedCount" class="space-y-2">
+                                <input v-model="orderForm.ordered_count" type="number" min="0" max="2147483647" step="1" required aria-label="Ordered count" class="w-32 rounded-md border-gray-300 text-sm" />
+                                <InputError :message="orderForm.errors.ordered_count" />
+                                <div class="flex gap-3"><button :disabled="orderForm.processing" class="text-gold-700 disabled:opacity-50">Save</button><button type="button" :disabled="orderForm.processing" @click="editingId = null" class="text-gray-500">Cancel</button></div>
+                            </form>
+                            <div v-else class="flex items-center gap-3"><span>{{ notification.ordered_count }}</span><button v-if="canEdit" type="button" :disabled="orderForm.processing" @click="editOrderedCount(notification)" class="text-gold-700">Edit</button></div>
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ formatDate(notification.created_at) }}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center gap-3">
                                 <span :class="statusClass(notification.status)" class="px-2 py-1 rounded-full text-xs font-semibold capitalize">{{ notification.status }}</span>
                                 <select
+                                    v-if="canEdit"
                                     :value="notification.status"
                                     @change="updateStatus(notification, $event.target.value)"
                                     class="text-sm rounded-md border-gray-300 focus:border-gold-500 focus:ring-gold-500"
@@ -121,7 +147,7 @@ const formatDate = (value) => new Date(value).toLocaleString();
                         </td>
                     </tr>
                     <tr v-if="!notifications.data?.length">
-                        <td colspan="5" class="px-6 py-10 text-center text-gray-500">No low-stock notifications found.</td>
+                        <td colspan="6" class="px-6 py-10 text-center text-gray-500">No low-stock notifications found.</td>
                     </tr>
                 </tbody>
             </table>

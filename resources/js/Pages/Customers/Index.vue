@@ -133,8 +133,8 @@ const deleteCustomer = (customer) => {
                             <p v-else-if="customer.source_details" class="mt-1 break-words text-gray-500">{{ customer.source_details }}</p>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                            <button @click="openModal(customer)" class="text-gold-600 hover:text-gold-800">Edit</button>
-                            <button @click="deleteCustomer(customer)" class="text-red-600 hover:text-red-800">Delete</button>
+                            <button v-if="$page.props.auth.user.role !== 'staff'" @click="openModal(customer)" class="text-gold-600 hover:text-gold-800">Edit</button>
+                            <button v-if="$page.props.auth.user.role !== 'staff'" @click="deleteCustomer(customer)" class="text-red-600 hover:text-red-800">Delete</button>
                         </td>
                     </tr>
                     <tr v-if="!customers?.data?.length">

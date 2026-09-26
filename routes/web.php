@@ -19,9 +19,9 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
-Route::get('/dashboard', [\App\Http\Controllers\CustomerInsightsController::class, 'dashboard'])->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [\App\Http\Controllers\CustomerInsightsController::class, 'dashboard'])->middleware(['auth', 'verified', 'staff.access'])->name('dashboard');
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'staff.access'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -48,7 +48,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('wallet/transactions/{walletTransaction}', [\App\Http\Controllers\WalletController::class, 'destroyTransaction'])->name('wallet.transactions.destroy');
     Route::get('wallet/transactions/{walletTransaction}/attachment', [\App\Http\Controllers\WalletController::class, 'attachment'])->name('wallet.transactions.attachment');
 
-    // Inventory management is available to every authenticated user.
+    // Staff access to inventory management is blocked by staff.access.
     Route::resource('banners', \App\Http\Controllers\BannerController::class);
 
     Route::resource('pre-orders', \App\Http\Controllers\PreOrderController::class)->only(['index', 'store', 'update']);
@@ -65,11 +65,11 @@ Route::middleware('auth')->group(function () {
         Route::resource('top-level-discounts', \App\Http\Controllers\TopLevelDiscountController::class);
         Route::get('settings', [\App\Http\Controllers\SettingController::class, 'index'])->name('settings.index');
         Route::put('settings', [\App\Http\Controllers\SettingController::class, 'update'])->name('settings.update');
-        Route::get('low-stock-notifications', [\App\Http\Controllers\LowStockNotificationController::class, 'index'])->name('low-stock-notifications.index');
         Route::patch('low-stock-notifications/{lowStockNotification}', [\App\Http\Controllers\LowStockNotificationController::class, 'update'])->name('low-stock-notifications.update');
     });
 
     // Admin + Manager Routes
+    Route::get('low-stock-notifications', [\App\Http\Controllers\LowStockNotificationController::class, 'index'])->middleware('role:admin,manager,staff')->name('low-stock-notifications.index');
     Route::middleware(['role:admin,manager'])->group(function () {
         Route::get('attendance/export', [\App\Http\Controllers\AttendanceController::class, 'export'])->name('attendance.export');
         Route::resource('attendance', \App\Http\Controllers\AttendanceController::class)
@@ -90,9 +90,9 @@ Route::middleware('auth')->group(function () {
     Route::get('orders/summary', [\App\Http\Controllers\OrderController::class, 'summary'])->name('orders.summary');
     Route::get('sales/analytics', \App\Http\Controllers\SalesAnalyticsController::class)->name('sales.analytics');
     Route::resource('watch-services', \App\Http\Controllers\WatchServiceController::class)
-        ->only(['index', 'store', 'show', 'update'])->middleware('role:admin');
-    Route::post('watch-services/{watch_service}/expenses', [\App\Http\Controllers\WatchServiceController::class, 'expense'])->middleware('role:admin')->name('watch-services.expenses.store');
-    Route::patch('watch-services/{watch_service}/expenses/{expense}/void', [\App\Http\Controllers\WatchServiceController::class, 'voidExpense'])->middleware('role:admin')->name('watch-services.expenses.void');
+        ->only(['index', 'store', 'show', 'update'])->middleware('role:admin,manager,staff');
+    Route::post('watch-services/{watch_service}/expenses', [\App\Http\Controllers\WatchServiceController::class, 'expense'])->middleware('role:admin,manager,staff')->name('watch-services.expenses.store');
+    Route::patch('watch-services/{watch_service}/expenses/{expense}/void', [\App\Http\Controllers\WatchServiceController::class, 'voidExpense'])->middleware('role:admin,manager,staff')->name('watch-services.expenses.void');
     Route::get('orders/{order}/history', \App\Http\Controllers\OrderHistoryController::class)->name('orders.history');
     Route::resource('orders', \App\Http\Controllers\OrderController::class)->only(['index', 'show']);
     Route::post('orders/{order}/files/presign', [\App\Http\Controllers\OrderAttachmentController::class, 'presign'])->middleware('throttle:60,1')->name('orders.files.presign');

@@ -41,7 +41,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'settings' => fn () => \App\Models\Setting::pluck('value', 'key')->toArray(),
             'storage_url' => rtrim(\Illuminate\Support\Facades\Storage::disk('s3')->url(''), '/'),
-            'low_stock_pending_count' => fn () => $request->user()?->role === 'admin'
+            'low_stock_pending_count' => fn () => in_array($request->user()?->role, ['admin', 'manager', 'staff'], true)
                 ? \App\Models\LowStockNotification::where('status', 'pending')->whereNull('resolved_at')->count()
                 : 0,
         ];

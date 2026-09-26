@@ -15,6 +15,7 @@ class LowStockNotification extends Model
 
     protected $casts = [
         'stock_quantity' => 'integer',
+        'ordered_count' => 'integer',
         'priority_level' => 'integer',
         'resolved_at' => 'datetime',
     ];
