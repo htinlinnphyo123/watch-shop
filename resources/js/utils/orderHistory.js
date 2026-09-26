@@ -44,6 +44,9 @@ export function orderChangeGroups(before, after) {
     if (!before || !after) return [];
     const groups = { Watches: [], Payments: [], 'Order details': [], Files: [] };
     const fields = [
+        ['delivery_code', 'Delivery code changed', value => value || 'Not recorded'],
+        ['remark', 'Remark changed', value => value || 'Not recorded'],
+        ['money_transfer_amount', 'Money transfer amount changed', value => value == null ? 'Not recorded' : money(value)],
         ['customer', 'Customer changed', value => value?.name || 'Walk-in Customer'],
         ['discount_percentage', 'Discount changed', value => `${Number(value || 0)}%`],
         ['total_amount', 'Order total changed', money],
@@ -99,6 +102,7 @@ export function historyLabels(versions) {
 }
 
 export function activitySummary(entry) {
+    if (entry.event === 'cancelled') return 'Order cancelled and sold stock returned to inventory.';
     if (entry.event === 'created') return 'The order was first placed.';
     if (entry.event === 'baseline') return 'The earliest order details available.';
     if (entry.event === 'approved') return 'Approved and watch stock assigned.';

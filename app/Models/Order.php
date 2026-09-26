@@ -16,6 +16,7 @@ class Order extends Model
         'payments' => 'array',
         'discount_percentage' => 'decimal:2',
         'amount_paid' => 'decimal:2',
+        'money_transfer_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
     ];
 

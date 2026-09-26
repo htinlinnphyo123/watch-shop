@@ -16,6 +16,13 @@ class WalletTransaction extends Model
         'balance_after' => 'decimal:2',
     ];
 
+    protected $appends = ['attachment_url'];
+
+    public function getAttachmentUrlAttribute(): ?string
+    {
+        return $this->attachment_path ? route('wallet.transactions.attachment', $this) : null;
+    }
+
     public function wallet()
     {
         return $this->belongsTo(Wallet::class);

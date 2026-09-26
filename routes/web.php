@@ -46,6 +46,7 @@ Route::middleware('auth')->group(function () {
     Route::post('wallet/transactions', [\App\Http\Controllers\WalletController::class, 'storeTransaction'])->name('wallet.transactions.store');
     Route::put('wallet/transactions/{walletTransaction}', [\App\Http\Controllers\WalletController::class, 'updateTransaction'])->name('wallet.transactions.update');
     Route::delete('wallet/transactions/{walletTransaction}', [\App\Http\Controllers\WalletController::class, 'destroyTransaction'])->name('wallet.transactions.destroy');
+    Route::get('wallet/transactions/{walletTransaction}/attachment', [\App\Http\Controllers\WalletController::class, 'attachment'])->name('wallet.transactions.attachment');
 
     // Inventory management is available to every authenticated user.
     Route::resource('banners', \App\Http\Controllers\BannerController::class);
@@ -97,6 +98,7 @@ Route::middleware('auth')->group(function () {
     Route::post('orders/{order}/files/{attachment}/complete', [\App\Http\Controllers\OrderAttachmentController::class, 'complete'])->name('orders.files.complete');
     Route::get('orders/{order}/files/{attachment}', [\App\Http\Controllers\OrderAttachmentController::class, 'download'])->name('orders.files.download');
     Route::post('orders/{order}/approve', [\App\Http\Controllers\OrderController::class, 'approve'])->name('orders.approve');
+    Route::post('orders/{order}/cancel', [\App\Http\Controllers\OrderController::class, 'cancel'])->name('orders.cancel');
 });
 
 require __DIR__.'/auth.php';

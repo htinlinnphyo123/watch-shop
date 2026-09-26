@@ -111,4 +111,34 @@ class OrderController extends Controller
             return redirect()->back()->withErrors(['error' => 'Approval failed: '.$e->getMessage()]);
         }
     }
+
+    public function cancel(Order $order)
+    {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($order) {
+            $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            if ($order->status === 'cancelled') {
+                return;
+            }
+            abort_unless(in_array($order->status, ['pending', 'completed'], true), 422);
+            $audit = app(\App\Services\OrderAuditService::class);
+            $before = $audit->before($order);
+            $lines = $order->items()->with(['soldItems' => fn ($query) => $query->lockForUpdate()])->get();
+            foreach ($lines as $line) {
+                if ($order->status === 'completed' && ($line->soldItems->count() !== $line->quantity || $line->soldItems->contains(fn ($unit) => $unit->status !== 'sold'))) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['error' => 'The sold stock records have changed. Review this order before cancelling it.']);
+                }
+            }
+            \App\Models\ProductItem::whereIn('order_item_id', $lines->pluck('id'))->where('status', 'sold')
+                ->update(['status' => 'available', 'order_item_id' => null]);
+            $order->update(['status' => 'cancelled', 'edit_version' => $order->edit_version + 1]);
+            foreach ($lines->pluck('product_id')->unique()->sort() as $productId) {
+                if ($product = Product::find($productId)) {
+                    $this->lowStockNotifications->sync($product);
+                }
+            }
+            $audit->record($order, 'cancelled', $before);
+        });
+
+        return redirect()->back()->with('success', 'Order cancelled. Sold stock has been returned to available inventory.');
+    }
 }

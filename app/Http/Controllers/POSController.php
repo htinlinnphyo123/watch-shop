@@ -115,6 +115,10 @@ class POSController extends Controller
         $request->validate([
             'edit_version' => $editingOrder ? 'required|integer|min:0' : 'nullable|integer',
             'customer_id' => 'nullable|exists:customers,id',
+            'status' => 'sometimes|required|in:pending,completed',
+            'delivery_code' => 'nullable|string|max:255',
+            'remark' => 'nullable|string|max:5000',
+            'money_transfer_amount' => 'nullable|numeric|min:0|max:999999999999|decimal:0,2',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'payment_method' => 'required_without:payments|nullable|in:cash,kbz_pay,card,transfer,cb_pay,aya_pay,other',
             'amount_paid' => 'required_without:payments|nullable|numeric|min:0|max:999999999999|decimal:0,2',
@@ -155,6 +159,10 @@ class POSController extends Controller
                     ProductItem::whereIn('order_item_id', $originalLines->keys())->where('status', 'sold')
                         ->update(['status' => 'available', 'order_item_id' => null]);
                 }
+            }
+            $status = $editingOrder?->status ?? $request->input('status', 'completed');
+            if ($editingOrder && $request->has('status') && $request->status !== $status) {
+                throw ValidationException::withMessages(['status' => 'Use the order approval or cancellation action to change its status.']);
             }
             $chosenIds = [];
             $pinnedIds = collect($request->cart)->pluck('item_id')->filter()->all();
@@ -249,11 +257,15 @@ class POSController extends Controller
                     'amount' => $request->amount_paid,
                 ]]),
                 $totalAmount,
+                $status === 'pending',
             );
 
-            $order = $editingOrder ?? new Order(['user_id' => auth()->id(), 'order_number' => 'ORD-'.strtoupper(uniqid()), 'status' => 'completed']);
+            $order = $editingOrder ?? new Order(['user_id' => auth()->id(), 'order_number' => 'ORD-'.strtoupper(uniqid()), 'status' => $status]);
             $order->fill([
                 'customer_id' => $request->customer_id,
+                'delivery_code' => $request->input('delivery_code', $editingOrder?->delivery_code),
+                'remark' => $request->input('remark', $editingOrder?->remark),
+                'money_transfer_amount' => $request->input('money_transfer_amount', $editingOrder?->money_transfer_amount),
                 'discount_percentage' => round($discountPercentage, 2),
                 ...$paymentDetails,
                 'total_amount' => $totalAmount,
@@ -349,6 +361,8 @@ class POSController extends Controller
         return [
             'id' => $order->id, 'order_number' => $order->order_number, 'status' => $order->status,
             'edit_version' => $order->edit_version, 'customer_id' => $order->customer_id,
+            'delivery_code' => $order->delivery_code, 'remark' => $order->remark,
+            'money_transfer_amount' => $order->money_transfer_amount,
             'discount_percentage' => $order->discount_percentage, 'cart' => $cart,
             'payments' => $order->payments ?: [['method' => $order->payment_method ?: 'cash', 'amount' => $order->amount_paid ?? $order->total_amount]],
         ];
