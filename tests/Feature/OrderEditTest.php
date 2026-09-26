@@ -63,6 +63,59 @@ class OrderEditTest extends TestCase
         return $this->put(route('pos.orders.update', $this->order), $this->payload($overrides));
     }
 
+    public function test_cancellation_restores_only_owned_units_once_and_keeps_history(): void
+    {
+        $other = ProductItem::create(['product_id' => $this->product->id, 'status' => 'sold']);
+        $this->post(route('orders.cancel', $this->order))->assertSessionHasNoErrors();
+        $this->assertSame('cancelled', $this->order->fresh()->status);
+        $this->assertSame('available', $this->unit->fresh()->status);
+        $this->assertNull($this->unit->fresh()->order_item_id);
+        $this->assertSame('sold', $other->fresh()->status);
+        $this->assertSame(1, $this->order->items()->count());
+        $this->assertSame('18000.00', $this->order->fresh()->amount_paid);
+        $this->post(route('orders.cancel', $this->order))->assertSessionHasNoErrors();
+        $this->assertSame(1, \App\Models\OrderAudit::where('order_id', $this->order->id)->where('event', 'cancelled')->count());
+        $this->save()->assertSessionHasErrors('error');
+    }
+
+    public function test_cod_pending_supports_zero_partial_payments_and_delivery_details(): void
+    {
+        $this->unit->update(['status' => 'available', 'order_item_id' => null]);
+        $payload = [
+            'status' => 'pending', 'delivery_code' => 'COD-123', 'remark' => 'Call before delivery', 'money_transfer_amount' => '0.00',
+            'payments' => [['method' => 'cash', 'amount' => 0]],
+            'cart' => [['product_id' => $this->product->id, 'quantity' => 1]],
+        ];
+        $this->post(route('pos.checkout'), $payload)->assertSessionHasNoErrors();
+        $order = Order::latest('id')->first();
+        $this->assertSame('pending', $order->status);
+        $this->assertSame('0.00', $order->amount_paid);
+        $this->assertSame('COD-123', $order->delivery_code);
+        $this->assertSame('available', $this->unit->fresh()->status);
+        $this->put(route('pos.orders.update', $order), array_replace($payload, [
+            'edit_version' => 0, 'money_transfer_amount' => '1000.00',
+            'payments' => [['method' => 'transfer', 'amount' => 1000]],
+        ]))->assertSessionHasNoErrors();
+        $this->assertSame('1000.00', $order->fresh()->amount_paid);
+        $this->assertSame('1000.00', $order->fresh()->money_transfer_amount);
+        $this->get('/pos?order_id='.$order->id)->assertInertia(fn (Assert $page) => $page
+            ->where('editingOrder.delivery_code', 'COD-123')->where('editingOrder.remark', 'Call before delivery')
+            ->where('editingOrder.money_transfer_amount', '1000.00'));
+        $this->post(route('orders.cancel', $order))->assertSessionHasNoErrors();
+        $this->assertSame('available', $this->unit->fresh()->status);
+        $this->assertSame(1, ProductItem::where('status', 'available')->count());
+    }
+
+    public function test_invalid_cod_fields_and_incomplete_stock_cancellation_are_rejected(): void
+    {
+        $this->save(['money_transfer_amount' => -1])->assertSessionHasErrors('money_transfer_amount');
+        $this->save(['delivery_code' => str_repeat('x', 256)])->assertSessionHasErrors('delivery_code');
+        $this->unit->update(['status' => 'reserved']);
+        $this->post(route('orders.cancel', $this->order))->assertSessionHasErrors('error');
+        $this->assertSame('completed', $this->order->fresh()->status);
+        $this->assertSame('reserved', $this->unit->fresh()->status);
+    }
+
     public function test_pos_loads_original_prices_watches_and_payments_without_modifying_stock(): void
     {
         $this->get('/pos?order_id='.$this->order->id)->assertInertia(fn (Assert $page) => $page

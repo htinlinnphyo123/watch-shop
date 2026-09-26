@@ -7,6 +7,7 @@ use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -96,19 +97,25 @@ class WalletController extends Controller
             'type' => ['required', Rule::in($isAdmin ? ['credit', 'debit'] : ['debit'])],
             'amount' => ['required', 'numeric', 'decimal:0,2', 'gt:0', 'max:9999999999999.99'],
             'description' => ['nullable', 'string', 'max:255'],
+            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
         ]);
         $actorId = $request->user()->getKey();
         $walletOwnerId = $isAdmin ? $validated['user_id'] : $actorId;
 
-        DB::transaction(function () use ($validated, $actorId, $walletOwnerId) {
+        DB::transaction(function () use ($validated, $actorId, $walletOwnerId, $request) {
             $wallet = $this->lockedWalletForUser($walletOwnerId);
-            $wallet->transactions()->create([
+            $data = [
                 'created_by' => $actorId,
                 'type' => $validated['type'],
                 'amount' => $validated['amount'],
                 'balance_after' => 0,
                 'description' => $validated['description'] ?? null,
-            ]);
+            ];
+            if ($request->hasFile('attachment')) {
+                $data['attachment_path'] = $request->file('attachment')->store('wallet-vouchers', 'public');
+                $data['attachment_name'] = $request->file('attachment')->getClientOriginalName();
+            }
+            $wallet->transactions()->create($data);
 
             $this->recalculateWallet($wallet);
         });
@@ -124,20 +131,35 @@ class WalletController extends Controller
             'type' => ['required', Rule::in($request->user()->role === 'admin' ? ['credit', 'debit'] : ['debit'])],
             'amount' => ['required', 'numeric', 'decimal:0,2', 'gt:0', 'max:9999999999999.99'],
             'description' => ['nullable', 'string', 'max:255'],
+            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
         ]);
 
-        DB::transaction(function () use ($walletTransaction, $validated) {
+        DB::transaction(function () use ($walletTransaction, $validated, $request) {
             $wallet = $this->lockedWalletForUser($walletTransaction->wallet->user_id);
             $walletTransaction->update([
                 'type' => $validated['type'],
                 'amount' => $validated['amount'],
                 'description' => $validated['description'] ?? null,
             ]);
+            if ($request->hasFile('attachment')) {
+                if ($walletTransaction->attachment_path) Storage::disk('public')->delete($walletTransaction->attachment_path);
+                $walletTransaction->update([
+                    'attachment_path' => $request->file('attachment')->store('wallet-vouchers', 'public'),
+                    'attachment_name' => $request->file('attachment')->getClientOriginalName(),
+                ]);
+            }
 
             $this->recalculateWallet($wallet);
         });
 
         return redirect()->back()->with('success', 'Wallet transaction updated.');
+    }
+
+    public function attachment(Request $request, WalletTransaction $walletTransaction)
+    {
+        $this->authorizeTransactionAccess($request, $walletTransaction);
+        abort_unless($walletTransaction->attachment_path && Storage::disk('public')->exists($walletTransaction->attachment_path), 404);
+        return Storage::disk('public')->download($walletTransaction->attachment_path, $walletTransaction->attachment_name);
     }
 
     public function destroyTransaction(Request $request, WalletTransaction $walletTransaction)
@@ -146,6 +168,7 @@ class WalletController extends Controller
 
         DB::transaction(function () use ($walletTransaction) {
             $wallet = $this->lockedWalletForUser($walletTransaction->wallet->user_id);
+            if ($walletTransaction->attachment_path) Storage::disk('public')->delete($walletTransaction->attachment_path);
             $walletTransaction->delete();
             $this->recalculateWallet($wallet);
         });

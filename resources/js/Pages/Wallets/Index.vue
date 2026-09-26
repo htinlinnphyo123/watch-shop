@@ -44,6 +44,7 @@ const form = useForm({
     type: props.isAdmin ? 'credit' : 'debit',
     amount: '',
     description: '',
+    attachment: null,
 });
 const editingTransaction = ref(null);
 
@@ -58,6 +59,7 @@ const resetForm = () => {
 const submitTransaction = () => {
     const options = {
         preserveScroll: true,
+        forceFormData: true,
         onSuccess: resetForm,
     };
 
@@ -77,6 +79,7 @@ const editTransaction = (transaction) => {
     form.type = transaction.type;
     form.amount = transaction.amount;
     form.description = transaction.description || '';
+    form.attachment = null;
     form.clearErrors();
     window.scrollTo({ top: 0, behavior: 'smooth' });
 };
@@ -203,6 +206,12 @@ const clearDateFilters = () => {
                     <InputError class="mt-2" :message="form.errors.type" />
                 </div>
                 <div>
+                    <InputLabel value="Voucher / attachment" />
+                    <input type="file" accept="image/*,.pdf" @change="form.attachment = $event.target.files[0] || null" class="mt-1 block w-full text-sm text-gray-600" />
+                    <p class="mt-1 text-xs text-gray-500">Optional JPG, PNG, WEBP, or PDF up to 10 MB.</p>
+                    <InputError class="mt-2" :message="form.errors.attachment" />
+                </div>
+                <div>
                     <InputLabel value="Amount (MMK)" />
                     <TextInput v-model="form.amount" type="number" min="0.01" step="0.01" class="mt-1 block w-full" required />
                     <InputError class="mt-2" :message="form.errors.amount" />
@@ -311,7 +320,7 @@ const clearDateFilters = () => {
                             {{ transaction.type === 'credit' ? '+' : '-' }}{{ formatMoney(transaction.amount) }} MMK
                         </td>
                         <td class="px-6 py-4 text-right whitespace-nowrap text-gray-900">{{ formatMoney(transaction.balance_after) }} MMK</td>
-                        <td class="px-6 py-4 text-sm text-gray-600">{{ transaction.description || '—' }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600"><div>{{ transaction.description || '—' }}</div><a v-if="transaction.attachment_url" :href="transaction.attachment_url" class="mt-1 inline-block text-gold-700 underline">Voucher{{ transaction.attachment_name ? `: ${transaction.attachment_name}` : '' }}</a></td>
                         <td class="px-6 py-4 text-sm text-gray-500">{{ transaction.created_by?.name || 'System' }}</td>
                         <td class="px-6 py-4 text-right whitespace-nowrap text-sm space-x-3">
                             <template v-if="canManageTransaction(transaction)">

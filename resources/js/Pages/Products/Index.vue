@@ -146,6 +146,9 @@ const form = useForm({
   youtube_link: "",
   case_material: "",
   priority_level: 0,
+  ordered_stock_count: 0,
+  low_stock_alert_count: 2,
+  remark: "",
   barcode: "",
   currency: "MMK",
   crystal: "",
@@ -313,6 +316,9 @@ const openModal = (product = null) => {
     form.youtube_link = product.youtube_link || "";
     form.case_material = product.case_material || "";
     form.priority_level = product.priority_level ?? 0;
+    form.ordered_stock_count = product.ordered_stock_count ?? 0;
+    form.low_stock_alert_count = product.low_stock_alert_count ?? 2;
+    form.remark = product.remark || "";
     form.barcode = product.barcode;
     form.currency = product.currency || "MMK";
     form.crystal = product.crystal || "";
@@ -379,6 +385,9 @@ const openModal = (product = null) => {
     form.youtube_link = "";
     form.case_material = "";
     form.priority_level = 0;
+    form.ordered_stock_count = 0;
+    form.low_stock_alert_count = 2;
+    form.remark = "";
     form.crystal = "";
     form.caliber_code = "";
     form.caseback_design = "";
@@ -1111,6 +1120,23 @@ const deleteProduct = (product) => {
                 placeholder="Auto-generate"
               />
             </div>
+            <div>
+              <InputLabel value="Ordered Stock Count" class="text-gray-700" />
+              <TextInput type="number" min="0" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900" v-model="form.ordered_stock_count" />
+              <InputError class="mt-2" :message="form.errors.ordered_stock_count" />
+            </div>
+            <div>
+              <InputLabel value="Low Stock Alert Count" class="text-gray-700" />
+              <TextInput type="number" min="0" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900" v-model="form.low_stock_alert_count" />
+              <InputError class="mt-2" :message="form.errors.low_stock_alert_count" />
+              <p class="mt-1 text-xs text-gray-500">Alert when available stock is below this number.</p>
+            </div>
+          </div>
+
+          <div class="mt-4">
+            <InputLabel value="Remark" class="text-gray-700" />
+            <textarea v-model="form.remark" maxlength="5000" rows="3" class="mt-1 block w-full rounded-md border-gray-300 bg-gray-50"></textarea>
+            <InputError class="mt-2" :message="form.errors.remark" />
           </div>
 
           <div class="grid grid-cols-2 gap-4">

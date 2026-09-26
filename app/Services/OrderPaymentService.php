@@ -7,7 +7,7 @@ use Illuminate\Validation\ValidationException;
 class OrderPaymentService
 {
     /** Normalize validated tender amounts and compare them in minor currency units. */
-    public function summarize(array $payments, float $total): array
+    public function summarize(array $payments, float $total, bool $allowPartial = false): array
     {
         $totalCents = (int) round($total * 100);
         $paidCents = 0;
@@ -15,7 +15,7 @@ class OrderPaymentService
 
         foreach ($payments as $index => &$payment) {
             $cents = (int) round((float) $payment['amount'] * 100);
-            if ($cents <= 0 && ! ($totalCents === 0 && count($payments) === 1 && $cents === 0)) {
+            if ($cents <= 0 && ! (($totalCents === 0 || $allowPartial) && count($payments) === 1 && $cents === 0)) {
                 throw ValidationException::withMessages(["payments.$index.amount" => 'Enter an amount greater than zero, or remove this payment.']);
             }
             $payment = ['method' => $payment['method'], 'amount' => number_format($cents / 100, 2, '.', '')];
@@ -26,7 +26,7 @@ class OrderPaymentService
         }
         unset($payment);
 
-        if ($paidCents < $totalCents) {
+        if (! $allowPartial && $paidCents < $totalCents) {
             throw ValidationException::withMessages(['payments' => 'Payments are '.number_format(($totalCents - $paidCents) / 100, 2).' Ks short of the total due.']);
         }
         if ($nonCashCents > $totalCents) {

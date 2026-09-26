@@ -43,6 +43,9 @@ class OrderAuditService
             'discount_percentage' => number_format((float) $order->discount_percentage, 2, '.', ''),
             'total_amount' => number_format((float) $order->total_amount, 2, '.', ''),
             'amount_paid' => $order->amount_paid,
+            'delivery_code' => $order->delivery_code,
+            'remark' => $order->remark,
+            'money_transfer_amount' => $order->money_transfer_amount,
             'change' => number_format(max(0, (float) $order->amount_paid - (float) $order->total_amount), 2, '.', ''),
             'watches' => $watches, 'payments' => $payments, 'attachments' => $attachments,
         ];
@@ -80,6 +83,11 @@ class OrderAuditService
     public function compare(array $before, array $after): array
     {
         $changes = [];
+        foreach (['delivery_code' => 'Delivery code', 'remark' => 'Remark', 'money_transfer_amount' => 'Money transfer amount (Ks)'] as $key => $label) {
+            if (($before[$key] ?? null) !== ($after[$key] ?? null)) {
+                $changes[] = ['section' => 'Order', 'label' => $label, 'before' => $this->display($before[$key] ?? null), 'after' => $this->display($after[$key] ?? null)];
+            }
+        }
         foreach (['order_number' => 'Order number', 'status' => 'Status', 'customer' => 'Customer', 'discount_percentage' => 'Discount (%)', 'total_amount' => 'Total (Ks)', 'amount_paid' => 'Amount received (Ks)', 'change' => 'Change (Ks)'] as $key => $label) {
             if (($before[$key] ?? null) !== ($after[$key] ?? null)) {
                 $changes[] = ['section' => 'Order', 'label' => $label, 'before' => $this->display($before[$key] ?? null), 'after' => $this->display($after[$key] ?? null)];

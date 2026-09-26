@@ -26,7 +26,7 @@ class LowStockNotificationService
                 ->first();
 
             $isLowStock = in_array($product->priority_level, [2, 3], true)
-                && $stockQuantity < 2;
+                && $stockQuantity < (int) $product->low_stock_alert_count;
 
             if ($isLowStock) {
                 if ($activeNotification) {

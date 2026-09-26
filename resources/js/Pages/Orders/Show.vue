@@ -45,6 +45,12 @@ const approveOrder = () => {
         router.post(route('orders.approve', props.order.id));
     }
 };
+
+const cancelOrder = () => {
+    if (confirm('Cancel this order? Its sold stock will return to available inventory. The order and payment history will be kept. Arrange any refund separately.')) {
+        router.post(route('orders.cancel', props.order.id));
+    }
+};
 </script>
 
 <style>
@@ -97,6 +103,7 @@ const approveOrder = () => {
                     Back to Orders
                 </Link>
                 <div class="flex flex-wrap gap-3">
+                    <button v-if="['completed', 'pending'].includes(order.status)" @click="cancelOrder" class="rounded-lg border border-red-300 px-5 py-2.5 text-sm font-semibold text-red-700">Cancel Order</button>
                     <Link :href="route('orders.history', order.id)" class="inline-flex items-center rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">View History</Link>
                     <Link v-if="['completed', 'pending'].includes(order.status)" :href="route('pos.index', { order_id: order.id })" class="inline-flex items-center rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">Edit Order</Link>
                     <button
@@ -121,6 +128,14 @@ const approveOrder = () => {
             <!-- ══════════════════════════════════════════════════════════
                  INVOICE CARD
             ══════════════════════════════════════════════════════════ -->
+            <p v-if="$page.props.errors.error" role="alert" class="no-print mb-4 text-sm text-red-700">{{ $page.props.errors.error }}</p>
+            <section class="no-print mb-6 space-y-2 rounded-xl border border-gray-200 bg-white p-5 text-sm">
+                <p><span class="font-semibold">Delivery code:</span> {{ order.delivery_code || '—' }}</p>
+                <p><span class="font-semibold">Money transfer amount:</span> {{ order.money_transfer_amount == null ? '—' : Number(order.money_transfer_amount).toLocaleString() + ' Ks' }}</p>
+                <p class="whitespace-pre-wrap break-words"><span class="font-semibold">Remark:</span> {{ order.remark || '—' }}</p>
+                <p v-if="order.status === 'pending'" class="text-amber-700">Pending / COD · {{ balanceDue.toLocaleString() }} Ks due. Update payments through Edit Order. Approval deducts stock; it does not record a payment.</p>
+                <p v-if="order.status === 'cancelled'" class="text-red-700">Cancelled. Sold stock was returned to inventory. Payment history is retained; refunds are handled separately.</p>
+            </section>
             <div class="invoice-printable bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden" style="font-family: 'Inter', sans-serif;">
 
                 <!-- Gold top accent bar -->

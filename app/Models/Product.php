@@ -22,6 +22,8 @@ class Product extends Model
         'is_limited_collection' => 'boolean',
         'is_latest' => 'boolean',
         'priority_level' => 'integer',
+        'ordered_stock_count' => 'integer',
+        'low_stock_alert_count' => 'integer',
     ];
 
     public function toArray(): array

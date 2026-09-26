@@ -1,5 +1,6 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import InputError from '@/Components/InputError.vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { ref, computed, watch, nextTick } from 'vue';
 import Modal from '@/Components/Modal.vue';
@@ -74,6 +75,10 @@ const formatPrice = (amount) => new Intl.NumberFormat('en-US', {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const checkoutForm = useForm({
+    status: props.editingOrder?.status || 'completed',
+    delivery_code: props.editingOrder?.delivery_code || '',
+    remark: props.editingOrder?.remark || '',
+    money_transfer_amount: props.editingOrder?.money_transfer_amount ?? '',
     customer_id: props.editingOrder?.customer_id || '',
     discount_percentage: props.editingOrder?.discount_percentage || 0,
     payments: props.editingOrder?.payments.map(payment => ({ ...payment })) || [{ method: 'cash', amount: 0 }],
@@ -170,7 +175,7 @@ const nonCashOverpaid = computed(() => checkoutForm.payments
 const invalidPayment = computed(() => checkoutForm.payments.some(payment =>
     payment.amount === '' || !Number.isFinite(Number(payment.amount)) ||
     Number(payment.amount) < 0 ||
-    (paymentCents(payment.amount) === 0 && (total.value > 0 || checkoutForm.payments.length > 1))
+    (paymentCents(payment.amount) === 0 && ((total.value > 0 && checkoutForm.status !== 'pending') || checkoutForm.payments.length > 1))
 ));
 const checkoutPaymentMethods = computed(() => paymentMethods.some(method => method.value === 'transfer') ? paymentMethods : [...paymentMethods, { value: 'transfer', label: 'Bank Transfer' }]);
 const addPayment = () => {
@@ -368,7 +373,7 @@ const openCheckout = () => {
 };
 
 const submitCheckout = () => {
-    if (amountShort.value > 0 || nonCashOverpaid.value || invalidPayment.value || checkoutForm.processing) return;
+    if ((amountShort.value > 0 && checkoutForm.status !== 'pending') || nonCashOverpaid.value || invalidPayment.value || checkoutForm.processing) return;
     checkoutForm.discount_percentage = appliedDiscountPercentage.value;
     checkoutForm.submit(props.editingOrder ? 'put' : 'post', props.editingOrder ? route('pos.orders.update', props.editingOrder.id) : route('pos.checkout'), {
         onSuccess: () => {
@@ -785,6 +790,31 @@ const submitCheckout = () => {
                 <h2 class="text-lg font-bold text-gray-900 mb-4">{{ editingOrder ? 'Update Order' : 'Checkout' }}</h2>
 
                 <form @submit.prevent="submitCheckout" class="space-y-4">
+                    <div>
+                        <InputLabel value="Order status" />
+                        <select v-model="checkoutForm.status" :disabled="!!editingOrder" class="mt-1 block w-full rounded-md border-gray-300">
+                            <option value="completed">Completed sale</option>
+                            <option value="pending">Pending / Cash on delivery (COD)</option>
+                        </select>
+                        <p v-if="checkoutForm.status === 'pending'" class="mt-2 text-sm text-gray-500">Enter the payment received so far, including zero. Stock stays available until the order is approved.</p>
+                        <InputError :message="checkoutForm.errors.status" />
+                    </div>
+                    <div>
+                        <InputLabel value="Delivery code (optional)" />
+                        <TextInput v-model="checkoutForm.delivery_code" maxlength="255" class="mt-1 block w-full" />
+                        <InputError :message="checkoutForm.errors.delivery_code" />
+                    </div>
+                    <div>
+                        <InputLabel value="Money transfer amount (Ks, optional)" />
+                        <TextInput v-model="checkoutForm.money_transfer_amount" type="number" min="0" max="999999999999" step="0.01" class="mt-1 block w-full" />
+                        <p class="mt-1 text-xs text-gray-500">Track the delivery company's remittance here. Include money received in the payment entries below to update the balance due.</p>
+                        <InputError :message="checkoutForm.errors.money_transfer_amount" />
+                    </div>
+                    <div>
+                        <InputLabel value="Remark (optional)" />
+                        <textarea v-model="checkoutForm.remark" maxlength="5000" rows="3" class="mt-1 block w-full rounded-md border-gray-300" />
+                        <InputError :message="checkoutForm.errors.remark" />
+                    </div>
                     <p v-for="(message, key) in Object.fromEntries(Object.entries(checkoutForm.errors).filter(([key]) => key.startsWith('cart') || key === 'edit_version' || key === 'customer_id'))" :key="key" role="alert" class="text-sm text-red-600">{{ message }}</p>
                     <div
                         v-if="checkoutForm.errors.error"
@@ -835,7 +865,7 @@ const submitCheckout = () => {
                             </div>
                             <p v-if="checkoutForm.errors[`payments.${index}.method`]" class="mt-1 text-sm text-red-600">{{ checkoutForm.errors[`payments.${index}.method`] }}</p>
                             <p v-if="checkoutForm.errors[`payments.${index}.amount`]" class="mt-1 text-sm text-red-600">{{ checkoutForm.errors[`payments.${index}.amount`] }}</p>
-                            <p v-else-if="paymentCents(payment.amount) <= 0 && (total > 0 || checkoutForm.payments.length > 1)" class="mt-1 text-sm text-red-600">Enter an amount greater than zero, or remove this payment.</p>
+                            <p v-else-if="paymentCents(payment.amount) <= 0 && ((total > 0 && checkoutForm.status !== 'pending') || checkoutForm.payments.length > 1)" class="mt-1 text-sm text-red-600">Enter an amount greater than zero, or remove this payment.</p>
                         </div>
                         <p v-if="amountShort > 0" role="status" class="text-sm text-red-600">{{ amountShort.toLocaleString() }} Ks still due.</p>
                         <p v-if="nonCashOverpaid" role="alert" class="text-sm text-red-600">Non-cash payments cannot exceed the total due. Change can only be returned from cash.</p>
@@ -861,9 +891,9 @@ const submitCheckout = () => {
                         <PrimaryButton
                             type="submit"
                             class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold"
-                            :class="{ 'opacity-25': checkoutForm.processing || amountShort > 0 || nonCashOverpaid || invalidPayment }"
-                            :disabled="checkoutForm.processing || amountShort > 0 || nonCashOverpaid || invalidPayment"
-                        >{{ checkoutForm.processing ? 'Saving…' : editingOrder ? 'Save Order Changes' : 'Complete Sale' }}</PrimaryButton>
+                            :class="{ 'opacity-25': checkoutForm.processing || (amountShort > 0 && checkoutForm.status !== 'pending') || nonCashOverpaid || invalidPayment }"
+                            :disabled="checkoutForm.processing || (amountShort > 0 && checkoutForm.status !== 'pending') || nonCashOverpaid || invalidPayment"
+                        >{{ checkoutForm.processing ? 'Saving…' : editingOrder ? 'Save Order Changes' : checkoutForm.status === 'pending' ? 'Save Pending Order' : 'Complete Sale' }}</PrimaryButton>
                     </div>
                 </form>
             </div>

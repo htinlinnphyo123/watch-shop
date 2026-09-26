@@ -226,7 +226,7 @@ const deleteCustomer = (customer) => {
                     </div>
 
                     <div>
-                        <InputLabel value="Address" class="text-gray-700" />
+                        <InputLabel value="Address (optional)" class="text-gray-700" />
                         <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900" v-model="form.address" />
                         <InputError class="mt-2" :message="form.errors.address" />
                     </div>
