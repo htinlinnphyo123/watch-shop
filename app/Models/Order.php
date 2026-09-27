@@ -18,6 +18,8 @@ class Order extends Model
         'amount_paid' => 'decimal:2',
         'money_transfer_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
+        'delivery_fees' => 'decimal:2',
+        'order_date' => 'date:Y-m-d',
     ];
 
     public function user()

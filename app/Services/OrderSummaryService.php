@@ -12,10 +12,10 @@ class OrderSummaryService
     public function filter(Builder $query, array $filters): Builder
     {
         if (! empty($filters['date_from'])) {
-            $query->whereDate('orders.created_at', '>=', $filters['date_from']);
+            $query->whereRaw('DATE(COALESCE(orders.order_date, orders.created_at)) >= ?', [$filters['date_from']]);
         }
         if (! empty($filters['date_to'])) {
-            $query->whereDate('orders.created_at', '<=', $filters['date_to']);
+            $query->whereRaw('DATE(COALESCE(orders.order_date, orders.created_at)) <= ?', [$filters['date_to']]);
         }
         if (! empty($filters['payment_type'])) {
             if ($filters['payment_type'] === 'split') {

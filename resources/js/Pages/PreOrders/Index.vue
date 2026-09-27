@@ -1,5 +1,7 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import SalesRecordFields from '@/Components/SalesRecordFields.vue';
+import { preOrderDefaults, recordValues } from '@/utils/salesRecordFields';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions } from '@headlessui/vue';
@@ -40,7 +42,7 @@ const clearFilters = () => {
 };
 const isOpen = ref(false);
 const editing = ref(null);
-const form = useForm({ customer_id: '', brand_id: '', watch_details: '', amount_paid: '0.00', remark: '', product_id: '', status: 'pending', type: 'pre_order', product_item_id: '' });
+const form = useForm({ ...preOrderDefaults, customer_id: '', brand_id: '', watch_details: '', amount_paid: '0.00', remark: '', product_id: '', status: 'pending', type: 'pre_order', product_item_id: '' });
 const statuses = { pending: 'Pending', ordered: 'Ordered', sold_out: 'Sold Out', completed: 'Completed', cancelled: 'Cancelled' };
 const formStatuses = computed(() => form.type === 'reservation'
     ? { pending: 'Reserved', completed: 'Completed (mark watch sold)', cancelled: 'Cancelled (release watch)' }
@@ -100,6 +102,7 @@ const open = (preOrder = null) => {
     editing.value = preOrder;
     form.reset();
     form.clearErrors();
+    Object.assign(form, recordValues(preOrder, preOrderDefaults));
     if (preOrder) {
         for (const key of ['customer_id', 'brand_id', 'watch_details', 'amount_paid', 'remark', 'product_id', 'status', 'type', 'product_item_id']) {
             form[key] = preOrder[key] ?? '';
@@ -129,6 +132,7 @@ const formatAmount = (amount) => Number(amount).toLocaleString('en-US', { minimu
             <div class="flex items-center gap-4">
                 <Link :href="route('pos.index')" class="text-sm font-semibold text-gray-600 hover:text-gray-900">Back to POS</Link>
                 <SecondaryButton :disabled="refreshing" @click="refreshStock">{{ refreshing ? 'Refreshing…' : 'Refresh Stock' }}</SecondaryButton>
+                <a :href="route('pre-orders.export', props.filters)" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700">Export Strap Orders (Excel)</a>
                 <PrimaryButton @click="open()">Add Pre Order / Reservation</PrimaryButton>
             </div>
         </div>
@@ -204,16 +208,19 @@ const formatAmount = (amount) => Number(amount).toLocaleString('en-US', { minimu
                         <tr v-for="preOrder in preOrders.data" :key="preOrder.id" class="align-top hover:bg-gray-50">
                             <td class="whitespace-nowrap px-4 py-4">
                                 <div class="font-semibold text-gray-900">PO-{{ preOrder.id }}</div>
-                                <div class="mt-1 text-xs text-gray-500">{{ preOrder.created_at.slice(0, 10) }}</div>
+                                <div class="mt-1 text-xs text-gray-500">{{ (preOrder.order_date || preOrder.created_at).slice(0, 10) }}</div>
                                 <div class="mt-1 text-xs font-semibold text-gray-600">{{ preOrder.type === 'reservation' ? 'Reservation' : 'Pre-order' }}</div>
                             </td>
                             <td class="px-4 py-4">
                                 <div class="font-medium text-gray-900">{{ preOrder.customer?.name }}</div>
                                 <div class="mt-1 text-gray-500">{{ preOrder.customer?.phone }}</div>
+                                <div v-if="preOrder.marketing_channel" class="mt-1 max-w-xs break-words text-xs text-gray-500">Marketing: {{ preOrder.marketing_channel }}</div>
                             </td>
                             <td class="px-4 py-4">
                                 <div class="font-medium text-gray-900">{{ preOrder.brand?.name }}</div>
                                 <div class="mt-1 max-w-xs whitespace-pre-wrap break-words text-gray-500">{{ preOrder.watch_details || '—' }}</div>
+                                <div v-if="preOrder.model_number" class="mt-1 text-xs text-gray-500">Model: {{ preOrder.model_number }}</div>
+                                <div v-if="preOrder.delivery_code" class="mt-1 text-xs text-gray-500">Delivery: {{ preOrder.delivery_code }} · {{ preOrder.delivery_status || 'Status not recorded' }}</div>
                                 <div v-if="preOrder.reserved_item" class="mt-1 text-xs text-gray-600">System code: {{ preOrder.reserved_item.system_unique_id }}</div>
                                 <div v-if="preOrder.product" class="mt-2 text-xs text-gray-600">
                                     Product #{{ preOrder.product_id }}: {{ preOrder.product.name }}
@@ -341,7 +348,8 @@ const formatAmount = (amount) => Number(amount).toLocaleString('en-US', { minimu
                     <InputError :message="form.errors.amount_paid" class="mt-1" />
                 </div>
                 <div>
-                    <InputLabel for="pre-order-remark" value="Remark (optional)" />
+                    <SalesRecordFields :form="form" pre-order />
+                    <InputLabel for="pre-order-remark" value="Remark (optional)" class="mt-4" />
                     <textarea id="pre-order-remark" v-model="form.remark" rows="4" maxlength="5000" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gold-500 focus:ring-gold-500" placeholder="Customer requests, payment notes, or expected arrival…"></textarea>
                     <InputError :message="form.errors.remark" class="mt-1" />
                 </div>

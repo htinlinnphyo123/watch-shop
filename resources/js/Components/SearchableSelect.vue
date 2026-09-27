@@ -1,9 +1,12 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { filterSelectOptions } from '@/utils/customerPicker';
 
 const props = defineProps({
     modelValue: { type: [String, Number], default: '' },
-    options:    { type: Array,  required: true },   // [{ value, label }]
+    options:    { type: Array,  required: true },   // [{ value, label, searchText? }]
+    searchPlaceholder: { type: String, default: 'Type to search…' },
+    optionNoun: { type: String, default: 'staff' },
     placeholder:{ type: String, default: '— Select —' },
     id:         { type: String, default: '' },
 });
@@ -25,11 +28,7 @@ const selectedLabel = computed(() => {
 });
 
 // ── Filtered list ──────────────────────────────────────────────────────────────
-const filtered = computed(() => {
-    const q = query.value.trim().toLowerCase();
-    if (!q) return props.options;
-    return props.options.filter(o => o.label.toLowerCase().includes(q));
-});
+const filtered = computed(() => filterSelectOptions(props.options, query.value));
 
 // ── Open / close ───────────────────────────────────────────────────────────────
 const open = async () => {
@@ -151,7 +150,8 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutside))
                             ref="searchRef"
                             v-model="query"
                             type="text"
-                            placeholder="Type to search…"
+                            :placeholder="searchPlaceholder"
+                            :aria-label="searchPlaceholder"
                             class="flex-1 bg-transparent text-sm outline-none text-gray-700 placeholder-gray-400"
                         />
                         <button
@@ -203,7 +203,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutside))
 
                 <!-- Footer count -->
                 <div v-if="options.length > 8" class="px-3 py-1.5 border-t border-gray-100 text-[11px] text-gray-400">
-                    {{ filtered.length }} of {{ options.length }} staff
+                    {{ filtered.length }} of {{ options.length }} {{ optionNoun }}
                 </div>
             </div>
         </Transition>

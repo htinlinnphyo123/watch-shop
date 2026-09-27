@@ -21,7 +21,7 @@ class StaffOperationalAccess
 
         abort_unless($request->routeIs(
             'profile.*', 'wallet.*', 'customers.index', 'customers.store',
-            'pos.*', 'orders.index', 'orders.show', 'orders.history', 'orders.files.*',
+            'pos.*', 'orders.index', 'orders.export', 'orders.show', 'orders.history', 'orders.files.*',
             'orders.approve', 'orders.cancel', 'low-stock-notifications.index',
             'watch-services.*', 'pre-orders.*',
         ), 403);

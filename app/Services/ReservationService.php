@@ -14,6 +14,11 @@ class ReservationService
     {
         return DB::transaction(function () use ($data, $creatorId, $existing) {
             $record = $existing ? PreOrder::whereKey($existing->id)->lockForUpdate()->firstOrFail() : new PreOrder(['user_id' => $creatorId]);
+            $price = array_key_exists('price', $data) ? $data['price'] : $record->price;
+            $discount = array_key_exists('discount_amount', $data) ? $data['discount_amount'] : $record->discount_amount;
+            if ((float) $discount > 0 && ($price === null || (float) $discount > (float) $price)) {
+                throw ValidationException::withMessages(['discount_amount' => 'Enter a price and a discount no greater than that price.']);
+            }
             $data['type'] ??= $record->type ?? 'pre_order';
             $data['product_item_id'] = $data['type'] === 'reservation' ? ($data['product_item_id'] ?? null) : null;
             $terminal = $record->exists && in_array($record->status, ['completed', 'cancelled'], true);

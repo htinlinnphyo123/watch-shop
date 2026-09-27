@@ -131,6 +131,8 @@ const cancelOrder = () => {
             <p v-if="$page.props.errors.error" role="alert" class="no-print mb-4 text-sm text-red-700">{{ $page.props.errors.error }}</p>
             <section class="no-print mb-6 space-y-2 rounded-xl border border-gray-200 bg-white p-5 text-sm">
                 <p><span class="font-semibold">Delivery code:</span> {{ order.delivery_code || '—' }}</p>
+                <p class="break-words"><span class="font-semibold">Marketing channel:</span> {{ order.marketing_channel || '—' }}</p>
+                <details><summary class="cursor-pointer font-semibold">Sales &amp; delivery details</summary><dl class="mt-3 grid gap-2 sm:grid-cols-2"><div v-for="key in ['order_date', 'order_type', 'buying_type', 'delivery_type', 'delivery_status', 'delivery_fees']" :key="key"><dt class="capitalize text-gray-500">{{ key.replaceAll('_', ' ') }}</dt><dd class="break-words">{{ key === 'order_date' ? (order[key] || '').slice(0, 10) || '—' : order[key] ?? '—' }}</dd></div></dl></details>
                 <p><span class="font-semibold">Money transfer amount:</span> {{ order.money_transfer_amount == null ? '—' : Number(order.money_transfer_amount).toLocaleString() + ' Ks' }}</p>
                 <p class="whitespace-pre-wrap break-words"><span class="font-semibold">Remark:</span> {{ order.remark || '—' }}</p>
                 <p v-if="order.status === 'pending'" class="text-amber-700">Pending / COD · {{ balanceDue.toLocaleString() }} Ks due. Update payments through Edit Order. Approval deducts stock; it does not record a payment.</p>

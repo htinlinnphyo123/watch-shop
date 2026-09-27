@@ -30,6 +30,7 @@ const form = useForm({
     email: '',
     password: '',
     address: '',
+    gender: '',
     customer_group_id: null,
     source: '',
     source_details: '',
@@ -57,6 +58,7 @@ const openModal = (customer = null) => {
         form.email = customer.email;
         form.password = '';
         form.address = customer.address;
+        form.gender = customer.gender || '';
         form.customer_group_id = customer.customer_group_id;
         form.source = customer.source || '';
         form.source_details = customer.source_details || '';
@@ -226,7 +228,10 @@ const deleteCustomer = (customer) => {
                     </div>
 
                     <div>
-                        <InputLabel value="Address (optional)" class="text-gray-700" />
+                        <InputLabel value="Customer gender (optional)" class="text-gray-700" />
+                        <select v-model="form.gender" class="mt-1 block w-full rounded-md border-gray-300"><option value="">Not specified</option><option value="man">Man</option><option value="woman">Woman</option><option value="other">Other</option></select>
+                        <InputError :message="form.errors.gender" />
+                        <InputLabel value="Address (optional)" class="mt-4 text-gray-700" />
                         <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900" v-model="form.address" />
                         <InputError class="mt-2" :message="form.errors.address" />
                     </div>

@@ -51,6 +51,7 @@ Route::middleware(['auth', 'staff.access'])->group(function () {
     // Staff access to inventory management is blocked by staff.access.
     Route::resource('banners', \App\Http\Controllers\BannerController::class);
 
+    Route::get('pre-orders/export', [\App\Http\Controllers\PreOrderController::class, 'export'])->name('pre-orders.export');
     Route::resource('pre-orders', \App\Http\Controllers\PreOrderController::class)->only(['index', 'store', 'update']);
     Route::post('pre-orders/{preOrder}/files/presign', [\App\Http\Controllers\PreOrderAttachmentController::class, 'presign'])->middleware('throttle:60,1')->name('pre-orders.files.presign');
     Route::post('pre-orders/{preOrder}/files/{attachment}/complete', [\App\Http\Controllers\PreOrderAttachmentController::class, 'complete'])->name('pre-orders.files.complete');
@@ -88,6 +89,7 @@ Route::middleware(['auth', 'staff.access'])->group(function () {
     Route::put('/pos/orders/{order}', [\App\Http\Controllers\POSController::class, 'update'])->name('pos.orders.update');
 
     Route::get('orders/summary', [\App\Http\Controllers\OrderController::class, 'summary'])->name('orders.summary');
+    Route::get('orders/export', [\App\Http\Controllers\OrderController::class, 'export'])->name('orders.export');
     Route::get('sales/analytics', \App\Http\Controllers\SalesAnalyticsController::class)->name('sales.analytics');
     Route::resource('watch-services', \App\Http\Controllers\WatchServiceController::class)
         ->only(['index', 'store', 'show', 'update'])->middleware('role:admin,manager,staff');

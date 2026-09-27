@@ -44,6 +44,7 @@ export function orderChangeGroups(before, after) {
     if (!before || !after) return [];
     const groups = { Watches: [], Payments: [], 'Order details': [], Files: [] };
     const fields = [
+        ...['order_date', 'buying_type', 'paid_by', 'payment_type', 'deposit_amount', 'delivery_type', 'delivery_status', 'delivery_fees', 'order_type', 'pre_order_payment', 'marketing_channel'].map(key => [key, `${key.replaceAll('_', ' ')} changed`, value => value ?? 'Not recorded']),
         ['delivery_code', 'Delivery code changed', value => value || 'Not recorded'],
         ['remark', 'Remark changed', value => value || 'Not recorded'],
         ['money_transfer_amount', 'Money transfer amount changed', value => value == null ? 'Not recorded' : money(value)],

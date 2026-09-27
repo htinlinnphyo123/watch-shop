@@ -23,6 +23,9 @@ class POSController extends Controller
         $products = $this->productQuery(null, $editingOrder)->paginate(24);
 
         return Inertia::render('POS/Index', [
+            'deliveryStatusOptions' => \App\Enums\DeliveryStatus::options(),
+            'deliveryTypeOptions' => \App\Enums\DeliveryType::options(),
+            'marketingChannelOptions' => \App\Enums\MarketingChannel::options(),
             'editingOrder' => $editingOrder ? $this->editPayload($editingOrder) : null,
             'products' => $products->items(),
             'productsPagination' => [
@@ -112,6 +115,7 @@ class POSController extends Controller
 
     private function saveOrder(Request $request, ?Order $editingOrder = null)
     {
+        $recordDetails = $request->validate(\App\Support\SalesRecordFields::rules());
         $request->validate([
             'edit_version' => $editingOrder ? 'required|integer|min:0' : 'nullable|integer',
             'customer_id' => 'nullable|exists:customers,id',
@@ -262,6 +266,7 @@ class POSController extends Controller
 
             $order = $editingOrder ?? new Order(['user_id' => auth()->id(), 'order_number' => 'ORD-'.strtoupper(uniqid()), 'status' => $status]);
             $order->fill([
+                ...$recordDetails,
                 'customer_id' => $request->customer_id,
                 'delivery_code' => $request->input('delivery_code', $editingOrder?->delivery_code),
                 'remark' => $request->input('remark', $editingOrder?->remark),
@@ -360,6 +365,7 @@ class POSController extends Controller
 
         return [
             'id' => $order->id, 'order_number' => $order->order_number, 'status' => $order->status,
+            ...$order->only([...\App\Support\SalesRecordFields::COMMON, ...\App\Support\SalesRecordFields::SALES]),
             'edit_version' => $order->edit_version, 'customer_id' => $order->customer_id,
             'delivery_code' => $order->delivery_code, 'remark' => $order->remark,
             'money_transfer_amount' => $order->money_transfer_amount,

@@ -24,10 +24,11 @@ class CustomerController extends Controller
         $validated = $request->validate([
             'name' => 'required|string',
             'email' => 'required|email|unique:customers',
-            'phone' => 'nullable|string',
+            'phone' => ['nullable', 'string', 'max:255', Rule::unique('customers', 'phone')],
             'password' => 'nullable|string|min:6',
             'customer_group_id' => 'nullable|exists:customer_groups,id',
             'address' => 'nullable|string',
+            'gender' => 'nullable|in:man,woman,other',
             'source' => ['nullable', Rule::in(array_keys(Customer::SOURCES))],
             'source_details' => 'nullable|string|max:2048',
         ]);
@@ -47,10 +48,11 @@ class CustomerController extends Controller
         $validated = $request->validate([
             'name' => 'required|string',
             'email' => 'required|email|unique:customers,email,' . $customer->id,
-            'phone' => 'nullable|string',
+            'phone' => ['nullable', 'string', 'max:255', Rule::unique('customers', 'phone')->ignore($customer->id)],
             'password' => 'nullable|string|min:6',
             'customer_group_id' => 'nullable|exists:customer_groups,id',
             'address' => 'nullable|string',
+            'gender' => 'nullable|in:man,woman,other',
             'source' => ['nullable', Rule::in(array_keys(Customer::SOURCES))],
             'source_details' => 'nullable|string|max:2048',
         ]);

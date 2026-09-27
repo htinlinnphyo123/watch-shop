@@ -109,6 +109,8 @@ class ReservationTest extends TestCase
     public function test_inventory_cannot_release_or_delete_a_held_watch(): void
     {
         $this->reserve();
+        $this->put(route('items.update', $this->item), ['status' => 'available'])->assertForbidden();
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
         $this->put(route('items.update', $this->item), ['status' => 'available'])->assertSessionHasErrors('status');
         $this->delete(route('items.destroy', $this->item))->assertSessionHasErrors('status');
         $this->assertSame('reserved', $this->item->fresh()->status);

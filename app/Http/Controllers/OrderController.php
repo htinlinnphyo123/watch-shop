@@ -45,6 +45,14 @@ class OrderController extends Controller
         ]);
     }
 
+    public function export(Request $request, OrderSummaryService $summaryService, \App\Services\SalesWorkbookExport $export)
+    {
+        $query = $summaryService->filter(Order::query(), $this->filters($request))->where('status', 'completed');
+        if ($request->user()->role === 'staff') $query->where('user_id', $request->user()->id);
+        $orders = $query->with(['customer' => fn ($q) => $q->withTrashed(), 'user', 'items.product' => fn ($q) => $q->withTrashed(), 'items.product.brand' => fn ($q) => $q->withTrashed()])->lazyById(200);
+        return $export->download($orders->map(fn (Order $order) => $export->saleRow($order)));
+    }
+
     private function filters(Request $request): array
     {
         return $request->validate([

@@ -39,6 +39,8 @@ class OrderAuditService
 
         return [
             'order_number' => $order->order_number, 'status' => $order->status,
+            ...collect($order->only([...\App\Support\SalesRecordFields::COMMON, ...\App\Support\SalesRecordFields::SALES]))
+                ->map(fn ($value) => $value instanceof \DateTimeInterface ? $value->format('Y-m-d') : $value)->all(),
             'customer' => ['id' => $order->customer_id, 'name' => $order->customer?->name ?? ($order->customer_id ? 'Deleted customer' : 'Walk-in Customer')],
             'discount_percentage' => number_format((float) $order->discount_percentage, 2, '.', ''),
             'total_amount' => number_format((float) $order->total_amount, 2, '.', ''),
@@ -83,6 +85,11 @@ class OrderAuditService
     public function compare(array $before, array $after): array
     {
         $changes = [];
+        foreach ([...\App\Support\SalesRecordFields::COMMON, ...\App\Support\SalesRecordFields::SALES] as $key) {
+            if (($before[$key] ?? null) !== ($after[$key] ?? null)) {
+                $changes[] = ['section' => 'Order', 'label' => ucfirst(str_replace('_', ' ', $key)), 'before' => $this->display($before[$key] ?? null), 'after' => $this->display($after[$key] ?? null)];
+            }
+        }
         foreach (['delivery_code' => 'Delivery code', 'remark' => 'Remark', 'money_transfer_amount' => 'Money transfer amount (Ks)'] as $key => $label) {
             if (($before[$key] ?? null) !== ($after[$key] ?? null)) {
                 $changes[] = ['section' => 'Order', 'label' => $label, 'before' => $this->display($before[$key] ?? null), 'after' => $this->display($after[$key] ?? null)];

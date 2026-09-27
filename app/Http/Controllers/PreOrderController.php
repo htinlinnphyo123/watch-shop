@@ -16,25 +16,17 @@ class PreOrderController extends Controller
 {
     public function index(Request $request)
     {
-        $filters = $request->validate([
-            'type' => ['nullable', Rule::in(['pre_order', 'reservation'])],
-            'status' => ['nullable', Rule::in(['pending', 'ordered', 'sold_out', 'completed', 'cancelled'])],
-            'brand_id' => ['nullable', 'integer', 'exists:brands,id'],
-            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
-            'product_id' => ['nullable', 'integer', 'exists:products,id'],
-        ]);
+        $filters = $this->filters($request);
 
         return Inertia::render('PreOrders/Index', [
+            'deliveryStatusOptions' => \App\Enums\DeliveryStatus::options(),
+            'deliveryTypeOptions' => \App\Enums\DeliveryType::options(),
+            'marketingChannelOptions' => \App\Enums\MarketingChannel::options(),
             'filters' => $filters,
-            'preOrders' => PreOrder::with(['customer:id,name,phone', 'brand:id,name', 'user:id,name', 'fileUploads', 'reservedItem:id,product_id,system_unique_id,serial_number,status',
+            'preOrders' => $this->filteredQuery($filters)->with(['customer:id,name,phone,address,source,source_details', 'brand:id,name', 'user:id,name', 'fileUploads', 'reservedItem:id,product_id,system_unique_id,serial_number,status',
                 'product' => fn ($query) => $query->select(['id', 'brand_id', 'name', 'model_number', 'deleted_at'])
                     ->withCount(['items as available_stock' => fn ($items) => $items->where('status', 'available')]),
             ])
-                ->when($filters['type'] ?? null, fn ($query, $value) => $query->where('type', $value))
-                ->when($filters['status'] ?? null, fn ($query, $value) => $query->where('status', $value))
-                ->when($filters['brand_id'] ?? null, fn ($query, $value) => $query->where('brand_id', $value))
-                ->when($filters['customer_id'] ?? null, fn ($query, $value) => $query->where('customer_id', $value))
-                ->when($filters['product_id'] ?? null, fn ($query, $value) => $query->where('product_id', $value))
                 ->latest('id')->paginate(20)->withQueryString(),
             'availableItems' => ProductItem::where('status', 'available')->whereHas('product')->get(['id', 'product_id', 'system_unique_id', 'serial_number']),
             'products' => Product::orderBy('name')->get(['id', 'brand_id', 'name', 'model_number']),
@@ -50,6 +42,32 @@ class PreOrderController extends Controller
         return to_route('pre-orders.index')->with('success', 'Pre-order added.');
     }
 
+    private function filters(Request $request): array
+    {
+        return $request->validate([
+            'type' => ['nullable', Rule::in(['pre_order', 'reservation'])],
+            'status' => ['nullable', Rule::in(['pending', 'ordered', 'sold_out', 'completed', 'cancelled'])],
+            'brand_id' => ['nullable', 'integer', 'exists:brands,id'],
+            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'product_id' => ['nullable', 'integer', 'exists:products,id'],
+        ]);
+    }
+
+    private function filteredQuery(array $filters)
+    {
+        $query = PreOrder::query();
+        foreach (['type', 'status', 'brand_id', 'customer_id', 'product_id'] as $field) {
+            if (! empty($filters[$field])) $query->where($field, $filters[$field]);
+        }
+        return $query;
+    }
+
+    public function export(Request $request, \App\Services\SalesWorkbookExport $export)
+    {
+        $records = $this->filteredQuery($this->filters($request))->with(['customer', 'brand', 'product'])->lazyById(200);
+        return $export->download($records->map(fn (PreOrder $record) => $export->preOrderRow($record)), true);
+    }
+
     public function update(Request $request, PreOrder $preOrder)
     {
         app(ReservationService::class)->save($this->validated($request, $preOrder), $request->user()->id, $preOrder);
@@ -61,7 +79,7 @@ class PreOrderController extends Controller
     {
         $type = $request->input('type', $preOrder?->type ?? 'pre_order');
 
-        return $request->validate([
+        return $request->validate(\App\Support\SalesRecordFields::rules(true) + [
             'type' => ['sometimes', 'required', Rule::in(['pre_order', 'reservation'])],
             'product_item_id' => [Rule::requiredIf($type === 'reservation'), 'nullable', 'integer', 'exists:product_items,id'],
             'customer_id' => ['required', 'integer', Rule::exists('customers', 'id')->where(function ($query) use ($preOrder) {

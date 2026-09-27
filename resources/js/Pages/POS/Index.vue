@@ -1,5 +1,9 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import SalesRecordFields from '@/Components/SalesRecordFields.vue';
+import SearchableSelect from '@/Components/SearchableSelect.vue';
+import { customerLabel, customerOptions } from '@/utils/customerPicker';
+import { salesDefaults, recordValues } from '@/utils/salesRecordFields';
 import InputError from '@/Components/InputError.vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { ref, computed, watch, nextTick } from 'vue';
@@ -20,6 +24,7 @@ const props = defineProps({
 });
 
 const searchInput = ref(null);
+const customerPickerOptions = computed(() => customerOptions(props.customers));
 const isCameraOpen = ref(false);
 const orderPanel = ref(null);
 const search = ref('');
@@ -75,6 +80,7 @@ const formatPrice = (amount) => new Intl.NumberFormat('en-US', {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const checkoutForm = useForm({
+    ...recordValues(props.editingOrder, salesDefaults),
     status: props.editingOrder?.status || 'completed',
     delivery_code: props.editingOrder?.delivery_code || '',
     remark: props.editingOrder?.remark || '',
@@ -500,15 +506,15 @@ const submitCheckout = () => {
                         <h2 class="text-xl font-bold text-gray-900">{{ editingOrder ? 'Edit Order' : 'Current Order' }}</h2>
                         <span class="text-gray-400 text-sm">{{ cart.length }} line(s)</span>
                     </div>
-                    <select
+                    <label for="pos-customer" class="block text-sm font-medium text-gray-700">Customer</label>
+                    <SearchableSelect
+                        id="pos-customer"
                         v-model="checkoutForm.customer_id"
-                        class="w-full bg-white border-gray-300 text-gray-900 text-sm rounded-md shadow-sm focus:border-gold-500 focus:ring-gold-500"
-                    >
-                        <option value="">Walk-in Customer</option>
-                        <option v-for="c in customers" :key="c.id" :value="c.id">
-                            {{ c.name }}{{ c.group ? ` (${c.group.name} – ${c.group.percentage}%)` : '' }}
-                        </option>
-                    </select>
+                        :options="customerPickerOptions"
+                        placeholder="Walk-in Customer"
+                        search-placeholder="Search by name, phone or email"
+                        option-noun="customers"
+                    />
                 </div>
 
                 <!-- Cart items -->
@@ -790,6 +796,7 @@ const submitCheckout = () => {
                 <h2 class="text-lg font-bold text-gray-900 mb-4">{{ editingOrder ? 'Update Order' : 'Checkout' }}</h2>
 
                 <form @submit.prevent="submitCheckout" class="space-y-4">
+                    <SalesRecordFields :form="checkoutForm" />
                     <div>
                         <InputLabel value="Order status" />
                         <select v-model="checkoutForm.status" :disabled="!!editingOrder" class="mt-1 block w-full rounded-md border-gray-300">
@@ -807,7 +814,7 @@ const submitCheckout = () => {
                     <div>
                         <InputLabel value="Money transfer amount (Ks, optional)" />
                         <TextInput v-model="checkoutForm.money_transfer_amount" type="number" min="0" max="999999999999" step="0.01" class="mt-1 block w-full" />
-                        <p class="mt-1 text-xs text-gray-500">Track the delivery company's remittance here. Include money received in the payment entries below to update the balance due.</p>
+                        <p class="mt-1 text-xs text-gray-500">Record the transferred/deposit amount here; it appears as Deposit in the Sales export. Include actual receipts in the payment entries below to update the balance due.</p>
                         <InputError :message="checkoutForm.errors.money_transfer_amount" />
                     </div>
                     <div>
@@ -825,7 +832,7 @@ const submitCheckout = () => {
 
                     <div class="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                         <span class="font-bold">Customer:</span>
-                        {{ customers.find(c => c.id === checkoutForm.customer_id)?.name || 'Walk-in Customer' }}
+                        {{ customerLabel(customers.find(c => String(c.id) === String(checkoutForm.customer_id))) }}
                         <span v-if="discount > 0" class="text-green-600 ml-2 font-bold">
                             (Discount: -{{ discount.toLocaleString() }} Ks)
                         </span>
