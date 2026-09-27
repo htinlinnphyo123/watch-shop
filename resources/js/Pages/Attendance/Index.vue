@@ -165,6 +165,7 @@ const exportUrl = computed(() => {
                 <div class="flex items-center gap-3">
                     <!-- Export Excel -->
                     <a
+                        v-if="$page.props.auth.user.role === 'admin'"
                         :href="exportUrl"
                         class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors"
                         title="Export current filtered results to CSV (opens in Excel)"

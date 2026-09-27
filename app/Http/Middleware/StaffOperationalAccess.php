@@ -11,7 +11,8 @@ class StaffOperationalAccess
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->user()?->role !== 'staff') {
+        $role = $request->user()?->role;
+        if (! in_array($role, ['staff', 'manager'], true)) {
             return $next($request);
         }
 
@@ -19,16 +20,20 @@ class StaffOperationalAccess
             return redirect()->route('pos.index');
         }
 
-        abort_unless($request->routeIs(
+        $operationalRoute = $request->routeIs(
             'profile.*', 'wallet.*', 'customers.index', 'customers.store',
-            'pos.*', 'orders.index', 'orders.export', 'orders.show', 'orders.history', 'orders.files.*',
+            'pos.*', 'orders.index', 'orders.show', 'orders.history', 'orders.files.*',
             'orders.approve', 'orders.cancel', 'low-stock-notifications.index',
             'watch-services.*', 'pre-orders.*',
-        ), 403);
+        );
+        $managerRoute = $role === 'manager' && $request->routeIs('attendance.*', 'articles.*');
+        abort_unless($operationalRoute || $managerRoute, 403);
 
         // Includes invoice, history, attachments, cancellation and approval URLs.
         $order = $request->route('order');
-        if ($order instanceof Order) {
+        $managerReadOnly = $role === 'manager' && $request->isMethod('GET')
+            && $request->routeIs('orders.show', 'orders.history', 'orders.files.download');
+        if ($order instanceof Order && ! $managerReadOnly) {
             abort_unless((int) $order->user_id === (int) $request->user()->id, 403);
         }
         // All POS lookups accept order_id to expose original sold units/prices.

@@ -4,7 +4,7 @@ import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 
-const props = defineProps({ orderId: { type: Number, required: true }, files: { type: Array, default: () => [] }, preOrder: { type: Boolean, default: false } });
+const props = defineProps({ orderId: { type: Number, required: true }, files: { type: Array, default: () => [] }, preOrder: { type: Boolean, default: false }, readOnly: { type: Boolean, default: false } });
 const emit = defineEmits(['busy']);
 const routePrefix = props.preOrder ? 'pre-orders.files' : 'orders.files';
 const recordKey = props.preOrder ? 'preOrder' : 'order';
@@ -22,6 +22,7 @@ const isImage = file => ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].i
 const fileUrl = (file, preview = false) => route(`${routePrefix}.download`, { [recordKey]: props.orderId, attachment: file.id, ...(preview ? { preview: 1 } : {}) });
 
 const selectFiles = event => {
+    if (props.readOnly) return;
     error.value = '';
     message.value = '';
     for (const file of Array.from(event.target.files || [])) {
@@ -41,7 +42,7 @@ const selectFiles = event => {
 };
 
 const upload = async () => {
-    if (busy.value) return;
+    if (busy.value || props.readOnly) return;
     busy.value = true;
     error.value = '';
     message.value = '';
@@ -100,6 +101,7 @@ onBeforeUnmount(() => { disposed = true; uploadController?.abort(); });
 <template>
     <section class="no-print mt-6 rounded-xl border border-gray-200 bg-white p-6" aria-labelledby="order-attachments-title">
         <h2 id="order-attachments-title" class="text-lg font-bold text-gray-900">Attachments</h2>
+        <template v-if="!readOnly">
         <p class="mt-1 text-sm text-gray-500">Upload payment slips, photos, or supporting documents for this {{ preOrder ? 'pre-order' : 'order' }}. Up to 20 files, 20 MB each.</p>
         <label :for="`order-files-${orderId}`" class="mt-4 block text-sm font-medium text-gray-700">Choose files</label>
         <input :id="`order-files-${orderId}`" name="file_upload[]" type="file" multiple :accept="accepted" :disabled="busy" @change="selectFiles" class="mt-2 block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2" />
@@ -117,6 +119,7 @@ onBeforeUnmount(() => { disposed = true; uploadController?.abort(); });
             </li>
         </ul>
         <PrimaryButton v-if="queue.length" :disabled="busy" class="mt-3" @click="upload">{{ busy ? 'Uploading…' : 'Upload Files' }}</PrimaryButton>
+        </template>
         <div v-if="files.length" class="mt-6 grid gap-3 sm:grid-cols-2">
             <a v-for="file in files" :key="file.id" :href="fileUrl(file)" target="_blank" rel="noopener noreferrer" class="flex min-w-0 items-center gap-3 rounded-lg border border-gray-200 p-3 hover:border-gold-500">
                 <img v-if="isImage(file)" :src="fileUrl(file, true)" :alt="file.name" loading="lazy" class="h-16 w-16 shrink-0 rounded object-cover" />

@@ -256,7 +256,7 @@ const clearDateFilters = () => {
         <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-x-auto">
             <div class="px-6 py-4 border-b border-gray-200">
                 <h3 class="font-bold text-gray-900">{{ isAdmin ? 'All Wallet Records' : 'My Wallet Records' }}</h3>
-                <a :href="route('wallet.export', filters)" class="mt-2 inline-block rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Export Excel (applied filters)</a>
+                <a v-if="isAdmin" :href="route('wallet.export', filters)" class="mt-2 inline-block rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Export Excel (applied filters)</a>
                 <div class="mt-4 flex flex-wrap items-end gap-3">
                     <div v-if="isAdmin">
                         <label for="wallet-user-filter" class="block text-xs font-medium text-gray-600">User</label>

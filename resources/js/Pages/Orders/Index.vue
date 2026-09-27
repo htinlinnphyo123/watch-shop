@@ -4,6 +4,7 @@ import { Head, Link } from '@inertiajs/vue3';
 import OrderFilters from '@/Components/OrderFilters.vue';
 import { paymentMethodLabel } from '@/utils/payments';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import { canManageOrder } from '@/utils/operationalAccess';
 
 const props = defineProps({
     filters: { type: Object, default: () => ({}) },
@@ -37,7 +38,7 @@ const formatDate = (dateString) => {
 
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-gray-900">Orders</h1>
-            <a :href="route('orders.export', filters)" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700">Export completed sales (Excel)</a>
+            <a v-if="$page.props.auth.user.role === 'admin'" :href="route('orders.export', filters)" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700">Export completed sales (Excel)</a>
             <Link :href="route('pos.index')">
                 <PrimaryButton class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold">
                     New Sale (POS)
@@ -94,7 +95,7 @@ const formatDate = (dateString) => {
                             {{ order.user ? order.user.name : 'System' }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                            <Link v-if="['completed', 'pending'].includes(order.status)" :href="route('pos.index', { order_id: order.id })" class="text-gray-700 hover:text-gold-700">Edit Order</Link>
+                            <Link v-if="canManageOrder($page.props.auth.user, order) && ['completed', 'pending'].includes(order.status)" :href="route('pos.index', { order_id: order.id })" class="text-gray-700 hover:text-gold-700">Edit Order</Link>
                             <Link v-if="order.id" :href="route('orders.show', order.id)" class="text-gold-600 hover:text-gold-800">View Details</Link>
                             <span v-else class="text-red-500 text-xs">Invalid ID</span>
                             <Link v-if="order.id" :href="route('orders.history', order.id)" class="ml-3 text-gray-600 hover:text-gray-900">History</Link>

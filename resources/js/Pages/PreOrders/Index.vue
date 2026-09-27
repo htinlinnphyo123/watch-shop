@@ -132,7 +132,7 @@ const formatAmount = (amount) => Number(amount).toLocaleString('en-US', { minimu
             <div class="flex items-center gap-4">
                 <Link :href="route('pos.index')" class="text-sm font-semibold text-gray-600 hover:text-gray-900">Back to POS</Link>
                 <SecondaryButton :disabled="refreshing" @click="refreshStock">{{ refreshing ? 'Refreshing…' : 'Refresh Stock' }}</SecondaryButton>
-                <a :href="route('pre-orders.export', props.filters)" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700">Export Strap Orders (Excel)</a>
+                <a v-if="$page.props.auth.user.role === 'admin'" :href="route('pre-orders.export', props.filters)" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700">Export Strap Orders (Excel)</a>
                 <PrimaryButton @click="open()">Add Pre Order / Reservation</PrimaryButton>
             </div>
         </div>

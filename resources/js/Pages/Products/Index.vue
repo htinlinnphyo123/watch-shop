@@ -539,7 +539,7 @@ const deleteProduct = (product) => {
       <h1 class="text-3xl font-bold text-gray-900">Watches</h1>
 
       <div class="flex flex-wrap items-center gap-4">
-        <SecondaryButton v-if="['admin', 'manager'].includes(userRole)" :disabled="preparingLabels || labelsOpen" @click="printAllLabels" title="Print all available watch stock, across every page and regardless of filters">
+        <SecondaryButton v-if="userRole === 'admin'" :disabled="preparingLabels || labelsOpen" @click="printAllLabels" title="Print all available watch stock, across every page and regardless of filters">
           {{ preparingLabels ? 'Preparing labels…' : 'Print all the labels' }}
         </SecondaryButton>
         <!-- Currency Toggle -->

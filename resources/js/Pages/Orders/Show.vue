@@ -1,13 +1,16 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import { paymentMethodLabel } from '@/utils/payments';
 import OrderAttachments from '@/Components/OrderAttachments.vue';
+import { canManageOrder } from '@/utils/operationalAccess';
 
 const props = defineProps({
     order: Object,
 });
+const page = usePage();
+const canManage = computed(() => canManageOrder(page.props.auth.user, props.order));
 
 const formatDate = (d) => new Date(d).toLocaleDateString('en-US', {
     year: 'numeric', month: 'long', day: 'numeric',
@@ -103,11 +106,11 @@ const cancelOrder = () => {
                     Back to Orders
                 </Link>
                 <div class="flex flex-wrap gap-3">
-                    <button v-if="['completed', 'pending'].includes(order.status)" @click="cancelOrder" class="rounded-lg border border-red-300 px-5 py-2.5 text-sm font-semibold text-red-700">Cancel Order</button>
+                    <button v-if="canManage && ['completed', 'pending'].includes(order.status)" @click="cancelOrder" class="rounded-lg border border-red-300 px-5 py-2.5 text-sm font-semibold text-red-700">Cancel Order</button>
                     <Link :href="route('orders.history', order.id)" class="inline-flex items-center rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">View History</Link>
-                    <Link v-if="['completed', 'pending'].includes(order.status)" :href="route('pos.index', { order_id: order.id })" class="inline-flex items-center rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">Edit Order</Link>
+                    <Link v-if="canManage && ['completed', 'pending'].includes(order.status)" :href="route('pos.index', { order_id: order.id })" class="inline-flex items-center rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">Edit Order</Link>
                     <button
-                        v-if="order.status === 'pending'"
+                        v-if="canManage && order.status === 'pending'"
                         @click="approveOrder"
                         class="inline-flex items-center gap-2 px-5 py-2.5 bg-gold-500 hover:bg-gold-600 text-dark-900 text-sm font-bold rounded-lg transition-colors shadow-sm"
                     >
@@ -344,7 +347,7 @@ const cancelOrder = () => {
                 <!-- Gold bottom accent bar -->
                 <div class="h-1.5" style="background: linear-gradient(90deg, #c9a96e, #e8c97e, #b8860b, #c9a96e);"></div>
             </div>
-            <OrderAttachments :order-id="order.id" :files="order.file_uploads || []" />
+            <OrderAttachments :order-id="order.id" :files="order.file_uploads || []" :read-only="!canManage" />
         </div>
     </AdminLayout>
 </template>

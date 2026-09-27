@@ -109,7 +109,7 @@ const formatDate = (value) => new Date(value).toLocaleString();
                 <tbody class="bg-white divide-y divide-gray-200">
                     <tr v-for="notification in notifications.data" :key="notification.id" class="hover:bg-gray-50">
                         <td class="px-6 py-4">
-                            <Link v-if="notification.product && $page.props.auth.user.role !== 'staff'" :href="route('products.show', notification.product.id)" class="font-medium text-gray-900 hover:text-gold-600">
+                            <Link v-if="notification.product && !['staff', 'manager'].includes($page.props.auth.user.role)" :href="route('products.show', notification.product.id)" class="font-medium text-gray-900 hover:text-gold-600">
                                 {{ notification.product.name }}
                             </Link>
                             <span v-else class="font-medium text-gray-900">{{ notification.product?.name || 'Deleted watch' }}</span>

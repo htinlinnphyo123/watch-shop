@@ -393,8 +393,8 @@ const submitCheckout = () => {
             <h1 class="text-lg font-bold text-gray-900">POS System</h1>
             <div class="flex items-center gap-4">
                 <Link :href="route('pre-orders.index')" class="text-sm font-semibold text-gray-600 hover:text-gray-900">Pre Orders</Link>
-                <Link :href="route($page.props.auth.user.role === 'staff' ? 'orders.index' : 'dashboard')" class="text-sm font-semibold text-gray-600 hover:text-gray-900">
-                    {{ $page.props.auth.user.role === 'staff' ? 'My Orders' : 'Back to Dashboard' }}
+                <Link :href="route(['staff', 'manager'].includes($page.props.auth.user.role) ? 'orders.index' : 'dashboard')" class="text-sm font-semibold text-gray-600 hover:text-gray-900">
+                    {{ $page.props.auth.user.role === 'staff' ? 'My Orders' : ($page.props.auth.user.role === 'manager' ? 'All Orders' : 'Back to Dashboard') }}
                 </Link>
             </div>
         </header>

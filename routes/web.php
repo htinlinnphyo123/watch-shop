@@ -34,7 +34,7 @@ Route::middleware(['auth', 'staff.access'])->group(function () {
     Route::post('collections/reorder', [\App\Http\Controllers\CollectionController::class, 'reorder'])->name('collections.reorder');
     Route::resource('collections', \App\Http\Controllers\CollectionController::class);
     Route::get('products/export', [\App\Http\Controllers\ProductController::class, 'export'])->middleware('role:admin')->name('products.export');
-    Route::post('products/labels', \App\Http\Controllers\StockLabelController::class)->middleware('role:admin,manager')->name('products.labels');
+    Route::post('products/labels', \App\Http\Controllers\StockLabelController::class)->middleware('role:admin')->name('products.labels');
     Route::post('products/presigned-url', [\App\Http\Controllers\ProductController::class, 'presignedUrl'])->name('products.presigned-url');
     Route::post('products/import', [\App\Http\Controllers\ProductController::class, 'import'])->middleware('role:admin')->name('products.import');
     Route::get('products/imports/{watchImport}', [\App\Http\Controllers\ProductController::class, 'importStatus'])->middleware('role:admin')->name('products.imports.status');
@@ -44,16 +44,16 @@ Route::middleware(['auth', 'staff.access'])->group(function () {
     Route::put('/items/{item}', [\App\Http\Controllers\ProductItemController::class, 'update'])->name('items.update');
     Route::delete('/items/{item}', [\App\Http\Controllers\ProductItemController::class, 'destroy'])->name('items.destroy');
     Route::get('wallet', [\App\Http\Controllers\WalletController::class, 'index'])->name('wallet.index');
-    Route::get('wallet/export', [\App\Http\Controllers\WalletController::class, 'export'])->name('wallet.export');
+    Route::get('wallet/export', [\App\Http\Controllers\WalletController::class, 'export'])->middleware('role:admin')->name('wallet.export');
     Route::post('wallet/transactions', [\App\Http\Controllers\WalletController::class, 'storeTransaction'])->name('wallet.transactions.store');
     Route::put('wallet/transactions/{walletTransaction}', [\App\Http\Controllers\WalletController::class, 'updateTransaction'])->name('wallet.transactions.update');
     Route::delete('wallet/transactions/{walletTransaction}', [\App\Http\Controllers\WalletController::class, 'destroyTransaction'])->name('wallet.transactions.destroy');
     Route::get('wallet/transactions/{walletTransaction}/attachment', [\App\Http\Controllers\WalletController::class, 'attachment'])->name('wallet.transactions.attachment');
 
-    // Staff access to inventory management is blocked by staff.access.
+    // Staff and manager access to inventory management is blocked by staff.access.
     Route::resource('banners', \App\Http\Controllers\BannerController::class);
 
-    Route::get('pre-orders/export', [\App\Http\Controllers\PreOrderController::class, 'export'])->name('pre-orders.export');
+    Route::get('pre-orders/export', [\App\Http\Controllers\PreOrderController::class, 'export'])->middleware('role:admin')->name('pre-orders.export');
     Route::resource('pre-orders', \App\Http\Controllers\PreOrderController::class)->only(['index', 'store', 'update']);
     Route::post('pre-orders/{preOrder}/files/presign', [\App\Http\Controllers\PreOrderAttachmentController::class, 'presign'])->middleware('throttle:60,1')->name('pre-orders.files.presign');
     Route::post('pre-orders/{preOrder}/files/{attachment}/complete', [\App\Http\Controllers\PreOrderAttachmentController::class, 'complete'])->name('pre-orders.files.complete');
@@ -63,8 +63,6 @@ Route::middleware(['auth', 'staff.access'])->group(function () {
         Route::resource('users', \App\Http\Controllers\UserController::class);
         Route::resource('customer-groups', \App\Http\Controllers\CustomerGroupController::class);
         Route::resource('banners', \App\Http\Controllers\BannerController::class);
-        Route::resource('articles', \App\Http\Controllers\ArticleController::class);
-        Route::post('articles/upload-image', [\App\Http\Controllers\ArticleController::class, 'uploadImage'])->name('articles.upload-image');
         Route::resource('top-level-discounts', \App\Http\Controllers\TopLevelDiscountController::class);
         Route::get('settings', [\App\Http\Controllers\SettingController::class, 'index'])->name('settings.index');
         Route::put('settings', [\App\Http\Controllers\SettingController::class, 'update'])->name('settings.update');
@@ -74,7 +72,9 @@ Route::middleware(['auth', 'staff.access'])->group(function () {
     // Admin + Manager Routes
     Route::get('low-stock-notifications', [\App\Http\Controllers\LowStockNotificationController::class, 'index'])->middleware('role:admin,manager,staff')->name('low-stock-notifications.index');
     Route::middleware(['role:admin,manager'])->group(function () {
-        Route::get('attendance/export', [\App\Http\Controllers\AttendanceController::class, 'export'])->name('attendance.export');
+        Route::post('articles/upload-image', [\App\Http\Controllers\ArticleController::class, 'uploadImage'])->name('articles.upload-image');
+        Route::resource('articles', \App\Http\Controllers\ArticleController::class);
+        Route::get('attendance/export', [\App\Http\Controllers\AttendanceController::class, 'export'])->middleware('role:admin')->name('attendance.export');
         Route::resource('attendance', \App\Http\Controllers\AttendanceController::class)
             ->only(['index', 'store', 'update', 'destroy']);
     });
@@ -91,7 +91,7 @@ Route::middleware(['auth', 'staff.access'])->group(function () {
     Route::put('/pos/orders/{order}', [\App\Http\Controllers\POSController::class, 'update'])->name('pos.orders.update');
 
     Route::get('orders/summary', [\App\Http\Controllers\OrderController::class, 'summary'])->name('orders.summary');
-    Route::get('orders/export', [\App\Http\Controllers\OrderController::class, 'export'])->name('orders.export');
+    Route::get('orders/export', [\App\Http\Controllers\OrderController::class, 'export'])->middleware('role:admin')->name('orders.export');
     Route::get('sales/analytics', \App\Http\Controllers\SalesAnalyticsController::class)->name('sales.analytics');
     Route::resource('watch-services', \App\Http\Controllers\WatchServiceController::class)
         ->only(['index', 'store', 'show', 'update'])->middleware('role:admin,manager,staff');
