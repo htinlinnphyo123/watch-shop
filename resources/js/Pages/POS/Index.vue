@@ -15,6 +15,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import axios from 'axios';
 import { paymentMethods, paymentCents } from '@/utils/payments';
+import { posPriceMmk } from '@/utils/posPricing';
 
 const props = defineProps({
     editingOrder: { type: Object, default: null },
@@ -56,15 +57,7 @@ const page = usePage();
 const displayCurrency = ref('MMK');
 
 // ─── Pricing helpers ──────────────────────────────────────────────────────────
-const getMmkPrice = (product) => {
-    if (!product) return 0;
-    if (product.pos_price_mmk !== undefined) return Number(product.pos_price_mmk);
-    let rate = 1;
-    if (product.currency && product.currency !== 'MMK') {
-        rate = parseFloat(page.props.settings[product.currency.toLowerCase() + '_rate'] || 1);
-    }
-    return parseFloat(product.price) * rate;
-};
+const getMmkPrice = (product) => posPriceMmk(product, page.props.settings);
 
 const getDisplayPrice = (product) => {
     const mmkPrice = getMmkPrice(product);

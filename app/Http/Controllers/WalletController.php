@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ExpenseCategory;
+use App\Enums\WalletPaymentType;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
@@ -17,31 +19,17 @@ class WalletController extends Controller
     public function index(Request $request)
     {
         $isAdmin = $request->user()->role === 'admin';
-        $rules = [
-            'start_date' => ['nullable', 'date'],
-            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+        $validated = $this->validatedFilters($request);
+        $transactions = $this->transactionQuery($request, $validated);
+        $outTotal = (clone $transactions)->where('type', 'debit')->sum('amount');
+        $fieldOptions = [
+            'categoryOptions' => ExpenseCategory::options(),
+            'paymentTypeOptions' => WalletPaymentType::options(),
         ];
 
         if ($isAdmin) {
-            $rules['user_id'] = ['nullable', 'integer', Rule::exists('users', 'id')];
-        }
-
-        $validated = $request->validate($rules);
-
-        if ($isAdmin) {
-            $transactions = WalletTransaction::with(['wallet.user:id,name,email,role', 'createdBy:id,name'])
-                ->latest();
-
-            if (! empty($validated['user_id'])) {
-                $transactions->whereHas('wallet', function ($query) use ($validated) {
-                    $query->where('user_id', $validated['user_id']);
-                });
-            }
-
-            $this->applyDateFilters($transactions, $validated);
-            $outTotal = (clone $transactions)->where('type', 'debit')->sum('amount');
-
             return Inertia::render('Wallets/Index', [
+                ...$fieldOptions,
                 'isAdmin' => true,
                 'wallets' => Wallet::with('user:id,name,email,role')->orderByDesc('balance')->paginate(20, ['*'], 'wallet_page')->withQueryString(),
                 'transactions' => $transactions
@@ -61,11 +49,8 @@ class WalletController extends Controller
             'currency' => 'MMK',
         ]);
 
-        $transactions = $wallet->transactions()->with('createdBy:id,name')->latest();
-        $this->applyDateFilters($transactions, $validated);
-        $outTotal = (clone $transactions)->where('type', 'debit')->sum('amount');
-
         return Inertia::render('Wallets/Index', [
+            ...$fieldOptions,
             'isAdmin' => false,
             'wallets' => null,
             'transactions' => $transactions->paginate(25)->withQueryString(),
@@ -76,6 +61,44 @@ class WalletController extends Controller
                 'out_total' => $outTotal,
             ],
         ]);
+    }
+
+    public function export(Request $request)
+    {
+        $transactions = $this->transactionQuery($request, $this->validatedFilters($request));
+
+        return app(\App\Services\WalletWorkbookExport::class)->download($transactions->lazy(500));
+    }
+
+    private function validatedFilters(Request $request): array
+    {
+        return $request->validate([
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            ...($request->user()->role === 'admin'
+                ? ['user_id' => ['nullable', 'integer', Rule::exists('users', 'id')]] : []),
+        ]);
+    }
+
+    private function transactionQuery(Request $request, array $filters)
+    {
+        $query = WalletTransaction::with(['wallet.user:id,name,email,role', 'createdBy:id,name'])
+            ->latest()->latest('id');
+        $ownerId = $request->user()->role === 'admin' ? ($filters['user_id'] ?? null) : $request->user()->id;
+        if ($ownerId) {
+            $query->whereHas('wallet', fn ($wallet) => $wallet->where('user_id', $ownerId));
+        }
+        $this->applyDateFilters($query, $filters);
+
+        return $query;
+    }
+
+    private function expenseFieldRules(): array
+    {
+        return [
+            'category' => ['nullable', Rule::enum(ExpenseCategory::class)],
+            'payment_type' => ['nullable', Rule::enum(WalletPaymentType::class)],
+        ];
     }
 
     private function applyDateFilters($query, array $filters): void
@@ -93,6 +116,7 @@ class WalletController extends Controller
     {
         $isAdmin = $request->user()->role === 'admin';
         $validated = $request->validate([
+            ...$this->expenseFieldRules(),
             'user_id' => [Rule::requiredIf($isAdmin), 'nullable', 'integer', Rule::exists('users', 'id')],
             'type' => ['required', Rule::in($isAdmin ? ['credit', 'debit'] : ['debit'])],
             'amount' => ['required', 'numeric', 'decimal:0,2', 'gt:0', 'max:9999999999999.99'],
@@ -110,6 +134,8 @@ class WalletController extends Controller
                 'amount' => $validated['amount'],
                 'balance_after' => 0,
                 'description' => $validated['description'] ?? null,
+                'category' => $validated['category'] ?? null,
+                'payment_type' => $validated['payment_type'] ?? null,
             ];
             if ($request->hasFile('attachment')) {
                 $data['attachment_path'] = $request->file('attachment')->store('wallet-vouchers', 'public');
@@ -128,6 +154,7 @@ class WalletController extends Controller
         $this->authorizeTransactionAccess($request, $walletTransaction);
 
         $validated = $request->validate([
+            ...$this->expenseFieldRules(),
             'type' => ['required', Rule::in($request->user()->role === 'admin' ? ['credit', 'debit'] : ['debit'])],
             'amount' => ['required', 'numeric', 'decimal:0,2', 'gt:0', 'max:9999999999999.99'],
             'description' => ['nullable', 'string', 'max:255'],
@@ -140,6 +167,7 @@ class WalletController extends Controller
                 'type' => $validated['type'],
                 'amount' => $validated['amount'],
                 'description' => $validated['description'] ?? null,
+                ...array_intersect_key($validated, array_flip(['category', 'payment_type'])),
             ]);
             if ($request->hasFile('attachment')) {
                 if ($walletTransaction->attachment_path) Storage::disk('public')->delete($walletTransaction->attachment_path);

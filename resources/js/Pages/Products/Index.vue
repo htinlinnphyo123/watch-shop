@@ -9,6 +9,8 @@ import TextInput from "@/Components/TextInput.vue";
 import InputError from "@/Components/InputError.vue";
 import PrimaryButton from "@/Components/PrimaryButton.vue";
 import SecondaryButton from "@/Components/SecondaryButton.vue";
+import SystemCodeLabel from "@/Components/SystemCodeLabel.vue";
+import axios from "axios";
 
 const props = defineProps({
   products: {
@@ -53,6 +55,28 @@ console.log("Products Data:", props.products);
 
 const page = usePage();
 const displayCurrency = ref("MMK"); // Default view
+const labelsOpen = ref(false);
+const labelItems = ref([]);
+const preparingLabels = ref(false);
+const labelMessage = ref('');
+const printAllLabels = async () => {
+  if (preparingLabels.value) return;
+  preparingLabels.value = true;
+  labelMessage.value = '';
+  try {
+    const { data } = await axios.post(route('products.labels'));
+    labelItems.value = data.items;
+    if (!data.items.length) {
+      labelMessage.value = 'No available watch stock to print.';
+      return;
+    }
+    labelsOpen.value = true;
+  } catch {
+    labelMessage.value = 'Could not prepare labels. Please try again.';
+  } finally {
+    preparingLabels.value = false;
+  }
+};
 
 const activeFilters = ref({
   search: props.filters.search || "",
@@ -511,10 +535,13 @@ const deleteProduct = (product) => {
       <h2 class="font-semibold text-xl text-gray-800 leading-tight">Watches</h2>
     </template>
 
-    <div class="flex justify-between items-center mb-6">
+    <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
       <h1 class="text-3xl font-bold text-gray-900">Watches</h1>
 
-      <div class="flex items-center gap-4">
+      <div class="flex flex-wrap items-center gap-4">
+        <SecondaryButton v-if="['admin', 'manager'].includes(userRole)" :disabled="preparingLabels || labelsOpen" @click="printAllLabels" title="Print all available watch stock, across every page and regardless of filters">
+          {{ preparingLabels ? 'Preparing labels…' : 'Print all the labels' }}
+        </SecondaryButton>
         <!-- Currency Toggle -->
         <div class="bg-gray-200 p-1 rounded-lg flex items-center shadow-inner">
           <button
@@ -562,6 +589,9 @@ const deleteProduct = (product) => {
         </PrimaryButton>
       </div>
     </div>
+
+    <p v-if="labelMessage" role="status" class="mb-4 text-sm text-gray-700">{{ labelMessage }}</p>
+    <SystemCodeLabel :show="labelsOpen" :items="labelItems" auto-print @close="labelsOpen = false" />
 
     <Modal :show="importHelpOpen" max-width="2xl" @close="closeImportHelp">
       <div class="p-6">

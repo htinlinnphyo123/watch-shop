@@ -34,6 +34,7 @@ Route::middleware(['auth', 'staff.access'])->group(function () {
     Route::post('collections/reorder', [\App\Http\Controllers\CollectionController::class, 'reorder'])->name('collections.reorder');
     Route::resource('collections', \App\Http\Controllers\CollectionController::class);
     Route::get('products/export', [\App\Http\Controllers\ProductController::class, 'export'])->middleware('role:admin')->name('products.export');
+    Route::post('products/labels', \App\Http\Controllers\StockLabelController::class)->middleware('role:admin,manager')->name('products.labels');
     Route::post('products/presigned-url', [\App\Http\Controllers\ProductController::class, 'presignedUrl'])->name('products.presigned-url');
     Route::post('products/import', [\App\Http\Controllers\ProductController::class, 'import'])->middleware('role:admin')->name('products.import');
     Route::get('products/imports/{watchImport}', [\App\Http\Controllers\ProductController::class, 'importStatus'])->middleware('role:admin')->name('products.imports.status');
@@ -43,6 +44,7 @@ Route::middleware(['auth', 'staff.access'])->group(function () {
     Route::put('/items/{item}', [\App\Http\Controllers\ProductItemController::class, 'update'])->name('items.update');
     Route::delete('/items/{item}', [\App\Http\Controllers\ProductItemController::class, 'destroy'])->name('items.destroy');
     Route::get('wallet', [\App\Http\Controllers\WalletController::class, 'index'])->name('wallet.index');
+    Route::get('wallet/export', [\App\Http\Controllers\WalletController::class, 'export'])->name('wallet.export');
     Route::post('wallet/transactions', [\App\Http\Controllers\WalletController::class, 'storeTransaction'])->name('wallet.transactions.store');
     Route::put('wallet/transactions/{walletTransaction}', [\App\Http\Controllers\WalletController::class, 'updateTransaction'])->name('wallet.transactions.update');
     Route::delete('wallet/transactions/{walletTransaction}', [\App\Http\Controllers\WalletController::class, 'destroyTransaction'])->name('wallet.transactions.destroy');

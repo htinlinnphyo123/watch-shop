@@ -226,12 +226,8 @@ class POSController extends Controller
                 }
 
                 // ── Convert to MMK ────────────────────────────────────────────
-                $rate = 1;
-                if ($product->currency && $product->currency !== 'MMK') {
-                    $rateKey = strtolower($product->currency).'_rate';
-                    $rate = floatval($settings[$rateKey] ?? 1);
-                }
-                $mmkPrice = $originalLine ? (float) $originalLine->price : floatval($product->price) * $rate;
+                $mmkPrice = $originalLine ? (float) $originalLine->price
+                    : \App\Support\PosPrice::inMmk((float) $product->price, $product->currency, $settings);
                 $chosenIds = array_merge($chosenIds, $items->pluck('id')->all());
 
                 $lineSubtotal = $mmkPrice * $items->count();

@@ -9,6 +9,8 @@ import { ref } from 'vue';
 
 const props = defineProps({
     isAdmin: Boolean,
+    categoryOptions: { type: Object, default: () => ({}) },
+    paymentTypeOptions: { type: Object, default: () => ({}) },
     currentWallet: {
         type: Object,
         default: null,
@@ -44,6 +46,8 @@ const form = useForm({
     type: props.isAdmin ? 'credit' : 'debit',
     amount: '',
     description: '',
+    category: '',
+    payment_type: '',
     attachment: null,
 });
 const editingTransaction = ref(null);
@@ -80,6 +84,8 @@ const editTransaction = (transaction) => {
     form.type = transaction.type;
     form.amount = transaction.amount;
     form.description = transaction.description || '';
+    form.category = transaction.category || '';
+    form.payment_type = transaction.payment_type || '';
     form.attachment = null;
     form.clearErrors();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -207,6 +213,22 @@ const clearDateFilters = () => {
                     <InputError class="mt-2" :message="form.errors.type" />
                 </div>
                 <div>
+                    <InputLabel for="wallet-category" value="Category" />
+                    <select id="wallet-category" v-model="form.category" class="mt-1 block w-full rounded-md border-gray-300">
+                        <option value="">Not specified</option>
+                        <option v-for="(label, value) in categoryOptions" :key="value" :value="value">{{ label }}</option>
+                    </select>
+                    <InputError class="mt-2" :message="form.errors.category" />
+                </div>
+                <div>
+                    <InputLabel for="wallet-payment-type" value="Payment type" />
+                    <select id="wallet-payment-type" v-model="form.payment_type" class="mt-1 block w-full rounded-md border-gray-300">
+                        <option value="">Not specified</option>
+                        <option v-for="(label, value) in paymentTypeOptions" :key="value" :value="value">{{ label }}</option>
+                    </select>
+                    <InputError class="mt-2" :message="form.errors.payment_type" />
+                </div>
+                <div>
                     <InputLabel value="Voucher / attachment" />
                     <input type="file" accept="image/*,.pdf" @change="form.attachment = $event.target.files[0] || null" class="mt-1 block w-full text-sm text-gray-600" />
                     <p class="mt-1 text-xs text-gray-500">Optional JPG, PNG, WEBP, or PDF up to 10 MB.</p>
@@ -234,6 +256,7 @@ const clearDateFilters = () => {
         <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-x-auto">
             <div class="px-6 py-4 border-b border-gray-200">
                 <h3 class="font-bold text-gray-900">{{ isAdmin ? 'All Wallet Records' : 'My Wallet Records' }}</h3>
+                <a :href="route('wallet.export', filters)" class="mt-2 inline-block rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Export Excel (applied filters)</a>
                 <div class="mt-4 flex flex-wrap items-end gap-3">
                     <div v-if="isAdmin">
                         <label for="wallet-user-filter" class="block text-xs font-medium text-gray-600">User</label>
@@ -303,6 +326,8 @@ const clearDateFilters = () => {
                         <th v-if="isAdmin" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">In / Out</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment Type</th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance After</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
@@ -317,6 +342,8 @@ const clearDateFilters = () => {
                         <td class="px-6 py-4">
                             <span :class="transaction.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'" class="px-2 py-1 rounded-full text-xs font-semibold">{{ transactionTypeLabel(transaction.type) }}</span>
                         </td>
+                        <td class="px-6 py-4 text-sm text-gray-600">{{ categoryOptions[transaction.category] || '—' }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">{{ paymentTypeOptions[transaction.payment_type] || '—' }}</td>
                         <td class="px-6 py-4 text-right whitespace-nowrap font-semibold" :class="transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'">
                             {{ transaction.type === 'credit' ? '+' : '-' }}{{ formatMoney(transaction.amount) }} MMK
                         </td>
@@ -332,7 +359,7 @@ const clearDateFilters = () => {
                         </td>
                     </tr>
                     <tr v-if="!transactions.data?.length">
-                        <td :colspan="isAdmin ? 8 : 7" class="px-6 py-10 text-center text-gray-500">No wallet records yet.</td>
+                        <td :colspan="isAdmin ? 10 : 9" class="px-6 py-10 text-center text-gray-500">No wallet records yet.</td>
                     </tr>
                 </tbody>
             </table>
