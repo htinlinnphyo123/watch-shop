@@ -44,10 +44,24 @@ class POSController extends Controller
             'page' => 'nullable|integer|min:1',
         ]);
 
-        return response()->json(
-            $this->productQuery($request->string('q')->trim()->toString(), $this->editingOrder($request))
-                ->when($request->filled('kind'), fn ($q) => $q->where('kind', $request->kind))->paginate(24)
-        );
+        $search = $request->string('q')->trim()->toString();
+        $editingOrder = $this->editingOrder($request);
+        $products = $this->productQuery($search, $editingOrder)
+            ->when($request->filled('kind'), fn ($q) => $q->where('kind', $request->kind))
+            ->with(['items' => fn ($query) => $this->stockQuery($query, $editingOrder)
+                ->where(fn ($codes) => $codes->where('system_unique_id', $search)->orWhere('serial_number', $search))
+                ->when($search === '', fn ($query) => $query->whereRaw('1 = 0'))
+                ->select(['id', 'product_id', 'system_unique_id', 'serial_number'])])
+            ->paginate(24);
+        $products->through(function ($product) use ($search) {
+            $match = $product->items->firstWhere('system_unique_id', $search) ?? $product->items->first();
+            $product->unsetRelation('items');
+            $product->setAttribute('matched_item', $match);
+
+            return $product;
+        });
+
+        return response()->json($products);
     }
 
     public function availableItems(Request $request, Product $product)

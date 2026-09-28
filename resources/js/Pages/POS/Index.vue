@@ -116,6 +116,12 @@ const loadProducts = async (append = false) => {
 
 watch([search, productKind], () => {
     clearTimeout(searchTimer);
+    // Invalidate old results immediately, including during the debounce delay.
+    productRequestId++;
+    productResults.value = [];
+    productPage.value = 1;
+    lastProductPage.value = 1;
+    productsLoading.value = true;
     searchTimer = setTimeout(() => loadProducts(false), 300);
 });
 // ─────────────────────────────────────────────────────────────────────────────
@@ -348,6 +354,15 @@ const handleBarcodeScan = () => {
     pendingScans.value++;
     scanQueue = scanQueue.then(() => processBarcodeScan(scanValue));
 };
+const matchedUnitInCart = product => cart.value.some(line => line.item_id === product.matched_item?.id);
+const selectSearchProduct = product => {
+    if (!product.matched_item) return addToCart(product);
+    if (pendingScans.value || matchedUnitInCart(product)) return;
+    // Recheck availability through the same exact-unit flow used by scanners.
+    const code = product.matched_item.system_unique_id || product.matched_item.serial_number;
+    pendingScans.value++;
+    scanQueue = scanQueue.then(() => processBarcodeScan(code));
+};
 const handleCameraScan = (code) => {
     isCameraOpen.value = false;
     if (!code || isCheckoutModalOpen.value) return;
@@ -451,7 +466,7 @@ const submitCheckout = () => {
                     <div
                         v-for="product in filteredProducts"
                         :key="product.id"
-                        @click="addToCart(product)"
+                        @click="selectSearchProduct(product)"
                         class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden cursor-pointer hover:border-gold-500 hover:shadow-md transition-all group"
                     >
                         <div class="h-32 bg-gray-100 relative">
@@ -468,6 +483,16 @@ const submitCheckout = () => {
                         <div class="p-3">
                             <h3 class="text-gray-900 font-bold text-sm truncate group-hover:text-gold-600">{{ product.name }}</h3>
                             <p class="text-gray-400 text-xs truncate">{{ product.kind === 'accessory' ? 'Accessory' : product.model_number }}</p>
+                            <div v-if="product.matched_item" class="mt-2 rounded-lg bg-gold-50 p-2">
+                                <p class="text-xs font-semibold text-gold-800">Exact unit match</p>
+                                <p class="break-all font-mono text-xs text-gray-700">{{ product.matched_item.system_unique_id || product.matched_item.serial_number }}</p>
+                                <p v-if="product.matched_item.serial_number" class="break-all text-xs text-gray-500">Serial: {{ product.matched_item.serial_number }}</p>
+                                <button type="button" class="mt-2 w-full rounded-md bg-gold-600 px-2 py-2 text-xs font-semibold text-white hover:bg-gold-700 disabled:opacity-50"
+                                    :disabled="pendingScans > 0 || matchedUnitInCart(product)"
+                                    @click.stop="selectSearchProduct(product)">
+                                    {{ matchedUnitInCart(product) ? 'Already in cart' : (product.kind === 'accessory' ? 'Add this item' : 'Add this watch') }}
+                                </button>
+                            </div>
                             <p v-if="product.kind === 'accessory'" class="text-gray-500 text-xs">{{ (product.accessory_attributes || []).map(a => `${a.name}: ${a.value}`).join(' · ') }}</p>
                             <div class="mt-2 flex justify-between items-end">
                                 <span class="text-gold-600 font-bold text-sm">

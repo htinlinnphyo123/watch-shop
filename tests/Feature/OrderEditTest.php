@@ -207,6 +207,47 @@ class OrderEditTest extends TestCase
             ->assertOk()->assertJsonPath('items.0.original_line_id', $this->lineId);
     }
 
+    public function test_exact_unit_search_identifies_the_watch_and_checkout_sells_that_unit(): void
+    {
+        $older = $this->product->items()->create(['status' => 'available', 'system_unique_id' => '000000000001']);
+        $matched = $this->product->items()->create(['status' => 'available', 'system_unique_id' => '000000000002', 'serial_number' => 'SERIAL-2']);
+        foreach (['000000000002', 'SERIAL-2'] as $code) {
+            $this->getJson(route('pos.products', ['q' => $code]))->assertOk()
+                ->assertJsonPath('data.0.matched_item.id', $matched->id)
+                ->assertJsonPath('data.0.matched_item.system_unique_id', '000000000002');
+        }
+        $scan = $this->getJson(route('pos.products.scan', ['code' => $matched->system_unique_id]))->assertOk();
+        $this->post(route('pos.checkout'), [
+            'payments' => [['method' => 'cash', 'amount' => 30000]],
+            'cart' => [['product_id' => $this->product->id, 'item_id' => $scan->json('item.id'), 'quantity' => 1]],
+        ])->assertSessionHasNoErrors();
+        $this->assertSame('sold', $matched->fresh()->status);
+        $this->assertSame('available', $older->fresh()->status);
+    }
+
+    public function test_model_and_partial_code_search_keep_generic_selection(): void
+    {
+        $this->product->items()->create(['status' => 'available', 'system_unique_id' => '000000000002']);
+        foreach (['Original', '000000', ''] as $query) {
+            $this->getJson(route('pos.products', ['q' => $query]))->assertOk()
+                ->assertJsonPath('data.0.id', $this->product->id)
+                ->assertJsonPath('data.0.matched_item', null);
+        }
+    }
+
+    public function test_exact_search_excludes_unavailable_units_except_the_order_being_edited(): void
+    {
+        $this->getJson(route('pos.products', ['q' => $this->unit->system_unique_id]))
+            ->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson(route('pos.products', ['q' => $this->unit->system_unique_id, 'order_id' => $this->order->id]))
+            ->assertOk()->assertJsonPath('data.0.matched_item.id', $this->unit->id);
+        foreach (['reserved', 'damaged'] as $status) {
+            $unit = $this->product->items()->create(['status' => $status, 'system_unique_id' => $status === 'reserved' ? '000000000003' : '000000000004']);
+            $this->getJson(route('pos.products', ['q' => $unit->system_unique_id]))
+                ->assertOk()->assertJsonCount(0, 'data');
+        }
+    }
+
     public function test_pending_order_stays_pending_without_selling_stock(): void
     {
         $this->order->update(['status' => 'pending']);
