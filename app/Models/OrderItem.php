@@ -23,6 +23,7 @@ class OrderItem extends Model
 
     public function soldItems()
     {
+        // Historical relation name; includes this line's reserved units while pending.
         return $this->hasMany(ProductItem::class);
     }
 }

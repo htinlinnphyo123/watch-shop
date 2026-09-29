@@ -44,13 +44,13 @@ const printOrder = () => window.print();
 import { router } from '@inertiajs/vue3';
 
 const approveOrder = () => {
-    if (confirm('Are you sure you want to approve this order? Stock will be deducted automatically.')) {
+    if (confirm(props.order.stock_reserved_at ? 'Approve this order? Its reserved units will be marked sold.' : 'Approve this order? Available units will be allocated and marked sold.')) {
         router.post(route('orders.approve', props.order.id));
     }
 };
 
 const cancelOrder = () => {
-    if (confirm('Cancel this order? Its sold stock will return to available inventory. The order and payment history will be kept. Arrange any refund separately.')) {
+    if (confirm('Cancel this order? Its reserved or sold stock will return to available inventory. The order and payment history will be kept. Arrange any refund separately.')) {
         router.post(route('orders.cancel', props.order.id));
     }
 };
@@ -138,8 +138,11 @@ const cancelOrder = () => {
                 <details><summary class="cursor-pointer font-semibold">Sales &amp; delivery details</summary><dl class="mt-3 grid gap-2 sm:grid-cols-2"><div v-for="key in ['order_date', 'order_type', 'buying_type', 'delivery_type', 'delivery_status', 'delivery_fees']" :key="key"><dt class="capitalize text-gray-500">{{ key.replaceAll('_', ' ') }}</dt><dd class="break-words">{{ key === 'order_date' ? (order[key] || '').slice(0, 10) || '—' : order[key] ?? '—' }}</dd></div></dl></details>
                 <p><span class="font-semibold">Money transfer amount:</span> {{ order.money_transfer_amount == null ? '—' : Number(order.money_transfer_amount).toLocaleString() + ' Ks' }}</p>
                 <p class="whitespace-pre-wrap break-words"><span class="font-semibold">Remark:</span> {{ order.remark || '—' }}</p>
-                <p v-if="order.status === 'pending'" class="text-amber-700">Pending / COD · {{ balanceDue.toLocaleString() }} Ks due. Update payments through Edit Order. Approval deducts stock; it does not record a payment.</p>
-                <p v-if="order.status === 'cancelled'" class="text-red-700">Cancelled. Sold stock was returned to inventory. Payment history is retained; refunds are handled separately.</p>
+                <p v-if="order.status === 'pending'" class="text-amber-700">Pending / COD · {{ balanceDue.toLocaleString() }} Ks due. {{ order.stock_reserved_at ? 'Selected units are reserved and cannot be sold elsewhere or deleted. Approval marks the same units sold.' : 'No units are reserved yet. Edit this order, select the system codes and save to reserve them.' }} Update payments through Edit Order; approval does not record a payment.</p>
+                <div v-if="order.status === 'pending' && order.stock_reserved_at" class="space-y-1 text-amber-800">
+                    <p v-for="line in order.items" :key="line.id">{{ line.product?.name || 'Watch' }} · Reserved system codes: <span class="font-mono">{{ (line.sold_items || []).map(unit => unit.system_unique_id || `Unit #${unit.id}`).join(', ') }}</span></p>
+                </div>
+                <p v-if="order.status === 'cancelled'" class="text-red-700">Cancelled. Linked reserved or sold stock was returned to inventory. Payment history is retained; refunds are handled separately.</p>
             </section>
             <div class="invoice-printable bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden" style="font-family: 'Inter', sans-serif;">
 

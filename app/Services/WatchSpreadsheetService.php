@@ -9,7 +9,6 @@ use App\Models\Product;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class WatchSpreadsheetService
@@ -190,20 +189,13 @@ class WatchSpreadsheetService
                 }
 
                 $validator = validator($data, [
-                    'name' => 'required|string|max:255',
+                    ...\App\Support\WatchValidation::rules($watch?->id),
                     'brand_id' => 'required|integer',
-                    'price' => 'required|numeric|min:0|max:9999999999.99',
-                    'cost_price' => 'nullable|numeric|min:0|max:9999999999.99',
-                    'web_price' => 'nullable|numeric|min:0|max:9999999999.99',
-                    'discount' => 'nullable|numeric|min:0|max:100',
-                    'warranty_period' => 'nullable|integer|min:0|max:1200',
                     'warranty_type' => 'nullable|in:international_warranty,shop_warranty',
                     'youtube_link' => 'nullable|url:http,https|max:2048',
                     'case_material' => 'nullable|string|max:255',
                     'priority_level' => 'nullable|integer|in:0,1,2,3',
                     'currency' => 'required|in:MMK,USD,THB,SGD,CNY',
-                    'barcode' => ['nullable', 'string', 'max:255', Rule::unique('products', 'barcode')->ignore($watch?->id)],
-                    'model_number' => 'nullable|string|max:255',
                     'description' => 'nullable|string|max:10000',
                 ]);
                 foreach ($validator->errors()->messages() as $column => $messages) {

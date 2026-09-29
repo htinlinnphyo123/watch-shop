@@ -43,7 +43,7 @@ const quotedTotal = computed(() => props.form.price === '' || props.form.price =
                 </select>
                 <input v-else :id="`record-${field.key}`" v-model="form[field.key]" :type="field.type || 'text'" :min="field.type === 'number' ? 0 : undefined" :step="field.type === 'number' ? '0.01' : undefined" :max="field.type === 'number' ? '9999999999999.99' : undefined" maxlength="255" :placeholder="field.placeholder" class="mt-1 block w-full rounded-md border-gray-300 text-sm" />
                 <InputError :message="form.errors[field.key]" />
-                <p v-if="field.key === 'order_type'" class="mt-1 text-xs text-gray-500">Reporting label only; normal POS stock rules apply. Use the Pre Order menu to track items waiting for stock. This does not create a pre-order record.</p>
+                <p v-if="field.key === 'order_type'" class="mt-1 text-xs text-gray-500">Reporting label only. Choose Pending / Reserve stock / COD below to reserve selected units. Use the Pre Order menu for watches still waiting for stock.</p>
                 <p v-if="hasLegacyValue(field)" class="mt-1 text-xs text-amber-700">Choose a listed option or Not specified before saving.</p>
             </div>
         </div>

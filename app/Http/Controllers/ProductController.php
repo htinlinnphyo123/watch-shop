@@ -26,6 +26,7 @@ class ProductController extends Controller
 
     public function index(Request $request)
     {
+        $request->validate(['edit' => 'nullable|integer', 'search' => 'nullable|string|max:100']);
         $specFields = [
             'dial_size', 'dial_color', 'strap_size', 'strap_color', 'strap_material',
             'strap_style', 'gender', 'movement', 'quick_release', 'clasp_type',
@@ -49,9 +50,11 @@ class ProductController extends Controller
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'ilike', "%{$search}%")
-                    ->orWhere('model_number', 'ilike', "%{$search}%")
-                    ->orWhere('barcode', 'ilike', "%{$search}%");
+                $q->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($search).'%'])
+                    ->orWhereRaw('LOWER(model_number) LIKE ?', ['%'.mb_strtolower($search).'%'])
+                    ->orWhereRaw('LOWER(barcode) LIKE ?', ['%'.mb_strtolower($search).'%'])
+                    ->orWhereHas('items', fn ($items) => $items->where('system_unique_id', 'like', "%{$search}%")
+                        ->orWhereRaw('LOWER(serial_number) LIKE ?', ['%'.mb_strtolower($search).'%']));
             });
         }
 
@@ -130,23 +133,27 @@ class ProductController extends Controller
             'specOptions' => $specOptions,
             'userRole' => $request->user()->role ?? 'user',
             'latestImport' => $latestImport,
+            'editingProduct' => $request->filled('edit')
+                ? Product::where('kind', 'watch')->with(['categories', 'customerGroups'])->findOrFail($request->integer('edit'))
+                : null,
         ]);
+    }
+
+    public function edit(Product $product)
+    {
+        abort_unless($product->kind === 'watch', 404);
+
+        return redirect()->route('products.index', ['edit' => $product->id]);
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required',
+            ...\App\Support\WatchValidation::rules(),
             'brand_id' => 'required|exists:brands,id',
             'collection_id' => 'nullable|exists:collections,id',
             'category_ids' => 'required|array',
             'category_ids.*' => 'exists:categories,id',
-            'price' => 'required|numeric',
-            'web_price' => 'nullable|numeric',
-            'discount' => 'nullable|numeric|min:0|max:100',
-            'cost_price' => 'nullable|numeric',
-            'model_number' => 'nullable|string',
-            'warranty_period' => 'required|integer',
             'warranty_type' => 'nullable|in:international_warranty,shop_warranty',
             'description' => 'nullable|string',
             'youtube_link' => 'nullable|url:http,https|max:2048',
@@ -160,7 +167,6 @@ class ProductController extends Controller
             'images.*' => 'nullable',
             'preview_photo' => 'nullable',
             'preview_bg_photo' => 'nullable',
-            'barcode' => 'nullable|string',
             'currency' => 'nullable|in:MMK,USD,THB,SGD,CNY',
             'crystal' => 'nullable|string',
             'caliber_code' => 'nullable|string',
@@ -178,6 +184,9 @@ class ProductController extends Controller
             'quick_release' => 'nullable|string',
             'clasp_type' => 'nullable|string',
             'origin' => 'nullable|string',
+            'customer_group_discounts' => 'nullable|array',
+            'customer_group_discounts.*.group_id' => 'required|exists:customer_groups,id|distinct',
+            'customer_group_discounts.*.percentage' => 'nullable|numeric|min:0|max:100',
             'is_featured' => 'boolean',
             'is_banner' => 'boolean',
             'is_limited_collection' => 'boolean',
@@ -190,6 +199,7 @@ class ProductController extends Controller
             unset($validated['cost_price']);
         }
 
+        $validated['warranty_period'] = $validated['warranty_period'] ?? 12;
         $validated['priority_level'] = $validated['priority_level'] ?? 0;
 
         if ($request->hasFile('image')) {
@@ -252,17 +262,11 @@ class ProductController extends Controller
     {
         abort_unless($product->kind === 'watch', 404);
         $validated = $request->validate([
-            'name' => 'required',
+            ...\App\Support\WatchValidation::rules($product->id),
             'brand_id' => 'required|exists:brands,id',
             'collection_id' => 'nullable|exists:collections,id',
             'category_ids' => 'required|array',
             'category_ids.*' => 'exists:categories,id',
-            'price' => 'required|numeric',
-            'web_price' => 'nullable|numeric',
-            'discount' => 'nullable|numeric|min:0|max:100',
-            'cost_price' => 'nullable|numeric',
-            'model_number' => 'nullable|string',
-            'warranty_period' => 'required|integer',
             'warranty_type' => 'nullable|in:international_warranty,shop_warranty',
             'description' => 'nullable|string',
             'youtube_link' => 'nullable|url:http,https|max:2048',
@@ -274,7 +278,6 @@ class ProductController extends Controller
             'image' => 'nullable',
             'preview_photo' => 'nullable',
             'preview_bg_photo' => 'nullable',
-            'barcode' => 'nullable|string',
             'currency' => 'nullable|in:MMK,USD,THB,SGD,CNY',
             'crystal' => 'nullable|string',
             'caliber_code' => 'nullable|string',
@@ -304,6 +307,8 @@ class ProductController extends Controller
             'is_active' => 'boolean',
             'is_public' => 'boolean',
         ]);
+
+        $validated['warranty_period'] = $validated['warranty_period'] ?? $product->warranty_period;
 
         if ($request->user()->role !== 'admin') {
             unset($validated['cost_price']);
@@ -393,8 +398,13 @@ class ProductController extends Controller
     public function destroy(Product $product)
     {
         abort_unless($product->kind === 'watch', 404);
-        // Soft delete — do NOT remove images so the product can be restored later.
-        $product->delete();
+        \Illuminate\Support\Facades\DB::transaction(function () use ($product) {
+            if ($product->items()->where('status', 'reserved')->lockForUpdate()->get()->isNotEmpty()) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['error' => 'This watch has reserved units. Cancel or complete the related orders/reservations before deleting it.']);
+            }
+            // Preserve images and history when archiving an unreserved watch model.
+            $product->delete();
+        });
 
         return redirect()->back();
     }

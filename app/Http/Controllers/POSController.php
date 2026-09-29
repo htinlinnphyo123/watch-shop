@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductItem;
 use App\Services\LowStockNotificationService;
 use App\Services\OrderPaymentService;
+use App\Services\OrderStockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -131,6 +132,7 @@ class POSController extends Controller
     {
         $recordDetails = $request->validate(\App\Support\SalesRecordFields::rules());
         $request->validate([
+            'checkout_request_id' => 'nullable|uuid',
             'edit_version' => $editingOrder ? 'required|integer|min:0' : 'nullable|integer',
             'customer_id' => 'nullable|exists:customers,id',
             'status' => 'sometimes|required|in:pending,completed',
@@ -153,9 +155,26 @@ class POSController extends Controller
 
         try {
             DB::beginTransaction();
+            $checkoutHash = null;
+            if (! $editingOrder && $request->filled('checkout_request_id')) {
+                // Serialize retries by cashier before checking or creating an order.
+                \App\Models\User::whereKey($request->user()->id)->lockForUpdate()->firstOrFail();
+                $checkoutHash = hash('sha256', json_encode($request->except(['_token', 'checkout_request_id']), JSON_THROW_ON_ERROR));
+                $previous = Order::where('user_id', $request->user()->id)
+                    ->where('checkout_request_id', $request->checkout_request_id)->first();
+                if ($previous) {
+                    if (! hash_equals($previous->checkout_payload_hash, $checkoutHash)) {
+                        throw ValidationException::withMessages(['error' => "This checkout was already saved as {$previous->order_number}. Open Orders to review it before starting another sale."]);
+                    }
+                    DB::commit();
+
+                    return redirect()->route('orders.show', $previous);
+                }
+            }
             $auditBefore = null;
             $originalLines = collect();
             $originalProducts = collect();
+            $stock = app(OrderStockService::class);
             if ($editingOrder) {
                 $editingOrder = Order::whereKey($editingOrder->id)->lockForUpdate()->firstOrFail();
                 if (! in_array($editingOrder->status, ['completed', 'pending'], true)) {
@@ -167,16 +186,8 @@ class POSController extends Controller
                 $originalLines = $editingOrder->items()->with(['soldItems' => fn ($query) => $query->lockForUpdate()])->get()->keyBy('id');
                 $originalProducts = $originalLines->pluck('product_id');
                 $auditBefore = app(\App\Services\OrderAuditService::class)->before($editingOrder);
-                if ($editingOrder->status === 'completed') {
-                    foreach ($originalLines as $line) {
-                        if ($line->soldItems->count() !== $line->quantity || $line->soldItems->contains(fn ($item) => $item->status !== 'sold')) {
-                            throw ValidationException::withMessages(['error' => 'The original stock records have changed or are incomplete. This order cannot be edited safely.']);
-                        }
-                    }
-                    // Release only this order's sold units inside the transaction.
-                    ProductItem::whereIn('order_item_id', $originalLines->keys())->where('status', 'sold')
-                        ->update(['status' => 'available', 'order_item_id' => null]);
-                }
+                // Release only this order's units, then reallocate atomically below.
+                $stock->release($editingOrder, $originalLines);
             }
             $status = $editingOrder?->status ?? $request->input('status', 'completed');
             if ($editingOrder && $request->has('status') && $request->status !== $status) {
@@ -196,13 +207,13 @@ class POSController extends Controller
                 $customerGroup = $customer ? $customer->group : null;
             }
 
-            foreach ($request->cart as $cartLine) {
-                $product = Product::findOrFail($cartLine['product_id']);
+            foreach ($request->cart as $lineIndex => $cartLine) {
+                $product = Product::with('customerGroups')->findOrFail($cartLine['product_id']);
                 $originalLine = ! empty($cartLine['original_line_id']) ? $originalLines->get($cartLine['original_line_id']) : null;
                 if (! empty($cartLine['original_line_id']) && (! $originalLine || $originalLine->product_id !== $product->id)) {
                     throw ValidationException::withMessages(['cart' => 'An original order line does not match this watch. Reopen the order and retry.']);
                 }
-                if ($originalLine && $editingOrder->status === 'completed' && ! $originalLine->soldItems->contains('id', $cartLine['item_id'] ?? null)) {
+                if ($originalLine && $stock->hasAllocatedStock($editingOrder) && ! $originalLine->soldItems->contains('id', $cartLine['item_id'] ?? null)) {
                     throw ValidationException::withMessages(['cart' => 'The original price belongs to a different watch unit.']);
                 }
 
@@ -220,7 +231,7 @@ class POSController extends Controller
                         ->get();
 
                     if ($items->isEmpty()) {
-                        throw new \Exception("The selected unit for \"{$product->name}\" is no longer available.");
+                        throw ValidationException::withMessages(["cart.{$lineIndex}" => "The selected unit for \"{$product->name}\" is no longer available. Remove this line and select another unit."]);
                     }
                 } else {
                     // Generic: auto-pick oldest available units
@@ -233,9 +244,7 @@ class POSController extends Controller
                         ->get();
 
                     if ($items->count() < $qty) {
-                        throw new \Exception(
-                            "Not enough stock for \"{$product->name}\". Requested: {$qty}, available: {$items->count()}."
-                        );
+                        throw ValidationException::withMessages(["cart.{$lineIndex}" => "Not enough stock for \"{$product->name}\". Requested: {$qty}, available: {$items->count()}. Review this cart line."]);
                     }
                 }
 
@@ -246,7 +255,11 @@ class POSController extends Controller
 
                 $lineSubtotal = $mmkPrice * $items->count();
                 $subtotal += $lineSubtotal;
-                $watchDiscountAmount += $lineSubtotal * (floatval($product->discount ?? 0) / 100);
+                $groupOverride = $customerGroup ? $product->customerGroups->firstWhere('id', $customerGroup->id) : null;
+                $lineDiscount = $customerGroup
+                    ? (float) ($groupOverride?->pivot->percentage ?? $customerGroup->percentage)
+                    : (float) ($product->discount ?? 0);
+                $watchDiscountAmount += $lineSubtotal * ($lineDiscount / 100);
 
                 $orderItemsData[] = [
                     'product_id' => $product->id,
@@ -260,10 +273,8 @@ class POSController extends Controller
             // clients that omit it still receive the same authoritative default.
             $discountPercentage = $request->filled('discount_percentage')
                 ? floatval($request->discount_percentage)
-                : ($customerGroup
-                    ? floatval($customerGroup->percentage)
-                    : ($subtotal > 0 ? ($watchDiscountAmount / $subtotal) * 100 : 0));
-            $discountPercentage = max(0, min(100, $discountPercentage));
+                : ($subtotal > 0 ? ($watchDiscountAmount / $subtotal) * 100 : 0);
+            $discountPercentage = round(max(0, min(100, $discountPercentage)), 2);
             $totalAmount = round($subtotal * (1 - ($discountPercentage / 100)), 2);
             $paymentDetails = (new OrderPaymentService)->summarize(
                 $request->input('payments', [[
@@ -275,6 +286,10 @@ class POSController extends Controller
             );
 
             $order = $editingOrder ?? new Order(['user_id' => auth()->id(), 'order_number' => 'ORD-'.strtoupper(uniqid()), 'status' => $status]);
+            if (! $editingOrder && $checkoutHash) {
+                $order->checkout_request_id = $request->checkout_request_id;
+                $order->checkout_payload_hash = $checkoutHash;
+            }
             $order->fill([
                 ...$recordDetails,
                 'customer_id' => $request->customer_id,
@@ -286,6 +301,9 @@ class POSController extends Controller
                 'total_amount' => $totalAmount,
                 'edit_version' => $editingOrder ? $editingOrder->edit_version + 1 : 0,
             ]);
+            if ($status === 'pending') {
+                $order->stock_reserved_at ??= now();
+            }
 
             $order->save();
             if ($editingOrder) {
@@ -299,13 +317,11 @@ class POSController extends Controller
                     'price' => $lineData['price'],
                 ]);
 
-                // Link the resolved product_items to this order line and mark sold
-                if ($order->status === 'completed') {
-                    ProductItem::whereIn('id', $lineData['item_ids'])->update([
-                        'status' => 'sold',
-                        'order_item_id' => $orderItem->id,
-                    ]);
-                }
+                // Pending POS orders hold the exact same units until approval/cancellation.
+                ProductItem::whereIn('id', $lineData['item_ids'])->update([
+                    'status' => $order->status === 'completed' ? 'sold' : 'reserved',
+                    'order_item_id' => $orderItem->id,
+                ]);
             }
 
             foreach (collect($orderItemsData)->pluck('product_id')->merge($originalProducts)->unique() as $productId) {
@@ -343,9 +359,10 @@ class POSController extends Controller
     {
         return $query->where(function ($stock) use ($order) {
             $stock->where('status', 'available');
-            if ($order && $order->status === 'completed') {
+            if ($order && app(OrderStockService::class)->hasAllocatedStock($order)) {
                 $stock->orWhere(function ($owned) use ($order) {
-                    $owned->where('status', 'sold')->whereIn('order_item_id', $order->items()->select('id'));
+                    $owned->where('status', app(OrderStockService::class)->expectedStatus($order))
+                        ->whereIn('order_item_id', $order->items()->select('id'));
                 });
             }
         });
@@ -353,17 +370,17 @@ class POSController extends Controller
 
     private function editPayload(Order $order): array
     {
-        $order->load(['items.product', 'items.soldItems']);
+        $order->load(['items.product.customerGroups', 'items.soldItems']);
+        $stock = app(OrderStockService::class);
+        $stock->assertIntact($order, $order->items);
         $cart = [];
         foreach ($order->items as $line) {
             abort_unless($line->product, 422, 'An original watch is no longer in the catalog. Restore it before editing this order.');
-            if ($order->status === 'completed') {
-                abort_unless($line->soldItems->count() === $line->quantity && $line->soldItems->every(fn ($unit) => $unit->status === 'sold'), 422, 'The original stock records are incomplete or have changed.');
-            }
             $product = $line->product->only(['id', 'name', 'model_number', 'barcode', 'images', 'currency', 'price', 'discount']);
+            $product['customer_groups'] = $line->product->customerGroups;
             $product['pos_price_mmk'] = (float) $line->price;
             $product['available_items_count'] = $this->stockQuery($line->product->items(), $order)->count();
-            if ($order->status === 'completed') {
+            if ($stock->hasAllocatedStock($order)) {
                 foreach ($line->soldItems as $unit) {
                     $cart[] = ['product' => $product, 'item_id' => $unit->id, 'serial_number' => $unit->serial_number ?: $unit->system_unique_id,
                         'system_unique_id' => $unit->system_unique_id, 'qty' => 1, 'original_line_id' => $line->id];
@@ -387,6 +404,7 @@ class POSController extends Controller
     private function productQuery(?string $search = null, ?Order $editingOrder = null)
     {
         return Product::query()
+            ->with('customerGroups')
             ->select([
                 'id',
                 'name',

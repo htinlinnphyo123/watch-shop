@@ -13,6 +13,7 @@ import SystemCodeLabel from "@/Components/SystemCodeLabel.vue";
 import axios from "axios";
 
 const props = defineProps({
+  editingProduct: { type: Object, default: null },
   products: {
     type: Object,
     default: () => ({ data: [], links: [] }),
@@ -51,7 +52,6 @@ const props = defineProps({
   },
 });
 
-console.log("Products Data:", props.products);
 
 const page = usePage();
 const displayCurrency = ref("MMK"); // Default view
@@ -435,6 +435,9 @@ const openModal = (product = null) => {
   isModalOpen.value = true;
 };
 
+onMounted(() => { if (props.editingProduct) openModal(props.editingProduct); });
+watch(() => props.editingProduct?.id, () => { if (props.editingProduct) openModal(props.editingProduct); });
+
 const closeModal = () => {
   isModalOpen.value = false;
   form.reset();
@@ -531,6 +534,7 @@ const deleteProduct = (product) => {
   <Head title="Watches" />
 
   <AdminLayout>
+    <p v-if="page.props.errors.error" role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{{ page.props.errors.error }}</p>
     <template #header>
       <h2 class="font-semibold text-xl text-gray-800 leading-tight">Watches</h2>
     </template>
@@ -690,7 +694,7 @@ const deleteProduct = (product) => {
         <TextInput
           type="text"
           v-model="activeFilters.search"
-          placeholder="Search..."
+          placeholder="Name, model, barcode or serial…"
           class="mt-1 block w-full text-sm bg-gray-50 border-gray-300"
         />
       </div>
@@ -1623,7 +1627,7 @@ const deleteProduct = (product) => {
               Specific Discounts by Group (%)
             </h3>
             <p class="text-xs text-gray-500 mb-4">
-              Leave empty to use the default group discount.
+              Used in POS and online checkout. A value here overrides this group’s default discount for this watch, including 0%. Leave empty to use the group default. POS staff can still override the final order discount.
             </p>
             <div class="grid grid-cols-2 gap-4">
               <div
@@ -1716,7 +1720,7 @@ const deleteProduct = (product) => {
                   class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50"
                 />
                 <label for="is_active" class="ml-2 block text-sm text-gray-900"
-                  >Is Active</label
+                  >Active on website</label
                 >
               </div>
               <div class="flex items-center">
@@ -1727,7 +1731,7 @@ const deleteProduct = (product) => {
                   class="rounded border-gray-300 text-gold-500 shadow-sm focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50"
                 />
                 <label for="is_public" class="ml-2 block text-sm text-gray-900"
-                  >Is Public</label
+                  >Public on website</label
                 >
               </div>
             </div>

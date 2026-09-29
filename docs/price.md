@@ -1,5 +1,9 @@
 # Pricing Logic
 
+## POS customer-group discounts
+
+For a customer with a group, each cart line uses the watch's specific group override if present (including 0%), otherwise the group's default percentage. Walk-in sales use each product's discount. POS combines these into a value-weighted order percentage rounded to two decimal places. A salesperson may still override that final percentage; existing order edits keep the saved percentage. The server and browser follow the same precedence.
+
 ## Public User / Login User (Internal User)
 
 ### Scenario 1: No Web Price

@@ -7,9 +7,11 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\User;
+use App\Models\WatchImport;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 use Rap2hpoutre\FastExcel\FastExcel;
 use Tests\TestCase;
 
@@ -18,6 +20,14 @@ class WatchSpreadsheetTest extends TestCase
     use RefreshDatabase;
 
     private array $temporaryFiles = [];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Exercise the real import job without requiring a queue worker in tests.
+        config(['queue.connections.watch-imports.driver' => 'sync']);
+        Storage::fake('local');
+    }
 
     protected function beforeRefreshingDatabase(): void
     {
@@ -91,6 +101,7 @@ class WatchSpreadsheetTest extends TestCase
         ])]);
 
         $this->post(route('products.import'), ['file' => $file])->assertSessionHasNoErrors()->assertSessionHas('success');
+        $this->assertSame('completed', WatchImport::sole()->status);
         $watch = Product::where('barcode', 'WATCH-IMPORT-1')->firstOrFail();
         $this->assertSame('watch', $watch->kind);
         $this->assertTrue((bool) $watch->is_active);
@@ -113,7 +124,9 @@ class WatchSpreadsheetTest extends TestCase
             $this->row(['id' => $accessory->id, 'name' => 'Changed by spreadsheet', 'barcode' => 'ACC-1']),
         ]);
 
-        $this->post(route('products.import'), ['file' => $file])->assertSessionHas('import_errors');
+        $this->post(route('products.import'), ['file' => $file])->assertSessionHasNoErrors();
+        $this->assertSame('failed', WatchImport::sole()->status);
+        $this->assertNotEmpty(WatchImport::sole()->errors);
         $this->assertSame('Leather strap', $accessory->fresh()->name);
         $this->assertDatabaseMissing('products', ['barcode' => 'WATCH-ROLLBACK']);
     }

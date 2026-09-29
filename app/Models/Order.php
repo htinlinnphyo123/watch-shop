@@ -11,7 +11,10 @@ class Order extends Model
 
     protected $guarded = [];
 
+    protected $hidden = ['checkout_request_id', 'checkout_payload_hash'];
+
     protected $casts = [
+        'stock_reserved_at' => 'datetime',
         'edit_version' => 'integer',
         'payments' => 'array',
         'discount_percentage' => 'decimal:2',

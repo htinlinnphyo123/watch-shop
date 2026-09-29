@@ -77,7 +77,7 @@ class StockLabelTest extends TestCase
 
     public function test_generates_only_missing_codes_and_repeated_printing_keeps_codes_and_stock(): void
     {
-        $this->actingAs(User::factory()->create(['role' => 'manager']));
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
         Setting::create(['key' => 'usd_rate', 'value' => '2142.32']);
         $watch = $this->watch();
         $existing = $watch->items()->create(['status' => 'available', 'system_unique_id' => '001234567890']);
@@ -96,7 +96,7 @@ class StockLabelTest extends TestCase
     public function test_label_generation_requires_inventory_access(): void
     {
         $this->postJson(route('products.labels'))->assertUnauthorized();
-        foreach (['staff', 'user'] as $role) {
+        foreach (['manager', 'staff', 'user'] as $role) {
             $this->actingAs(User::factory()->create(['role' => $role]));
             $this->postJson(route('products.labels'))->assertForbidden();
         }

@@ -5,8 +5,8 @@ import SearchableSelect from '@/Components/SearchableSelect.vue';
 import { customerLabel, customerOptions } from '@/utils/customerPicker';
 import { salesDefaults, recordValues } from '@/utils/salesRecordFields';
 import InputError from '@/Components/InputError.vue';
-import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
-import { ref, computed, watch, nextTick } from 'vue';
+import { Head, Link, useForm, usePage, router } from '@inertiajs/vue3';
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import Modal from '@/Components/Modal.vue';
 import CameraBarcodeScanner from '@/Components/CameraBarcodeScanner.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -15,7 +15,8 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import axios from 'axios';
 import { paymentMethods, paymentCents } from '@/utils/payments';
-import { posPriceMmk } from '@/utils/posPricing';
+import { posPriceMmk, posDiscountPercentage } from '@/utils/posPricing';
+import { createCheckoutRequestId } from '@/utils/checkoutRequest';
 
 const props = defineProps({
     editingOrder: { type: Object, default: null },
@@ -73,6 +74,7 @@ const formatPrice = (amount) => new Intl.NumberFormat('en-US', {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const checkoutForm = useForm({
+    checkout_request_id: createCheckoutRequestId(),
     ...recordValues(props.editingOrder, salesDefaults),
     status: props.editingOrder?.status || 'completed',
     delivery_code: props.editingOrder?.delivery_code || '',
@@ -137,11 +139,9 @@ const getActiveCustomerGroup = () => {
 
 const defaultDiscountPercentage = computed(() => {
     const group = getActiveCustomerGroup();
-    if (group) return parseFloat(group.percentage) || 0;
-
     if (subTotal.value <= 0) return 0;
     const watchDiscount = cart.value.reduce((sum, item) => {
-        const percentage = parseFloat(item.product.discount) || 0;
+        const percentage = posDiscountPercentage(item.product, group);
         return sum + (getMmkPrice(item.product) * item.qty * percentage / 100);
     }, 0);
 
@@ -150,7 +150,7 @@ const defaultDiscountPercentage = computed(() => {
 
 const defaultDiscountSource = computed(() => {
     const group = getActiveCustomerGroup();
-    return group ? `${group.name} member type` : 'product record';
+    return group ? `${group.name}: watch overrides, then group default` : 'product record';
 });
 
 const applyDefaultDiscount = () => {
@@ -228,29 +228,28 @@ const maxQty = computed(() => Math.max(0, availableItems.value.length - genericC
 const filteredAvailableItems = computed(() => {
     if (!serialSearch.value) return availableItems.value;
     return availableItems.value.filter(i =>
-        (i.serial_number || i.system_unique_id || '')
-            .toLowerCase()
-            .includes(serialSearch.value.toLowerCase())
+        [i.serial_number, i.system_unique_id].some(code =>
+            (code || '').toLowerCase().includes(serialSearch.value.trim().toLowerCase()))
     );
 });
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Open add modal ───────────────────────────────────────────────────────────
 const addToCart = async (product) => {
-    if ((product.available_items_count || 0) <= cartQtyForProduct(product.id)) {
-        alert('No stock available for this product!');
+    try {
+        const response = await axios.get(route('pos.products.available-items', product.id), { params: { order_id: props.editingOrder?.id } });
+        product.items = response.data.items;
+        product.available_items_count = response.data.items.length;
+    } catch (error) {
+        scanFailed.value = true;
+        scanMessage.value = error.response?.data?.message || 'Could not load the available units.';
         return;
     }
 
-    if (!product.available_items_loaded) {
-        try {
-            const response = await axios.get(route('pos.products.available-items', product.id), { params: { order_id: props.editingOrder?.id } });
-            product.items = response.data.items;
-            product.available_items_loaded = true;
-        } catch (error) {
-            alert(error.response?.data?.message || 'Could not load the available units.');
-            return;
-        }
+    if (product.available_items_count <= cartQtyForProduct(product.id)) {
+        scanFailed.value = true;
+        scanMessage.value = `No additional stock is available for ${product.name}.`;
+        return;
     }
 
     selectedProduct.value = product;
@@ -396,8 +395,31 @@ const submitCheckout = () => {
             checkoutForm.reset();
             discountManuallyAdjusted.value = false;
         },
+        onError: (errors) => {
+            if (Object.keys(errors).some(key => key.startsWith('cart'))) loadProducts(false);
+        },
     });
 };
+
+const warnBeforeUnload = event => {
+    if (!cart.value.length) return;
+    event.preventDefault();
+    event.returnValue = '';
+};
+let removeNavigationGuard;
+onMounted(() => {
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    removeNavigationGuard = router.on('before', event => {
+        if (event.detail.visit.method === 'get' && cart.value.length && !checkoutForm.processing
+            && !window.confirm('Leave POS and discard the current cart changes?')) event.preventDefault();
+    });
+});
+onBeforeUnmount(() => {
+    clearTimeout(searchTimer);
+    productRequestId++;
+    window.removeEventListener('beforeunload', warnBeforeUnload);
+    removeNavigationGuard?.();
+});
 </script>
 
 <template>
@@ -684,7 +706,7 @@ const submitCheckout = () => {
                             ]"
                         >
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                            By Serial / Unit
+                            By System Code
                         </button>
                     </div>
                 </div>
@@ -751,14 +773,15 @@ const submitCheckout = () => {
                 <!-- ── Mode: Serial / Unit ── -->
                 <div v-if="addMode === 'serial'" class="px-6 pt-5 pb-6 space-y-4">
                     <p class="text-sm text-gray-500">
-                        Select a <strong>specific unit</strong> — useful when the customer requests a particular serial number.
+                        Select the watch using the <strong>system code</strong> printed on its label.
                     </p>
 
                     <!-- Search within available items -->
                     <input
                         v-model="serialSearch"
                         type="text"
-                        placeholder="Filter by serial or system ID…"
+                        placeholder="Search system code…"
+                        aria-label="Search units by system code or manufacturer serial"
                         class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent"
                     />
 
@@ -775,24 +798,27 @@ const submitCheckout = () => {
                             class="w-full text-left p-3 rounded-lg border border-gray-200 hover:border-gold-400 hover:bg-gold-50 transition-all group flex items-center justify-between"
                         >
                             <div class="flex items-center gap-3">
-                                <!-- Icon: has serial vs no serial -->
+                                <!-- Highlight units with a generated system code. -->
                                 <div :class="[
                                     'w-8 h-8 rounded-full flex items-center justify-center text-xs shrink-0',
-                                    item.serial_number
+                                    item.system_unique_id
                                         ? 'bg-gold-100 text-gold-700'
                                         : 'bg-gray-100 text-gray-400',
                                 ]">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/></svg>
                                 </div>
                                 <div>
-                                    <div v-if="item.serial_number" class="font-mono text-sm font-semibold text-gray-800 group-hover:text-gold-700">
-                                        {{ item.serial_number }}
+                                    <div class="text-[10px] text-gray-500">System code</div>
+                                    <div v-if="item.system_unique_id" class="font-mono text-base font-semibold text-gray-800 group-hover:text-gold-700">
+                                        {{ item.system_unique_id }}
                                     </div>
-                                    <div v-else class="text-sm text-gray-400 italic">No serial number</div>
+                                    <div v-else class="text-sm text-gray-400 italic">No system code · Unit #{{ item.id }}</div>
+                                    <div v-if="item.serial_number" class="text-xs text-gray-500 mt-0.5">
+                                        Manufacturer serial: {{ item.serial_number }}
+                                    </div>
                                     <div class="text-[10px] text-gray-400 mt-0.5">
-                                        ID: {{ item.system_unique_id }}
-                                        <span v-if="item.purchase_date"> · Purchased: {{ new Date(item.purchase_date).toLocaleDateString() }}</span>
-                                        <span v-else> · Added: {{ new Date(item.created_at).toLocaleDateString() }}</span>
+                                        <span v-if="item.purchase_date">Purchased: {{ new Date(item.purchase_date).toLocaleDateString() }}</span>
+                                        <span v-else>Added: {{ new Date(item.created_at).toLocaleDateString() }}</span>
                                     </div>
                                 </div>
                             </div>
@@ -819,9 +845,9 @@ const submitCheckout = () => {
                         <InputLabel value="Order status" />
                         <select v-model="checkoutForm.status" :disabled="!!editingOrder" class="mt-1 block w-full rounded-md border-gray-300">
                             <option value="completed">Completed sale</option>
-                            <option value="pending">Pending / Cash on delivery (COD)</option>
+                            <option value="pending">Pending / Reserve stock / COD</option>
                         </select>
-                        <p v-if="checkoutForm.status === 'pending'" class="mt-2 text-sm text-gray-500">Enter the payment received so far, including zero. Stock stays available until the order is approved.</p>
+                        <p v-if="checkoutForm.status === 'pending'" class="mt-2 text-sm text-amber-800">Saving reserves the selected units for this order. They cannot be sold elsewhere or deleted. Approval marks those same units sold; cancellation releases them. Enter the payment received so far, including zero.</p>
                         <InputError :message="checkoutForm.errors.status" />
                     </div>
                     <div>
@@ -841,6 +867,7 @@ const submitCheckout = () => {
                         <InputError :message="checkoutForm.errors.remark" />
                     </div>
                     <p v-for="(message, key) in Object.fromEntries(Object.entries(checkoutForm.errors).filter(([key]) => key.startsWith('cart') || key === 'edit_version' || key === 'customer_id'))" :key="key" role="alert" class="text-sm text-red-600">{{ message }}</p>
+                    <InputError :message="checkoutForm.errors.checkout_request_id" />
                     <div
                         v-if="checkoutForm.errors.error"
                         class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
@@ -861,7 +888,7 @@ const submitCheckout = () => {
                         <div v-for="(item, i) in cart" :key="i" class="flex justify-between px-3 py-2">
                             <div>
                                 <span class="font-medium">{{ item.product.name }}</span>
-                                <span v-if="item.serial_number" class="ml-1 text-gold-600 font-mono text-xs">#{{ item.serial_number }}</span>
+                                <span v-if="item.system_unique_id || item.serial_number" class="ml-1 text-gold-600 font-mono text-xs">{{ item.system_unique_id ? `Code: ${item.system_unique_id}` : `Serial: ${item.serial_number}` }}</span>
                                 <span v-else class="ml-1 text-blue-500 text-xs">×{{ item.qty }}</span>
                             </div>
                             <span class="text-gray-700">{{ (getMmkPrice(item.product) * item.qty).toLocaleString() }} Ks</span>

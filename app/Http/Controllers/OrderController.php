@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Services\LowStockNotificationService;
 use App\Services\OrderSummaryService;
+use App\Services\OrderStockService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -84,13 +85,19 @@ class OrderController extends Controller
             }
 
             $auditBefore = app(\App\Services\OrderAuditService::class)->before($order);
-            foreach ($order->items as $orderItem) {
-                // Find available stock
-                $availableItems = \App\Models\ProductItem::where('product_id', $orderItem->product_id)
-                    ->where('status', 'available')
-                    ->lockForUpdate()
-                    ->limit($orderItem->quantity)
-                    ->get();
+            $lines = $order->items()->with(['soldItems' => fn ($query) => $query->lockForUpdate()])->get();
+            $stock = app(OrderStockService::class);
+            $stock->assertIntact($order, $lines);
+            foreach ($lines as $orderItem) {
+                // New POS orders already own units. Legacy/online orders allocate on approval.
+                $availableItems = $stock->hasAllocatedStock($order)
+                    ? $orderItem->soldItems
+                    : \App\Models\ProductItem::where('product_id', $orderItem->product_id)
+                        ->where('status', 'available')
+                        ->orderBy('created_at')->orderBy('id')
+                        ->lockForUpdate()
+                        ->limit($orderItem->quantity)
+                        ->get();
 
                 if ($availableItems->count() < $orderItem->quantity) {
                     $productName = $orderItem->product ? $orderItem->product->name : ('ID: '.$orderItem->product_id);
@@ -134,13 +141,7 @@ class OrderController extends Controller
             $audit = app(\App\Services\OrderAuditService::class);
             $before = $audit->before($order);
             $lines = $order->items()->with(['soldItems' => fn ($query) => $query->lockForUpdate()])->get();
-            foreach ($lines as $line) {
-                if ($order->status === 'completed' && ($line->soldItems->count() !== $line->quantity || $line->soldItems->contains(fn ($unit) => $unit->status !== 'sold'))) {
-                    throw \Illuminate\Validation\ValidationException::withMessages(['error' => 'The sold stock records have changed. Review this order before cancelling it.']);
-                }
-            }
-            \App\Models\ProductItem::whereIn('order_item_id', $lines->pluck('id'))->where('status', 'sold')
-                ->update(['status' => 'available', 'order_item_id' => null]);
+            app(OrderStockService::class)->release($order, $lines);
             $order->update(['status' => 'cancelled', 'edit_version' => $order->edit_version + 1]);
             foreach ($lines->pluck('product_id')->unique()->sort() as $productId) {
                 if ($product = Product::find($productId)) {
@@ -150,6 +151,6 @@ class OrderController extends Controller
             $audit->record($order, 'cancelled', $before);
         });
 
-        return redirect()->back()->with('success', 'Order cancelled. Sold stock has been returned to available inventory.');
+        return redirect()->back()->with('success', 'Order cancelled. Its reserved or sold stock has been returned to available inventory.');
     }
 }

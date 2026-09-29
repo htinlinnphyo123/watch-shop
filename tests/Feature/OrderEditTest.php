@@ -91,7 +91,8 @@ class OrderEditTest extends TestCase
         $this->assertSame('pending', $order->status);
         $this->assertSame('0.00', $order->amount_paid);
         $this->assertSame('COD-123', $order->delivery_code);
-        $this->assertSame('available', $this->unit->fresh()->status);
+        $this->assertSame('reserved', $this->unit->fresh()->status);
+        $this->assertNotNull($order->stock_reserved_at);
         $this->put(route('pos.orders.update', $order), array_replace($payload, [
             'edit_version' => 0, 'money_transfer_amount' => '1000.00',
             'payments' => [['method' => 'transfer', 'amount' => 1000]],
@@ -175,7 +176,7 @@ class OrderEditTest extends TestCase
     public function test_other_orders_sold_units_cannot_be_taken(): void
     {
         $other = ProductItem::create(['product_id' => $this->product->id, 'status' => 'sold']);
-        $this->save(['cart' => [['product_id' => $this->product->id, 'item_id' => $other->id]]])->assertSessionHasErrors('error');
+        $this->save(['cart' => [['product_id' => $this->product->id, 'item_id' => $other->id]]])->assertSessionHasErrors('cart.0');
         $this->assertSame('sold', $this->unit->fresh()->status);
         $this->assertSame('sold', $other->fresh()->status);
     }
@@ -248,14 +249,15 @@ class OrderEditTest extends TestCase
         }
     }
 
-    public function test_pending_order_stays_pending_without_selling_stock(): void
+    public function test_legacy_pending_order_reserves_stock_when_saved_in_pos(): void
     {
         $this->order->update(['status' => 'pending']);
         $this->unit->update(['status' => 'available', 'order_item_id' => null]);
         $this->save(['cart' => [['product_id' => $this->product->id, 'quantity' => 1, 'original_line_id' => $this->lineId]]])
             ->assertSessionHasNoErrors();
         $this->assertSame('pending', $this->order->fresh()->status);
-        $this->assertSame('available', $this->unit->fresh()->status);
+        $this->assertSame('reserved', $this->unit->fresh()->status);
+        $this->assertNotNull($this->order->fresh()->stock_reserved_at);
     }
 
     public function test_new_checkout_allocates_distinct_units_for_generic_and_pinned_lines(): void
