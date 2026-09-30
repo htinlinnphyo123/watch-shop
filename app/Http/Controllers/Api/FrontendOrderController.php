@@ -30,7 +30,10 @@ class FrontendOrderController extends Controller
             return response()->json(['error' => 'No customer profile found.'], 403);
         }
 
-        $orders = Order::with(['items.product'])
+        $orders = Order::with([
+                'items',
+                'items.product' => fn ($q) => $q->withoutGlobalScopes(),
+            ])
             ->where('customer_id', $customerId)
             ->latest()
             ->get()
@@ -43,11 +46,20 @@ class FrontendOrderController extends Controller
                     'notes'        => $order->notes,
                     'created_at'   => $order->created_at,
                     'items'        => $order->items->map(function ($item) {
+                        // Product stores images as an array of S3 paths — resolve first to a full URL
+                        // withoutGlobalScopes() above ensures soft-deleted products still load
+                        $product   = $item->product;
+                        $rawImage  = $product?->images[0] ?? null;
+                        $fullImage = $rawImage
+                            ? \Illuminate\Support\Facades\Storage::disk('s3')->url($rawImage)
+                            : null;
+
                         return [
                             'id'         => $item->id,
                             'product_id' => $item->product_id,
-                            'name'       => $item->product?->name ?? 'Unknown Product',
-                            'image'      => $item->product?->image ?? null,
+                            'kind'       => $product?->kind ?? 'unknown',
+                            'name'       => $product?->name ?? ('Product #' . $item->product_id),
+                            'image'      => $fullImage,
                             'quantity'   => $item->quantity,
                             'price'      => $item->price,
                             'line_total' => $item->price * $item->quantity,
