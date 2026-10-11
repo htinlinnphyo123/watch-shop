@@ -36,7 +36,7 @@ class SalesWorkbookExport
         $received = $retained === null ? null : array_sum($retained) / 100;
         return array_combine(self::SALES_HEADERS, [
             $order->id, $customer?->source_details, $customer?->name ?? 'Walk-in Customer', $this->label($customer?->gender), $customer?->address, $customer?->phone,
-            $order->user?->name, $order->items->map(fn ($line) => $line->product?->brand?->name)->filter()->unique()->implode(', '),
+            $order->salespeople->pluck('name')->implode(', '), $order->items->map(fn ($line) => $line->product?->brand?->name)->filter()->unique()->implode(', '),
             $order->items->map(fn ($line) => ($line->product?->model_number ?: $line->product?->name ?: 'Deleted product').($line->quantity > 1 ? ' (x'.$line->quantity.')' : ''))->implode(', '),
             $order->items->map(fn ($line) => $line->product?->gender)->filter()->unique()->implode(', '),
             $order->order_date ?? $order->created_at, $this->label($order->order_type), $this->label($order->buying_type), $paidBy,

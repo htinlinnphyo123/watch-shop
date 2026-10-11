@@ -19,6 +19,7 @@ import { posPriceMmk, posDiscountPercentage } from '@/utils/posPricing';
 import { createCheckoutRequestId } from '@/utils/checkoutRequest';
 
 const props = defineProps({
+    salespeople: { type: Array, default: () => [] },
     editingOrder: { type: Object, default: null },
     products: { type: Array, default: () => [] },
     productsPagination: { type: Object, default: () => ({ current_page: 1, last_page: 1 }) },
@@ -74,6 +75,7 @@ const formatPrice = (amount) => new Intl.NumberFormat('en-US', {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const checkoutForm = useForm({
+    salesperson_ids: props.editingOrder ? [...props.editingOrder.salesperson_ids] : [page.props.auth.user.id],
     checkout_request_id: createCheckoutRequestId(),
     ...recordValues(props.editingOrder, salesDefaults),
     status: props.editingOrder?.status || 'completed',
@@ -840,6 +842,17 @@ onBeforeUnmount(() => {
                 <h2 class="text-lg font-bold text-gray-900 mb-4">{{ editingOrder ? 'Update Order' : 'Checkout' }}</h2>
 
                 <form @submit.prevent="submitCheckout" class="space-y-4">
+                    <fieldset class="rounded-lg border border-gray-200 p-4">
+                        <legend class="px-1 text-sm font-semibold text-gray-800">Salespeople</legend>
+                        <p class="mb-3 text-sm text-gray-500">Select one or more people. Each receives full credit for this sale.</p>
+                        <div class="grid max-h-48 gap-3 overflow-y-auto sm:grid-cols-2">
+                            <label v-for="person in salespeople" :key="person.id" class="flex items-center gap-2 text-sm">
+                                <input v-model="checkoutForm.salesperson_ids" type="checkbox" :value="person.id" class="rounded border-gray-300 text-gold-600 focus:ring-gold-500" />
+                                {{ person.name }}
+                            </label>
+                        </div>
+                        <p v-for="(message, key) in Object.fromEntries(Object.entries(checkoutForm.errors).filter(([key]) => key.startsWith('salesperson_ids')))" :key="key" role="alert" class="mt-2 text-sm text-red-600">{{ message }}</p>
+                    </fieldset>
                     <SalesRecordFields :form="checkoutForm" />
                     <div>
                         <InputLabel value="Order status" />

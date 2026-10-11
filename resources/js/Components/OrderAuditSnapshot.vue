@@ -9,6 +9,7 @@ const money = value => value == null ? 'Not recorded' : `${Number(value).toLocal
         <h3 class="font-semibold text-lg text-gray-900 mb-4">{{ title }}</h3>
         <dl class="grid grid-cols-2 gap-2 text-sm mb-5">
             <dt class="text-gray-500">Customer</dt><dd>{{ snapshot.customer.name }}</dd>
+            <dt class="text-gray-500">Salespeople</dt><dd>{{ Object.values(snapshot.salespeople || {}).map(person => person.name).join(", ") || "Not recorded" }}</dd>
             <dt class="text-gray-500">Status</dt><dd class="capitalize">{{ snapshot.status }}</dd>
             <dt class="text-gray-500">Discount</dt><dd>{{ snapshot.discount_percentage }}%</dd>
             <dt class="text-gray-500">Total</dt><dd class="font-semibold">{{ money(snapshot.total_amount) }}</dd>

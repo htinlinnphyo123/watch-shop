@@ -54,6 +54,11 @@ class User extends Authenticatable
         });
     }
 
+    public function salesOrders()
+    {
+        return $this->belongsToMany(Order::class, 'order_salespeople')->withTimestamps();
+    }
+
     public function customer()
     {
         return $this->hasOne(Customer::class, 'email', 'email');

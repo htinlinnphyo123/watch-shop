@@ -21,7 +21,7 @@ class OrderController extends Controller
         if ($request->user()->role === 'staff') {
             $query->where('user_id', $request->user()->id);
         }
-        $orders = $query->with(['customer', 'user'])->latest()->orderByDesc('id')->paginate(10)->withQueryString();
+        $orders = $query->with(['customer', 'user', 'salespeople:id,name'])->latest()->orderByDesc('id')->paginate(10)->withQueryString();
         $orders->through(function (Order $order) use ($summaryService) {
             $payments = $summaryService->retainedPayments($order);
 
@@ -50,7 +50,7 @@ class OrderController extends Controller
     {
         $query = $summaryService->filter(Order::query(), $this->filters($request))->where('status', 'completed');
         if ($request->user()->role === 'staff') $query->where('user_id', $request->user()->id);
-        $orders = $query->with(['customer' => fn ($q) => $q->withTrashed(), 'user', 'items.product' => fn ($q) => $q->withTrashed(), 'items.product.brand' => fn ($q) => $q->withTrashed()])->lazyById(200);
+        $orders = $query->with(['customer' => fn ($q) => $q->withTrashed(), 'user', 'salespeople:id,name', 'items.product' => fn ($q) => $q->withTrashed(), 'items.product.brand' => fn ($q) => $q->withTrashed()])->lazyById(200);
         return $export->download($orders->map(fn (Order $order) => $export->saleRow($order)));
     }
 
@@ -67,7 +67,7 @@ class OrderController extends Controller
     public function show(Order $order)
     {
         return Inertia::render('Orders/Show', [
-            'order' => $order->load(['customer', 'user', 'items.product', 'items.soldItems', 'fileUploads']),
+            'order' => $order->load(['customer', 'user', 'salespeople:id,name', 'items.product', 'items.soldItems', 'fileUploads']),
         ]);
     }
 

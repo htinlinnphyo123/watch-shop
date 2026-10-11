@@ -57,6 +57,22 @@ const ordersLink = computed(() => route('orders.index', { date_from: props.filte
                 <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><h2 class="text-sm text-gray-500">Average order value</h2><p class="mt-3 break-words text-2xl font-bold tabular-nums text-gray-900">{{ money(report.summary.average_sale) }} <span class="text-xs font-normal text-gray-500">MMK</span></p><p class="mt-3 text-xs text-gray-500">Total sales ÷ completed orders</p></section>
             </div>
 
+            <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                <div class="p-5 sm:p-6">
+                    <h2 class="text-lg font-semibold text-gray-900">Salesperson performance</h2>
+                    <p class="mt-1 text-sm text-gray-500">Each assigned salesperson receives full credit for completed orders in this date range. Shared sales count for each person, so these figures can exceed shop totals. Unassigned orders are excluded here.</p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="px-5 py-3">Salesperson</th><th class="px-5 py-3 text-right">Completed orders</th><th class="px-5 py-3 text-right">Credited sales (MMK)</th></tr></thead>
+                        <tbody class="divide-y divide-gray-100">
+                            <tr v-for="person in report.salespeople" :key="person.id"><td class="px-5 py-4 font-medium">{{ person.name }}</td><td class="px-5 py-4 text-right tabular-nums">{{ money(person.orders) }}</td><td class="px-5 py-4 text-right font-semibold tabular-nums">{{ money(person.sales) }}</td></tr>
+                            <tr v-if="!report.salespeople.length"><td colspan="3" class="p-8 text-center text-gray-500">No assigned completed sales for these dates.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
             <div class="grid items-start gap-6 lg:grid-cols-3">
                 <section class="min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-2 sm:p-6">
                     <h2 class="text-lg font-semibold text-gray-900">Sales over time</h2><p class="mt-1 text-sm text-gray-500">Completed sales each day</p>

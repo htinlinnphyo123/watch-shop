@@ -30,6 +30,11 @@ class Order extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function salespeople()
+    {
+        return $this->belongsToMany(User::class, 'order_salespeople')->withTimestamps()->orderBy('users.id');
+    }
+
     public function customer()
     {
         return $this->belongsTo(Customer::class);

@@ -62,6 +62,9 @@ class UserController extends Controller
 
     public function destroy(User $user)
     {
+        if ($user->salesOrders()->exists()) {
+            return redirect()->back()->withErrors(['error' => 'This user is assigned to sales orders and cannot be deleted.']);
+        }
         $user->delete();
         return redirect()->back();
     }

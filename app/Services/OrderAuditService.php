@@ -10,7 +10,7 @@ class OrderAuditService
 {
     public function snapshot(Order $order): array
     {
-        $order = $order->fresh(['customer', 'items.product' => fn ($query) => $query->withTrashed(), 'items.soldItems', 'fileUploads']);
+        $order = $order->fresh(['salespeople', 'customer', 'items.product' => fn ($query) => $query->withTrashed(), 'items.soldItems', 'fileUploads']);
         $watches = [];
         foreach ($order->items as $line) {
             $base = [
@@ -38,6 +38,7 @@ class OrderAuditService
         ]])->all();
 
         return [
+            'salespeople' => $order->salespeople->mapWithKeys(fn ($person) => [$person->id => ['id' => $person->id, 'name' => $person->name]])->all(),
             'order_number' => $order->order_number, 'status' => $order->status,
             ...collect($order->only([...\App\Support\SalesRecordFields::COMMON, ...\App\Support\SalesRecordFields::SALES]))
                 ->map(fn ($value) => $value instanceof \DateTimeInterface ? $value->format('Y-m-d') : $value)->all(),
@@ -100,7 +101,7 @@ class OrderAuditService
                 $changes[] = ['section' => 'Order', 'label' => $label, 'before' => $this->display($before[$key] ?? null), 'after' => $this->display($after[$key] ?? null)];
             }
         }
-        foreach (['watches' => 'Watches', 'payments' => 'Payments (Ks)', 'attachments' => 'Attachments'] as $key => $section) {
+        foreach (['salespeople' => 'Salespeople', 'watches' => 'Watches', 'payments' => 'Payments (Ks)', 'attachments' => 'Attachments'] as $key => $section) {
             foreach (array_unique([...array_keys($before[$key] ?? []), ...array_keys($after[$key] ?? [])]) as $id) {
                 $old = $before[$key][$id] ?? null;
                 $new = $after[$key][$id] ?? null;

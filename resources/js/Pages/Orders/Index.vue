@@ -92,7 +92,7 @@ const formatDate = (dateString) => {
                             <span v-else class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">{{ order.status }}</span>
                         </td>
                          <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">
-                            {{ order.user ? order.user.name : 'System' }}
+                            {{ order.salespeople?.map(person => person.name).join(', ') || 'Unassigned' }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                             <Link v-if="canManageOrder($page.props.auth.user, order) && ['completed', 'pending'].includes(order.status)" :href="route('pos.index', { order_id: order.id })" class="text-gray-700 hover:text-gold-700">Edit Order</Link>

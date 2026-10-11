@@ -66,6 +66,15 @@ class SalesAnalyticsService
             ->select('orders.id', 'orders.order_number', 'orders.created_at', 'orders.total_amount', 'customers.name as customer_name')
             ->orderByDesc('orders.created_at')->orderByDesc('orders.id')->limit(5)->get();
 
-        return compact('summary', 'trend', 'topProducts', 'productTypes', 'statuses', 'recent');
+        // Full credit per assigned person; the shop totals above still count each order once.
+        $salespeople = (clone $completed)
+            ->join('order_salespeople', 'order_salespeople.order_id', '=', 'orders.id')
+            ->join('users', 'users.id', '=', 'order_salespeople.user_id')
+            ->select('users.id', 'users.name')
+            ->selectRaw('COUNT(*) AS orders, SUM(orders.total_amount) AS sales')
+            ->groupBy('users.id', 'users.name')
+            ->orderByDesc('sales')->orderBy('users.id')->get();
+
+        return compact('salespeople', 'summary', 'trend', 'topProducts', 'productTypes', 'statuses', 'recent');
     }
 }

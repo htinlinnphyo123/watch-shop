@@ -34,6 +34,7 @@ class POSController extends Controller
                 'last_page' => $products->lastPage(),
             ],
             'customers' => Customer::with('group')->get(),
+            'salespeople' => \App\Models\User::whereIn('role', ['admin', 'manager', 'staff'])->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -132,6 +133,8 @@ class POSController extends Controller
     {
         $recordDetails = $request->validate(\App\Support\SalesRecordFields::rules());
         $request->validate([
+            'salesperson_ids' => 'sometimes|required|array|list|min:1',
+            'salesperson_ids.*' => ['required', 'integer', 'distinct', \Illuminate\Validation\Rule::exists('users', 'id')->whereIn('role', ['admin', 'manager', 'staff'])],
             'checkout_request_id' => 'nullable|uuid',
             'edit_version' => $editingOrder ? 'required|integer|min:0' : 'nullable|integer',
             'customer_id' => 'nullable|exists:customers,id',
@@ -306,6 +309,9 @@ class POSController extends Controller
             }
 
             $order->save();
+            if ($request->has('salesperson_ids') || ! $editingOrder) {
+                $order->salespeople()->sync($request->input('salesperson_ids', [$request->user()->id]));
+            }
             if ($editingOrder) {
                 $order->items()->delete();
             }
@@ -393,6 +399,7 @@ class POSController extends Controller
         return [
             'id' => $order->id, 'order_number' => $order->order_number, 'status' => $order->status,
             ...$order->only([...\App\Support\SalesRecordFields::COMMON, ...\App\Support\SalesRecordFields::SALES]),
+            'salesperson_ids' => $order->salespeople()->pluck('users.id')->all(),
             'edit_version' => $order->edit_version, 'customer_id' => $order->customer_id,
             'delivery_code' => $order->delivery_code, 'remark' => $order->remark,
             'money_transfer_amount' => $order->money_transfer_amount,

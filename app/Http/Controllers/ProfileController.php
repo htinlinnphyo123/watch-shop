@@ -51,6 +51,12 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
+        if ($user->salesOrders()->exists()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'password' => 'This account is assigned to sales orders and cannot be deleted.',
+            ])->errorBag('userDeletion');
+        }
+
         Auth::logout();
 
         $user->delete();

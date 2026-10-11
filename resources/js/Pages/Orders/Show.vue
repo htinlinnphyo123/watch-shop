@@ -219,7 +219,7 @@ const cancelOrder = () => {
                                 </div>
                                 <div class="flex justify-end gap-2">
                                     <span class="text-gray-400">Served by</span>
-                                    <span class="font-semibold text-gray-800">{{ order.user?.name || 'Staff' }}</span>
+                                    <span class="font-semibold text-gray-800">{{ order.salespeople?.map(person => person.name).join(', ') || 'Unassigned' }}</span>
                                 </div>
                             </div>
                         </div>
