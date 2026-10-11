@@ -2,8 +2,8 @@
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
-import { paymentMethodLabel } from '@/utils/payments';
 import OrderAttachments from '@/Components/OrderAttachments.vue';
+import OrderInvoice from '@/Components/OrderInvoice.vue';
 import { canManageOrder } from '@/utils/operationalAccess';
 
 const props = defineProps({
@@ -12,32 +12,8 @@ const props = defineProps({
 const page = usePage();
 const canManage = computed(() => canManageOrder(page.props.auth.user, props.order));
 
-const formatDate = (d) => new Date(d).toLocaleDateString('en-US', {
-    year: 'numeric', month: 'long', day: 'numeric',
-});
-
-const formatTime = (d) => new Date(d).toLocaleTimeString('en-US', {
-    hour: '2-digit', minute: '2-digit',
-});
-
-const lineTotal = (item) => parseFloat(item.price) * item.quantity;
-
-const orderSubtotal = computed(() => {
-    return props.order.items?.reduce((sum, item) => sum + lineTotal(item), 0) || 0;
-});
-
-const discountAmount = computed(() => {
-    const total = parseFloat(props.order.total_amount) || 0;
-    return orderSubtotal.value > total ? orderSubtotal.value - total : 0;
-});
-
 const amountPaid = computed(() => parseFloat(props.order.amount_paid) || 0);
 const balanceDue = computed(() => Math.max(0, (parseFloat(props.order.total_amount) || 0) - amountPaid.value));
-const changeAmount = computed(() => Math.max(0, amountPaid.value - (parseFloat(props.order.total_amount) || 0)));
-
-// Only show serial numbers that exist — hide internal system IDs from customer view
-const customerUnits = (soldItems) =>
-    (soldItems || []).filter(u => u.serial_number);
 
 const printOrder = () => window.print();
 
@@ -57,34 +33,26 @@ const cancelOrder = () => {
 </script>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
-
+@page { size: A4; margin: 12mm; }
 @media print {
-    :root { --gold: #b8960c; }
-
-    /* Hide everything except the invoice card */
-    body > *,
-    #app > * { visibility: hidden; }
-
-    .invoice-printable,
-    .invoice-printable * { visibility: visible !important; }
-
-    .invoice-printable {
-        position: fixed !important;
-        top: 0; left: 0;
-        width: 100%; height: auto;
-        margin: 0; padding: 32px 48px;
-        box-shadow: none !important;
-        border: none !important;
-        border-radius: 0 !important;
+    /* Keep the invoice in normal document flow so long orders paginate. */
+    body:has(.invoice-printable) * { visibility: hidden; }
+    body:has(.invoice-printable) .invoice-printable,
+    body:has(.invoice-printable) .invoice-printable * { visibility: visible; }
+    body:has(.invoice-printable) aside,
+    body:has(.invoice-printable) main > header,
+    body:has(.invoice-printable) .no-print { display: none !important; }
+    body:has(.invoice-printable) *:has(.invoice-printable) {
+        display: block !important;
+        width: 100% !important;
+        max-width: none !important;
+        min-height: 0 !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
         background: white !important;
     }
-
-    .no-print { display: none !important; }
-
-    /* Use printer-friendly serif for print */
-    .invoice-printable { font-family: 'Inter', sans-serif !important; }
-    .invoice-brand-name { font-family: 'Cormorant Garamond', serif !important; }
 }
 </style>
 
@@ -92,10 +60,10 @@ const cancelOrder = () => {
     <Head :title="'Invoice #' + order.order_number" />
 
     <AdminLayout>
-        <div class="max-w-3xl mx-auto pb-12">
+        <div class="max-w-[900px] mx-auto pb-12">
 
             <!-- ── Admin toolbar (hidden on print) ──────────────────────── -->
-            <div class="no-print flex justify-between items-center mb-6">
+            <div class="no-print flex flex-wrap gap-4 justify-between items-center mb-6">
                 <Link
                     :href="route('orders.index')"
                     class="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800 transition-colors"
@@ -144,213 +112,10 @@ const cancelOrder = () => {
                 </div>
                 <p v-if="order.status === 'cancelled'" class="text-red-700">Cancelled. Linked reserved or sold stock was returned to inventory. Payment history is retained; refunds are handled separately.</p>
             </section>
-            <div class="invoice-printable bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden" style="font-family: 'Inter', sans-serif;">
-
-                <!-- Gold top accent bar -->
-                <div class="h-1.5" style="background: linear-gradient(90deg, #c9a96e, #e8c97e, #b8860b, #c9a96e);"></div>
-
-                <div class="px-10 pt-10 pb-12">
-
-                    <!-- ── Header: Brand + Invoice label ───────────────────── -->
-                    <div class="flex justify-between items-start mb-10">
-                        <!-- Brand -->
-                        <div>
-                            <div
-                                class="invoice-brand-name text-4xl font-bold tracking-widest uppercase"
-                                style="font-family: 'Cormorant Garamond', serif; color: #1a1a1a; letter-spacing: 0.15em;"
-                            >Time On You</div>
-                            <div class="text-xs tracking-[0.3em] uppercase text-gray-400 mt-1">Authentic Luxury Timepieces</div>
-                        </div>
-                        <!-- Invoice number -->
-                        <div class="text-right">
-                            <div class="text-xs font-semibold tracking-[0.2em] uppercase text-gray-400 mb-1">Invoice</div>
-                            <div class="text-2xl font-bold text-gray-900">#{{ order.order_number }}</div>
-                            <div class="text-sm text-gray-400 mt-1">{{ formatDate(order.created_at) }}</div>
-                            <div class="text-xs text-gray-400">{{ formatTime(order.created_at) }}</div>
-                        </div>
-                    </div>
-
-                    <!-- Thin gold divider -->
-                    <div class="h-px mb-8" style="background: linear-gradient(90deg, #c9a96e33, #c9a96e, #c9a96e33);"></div>
-
-                    <!-- ── Bill To / Payment Details ───────────────────────── -->
-                    <div class="grid grid-cols-2 gap-8 mb-10">
-                        <!-- Bill To -->
-                        <div>
-                            <div class="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 mb-3">Bill To</div>
-                            <template v-if="order.customer">
-                                <p class="text-gray-900 font-semibold text-base leading-snug">{{ order.customer.name }}</p>
-                                <p v-if="order.customer.email" class="text-gray-500 text-sm mt-0.5">{{ order.customer.email }}</p>
-                                <p v-if="order.customer.phone" class="text-gray-500 text-sm">{{ order.customer.phone }}</p>
-                                <p v-if="order.customer.address" class="text-gray-500 text-sm">{{ order.customer.address }}</p>
-                            </template>
-                            <template v-else>
-                                <p class="text-gray-700 font-semibold">Walk-in Customer</p>
-                            </template>
-                        </div>
-                        <!-- Payment info -->
-                        <div class="text-right">
-                            <div class="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 mb-3">Payment Details</div>
-                            <div class="space-y-1 text-sm">
-                                <div class="flex justify-end gap-2">
-                                    <span class="text-gray-400">Method</span>
-                                    <span class="font-semibold text-gray-800 capitalize">{{ paymentMethodLabel(order.payment_method) }}</span>
-                                </div>
-                                <div v-for="(payment, index) in (order.payments || [])" :key="index" class="flex justify-end gap-2">
-                                    <span class="text-gray-500">{{ paymentMethodLabel(payment.method) }}</span>
-                                    <span class="font-semibold text-gray-800">{{ Number(payment.amount).toLocaleString() }} Ks</span>
-                                </div>
-                                <div v-if="order.amount_paid !== null && order.amount_paid !== undefined" class="flex justify-end gap-2">
-                                    <span class="text-gray-400">Amount paid</span>
-                                    <span class="font-semibold text-gray-800">{{ amountPaid.toLocaleString() }} Ks</span>
-                                </div>
-                                <div class="flex justify-end gap-2">
-                                    <span class="text-gray-400">Status</span>
-                                    <span v-if="order.status === 'completed'" class="inline-flex items-center gap-1 font-semibold" style="color: #7c9d6f;">
-                                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-                                        Completed
-                                    </span>
-                                    <span v-else-if="order.status === 'pending'" class="inline-flex items-center gap-1 font-semibold text-yellow-500">
-                                        Pending Approval
-                                    </span>
-                                    <span v-else class="inline-flex items-center gap-1 font-semibold capitalize text-gray-500">
-                                        {{ order.status }}
-                                    </span>
-                                </div>
-                                <div class="flex justify-end gap-2">
-                                    <span class="text-gray-400">Served by</span>
-                                    <span class="font-semibold text-gray-800">{{ order.salespeople?.map(person => person.name).join(', ') || 'Unassigned' }}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- ── Items Table ────────────────────────────────────── -->
-                    <table class="w-full mb-8" style="border-collapse: collapse;">
-                        <thead>
-                            <tr style="border-bottom: 2px solid #c9a96e;">
-                                <th class="text-left pb-3 text-[10px] font-bold tracking-[0.15em] uppercase text-gray-400">Description</th>
-                                <th class="text-center pb-3 text-[10px] font-bold tracking-[0.15em] uppercase text-gray-400 w-16">Qty</th>
-                                <th class="text-right pb-3 text-[10px] font-bold tracking-[0.15em] uppercase text-gray-400 w-32">Unit Price</th>
-                                <th class="text-right pb-3 text-[10px] font-bold tracking-[0.15em] uppercase text-gray-400 w-32">Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr
-                                v-for="item in order.items"
-                                :key="item.id"
-                                style="border-bottom: 1px solid #f0f0f0;"
-                            >
-                                <!-- Description column -->
-                                <td class="py-4 pr-6 align-top">
-                                    <p class="font-semibold text-gray-900 text-sm leading-snug">
-                                        {{ item.product?.name || 'Watch' }}
-                                    </p>
-                                    <p class="text-xs text-gray-400 mt-0.5">
-                                        <span v-if="item.product?.model_number">{{ item.product.model_number }}</span>
-                                        <span v-if="item.product?.warranty_period" class="ml-2">
-                                            · {{ item.product.warranty_period }}-month warranty
-                                        </span>
-                                    </p>
-
-                                    <!-- Serial numbers (customer-visible units) -->
-                                    <div
-                                        v-if="customerUnits(item.sold_items).length > 0"
-                                        class="mt-2 space-y-0.5"
-                                    >
-                                        <div
-                                            v-for="unit in customerUnits(item.sold_items)"
-                                            :key="unit.id"
-                                            class="text-[11px] text-gray-400"
-                                        >
-                                            <span class="font-medium text-gray-500">S/N:</span>
-                                            <span class="font-mono ml-1 text-gray-600">{{ unit.serial_number }}</span>
-                                        </div>
-                                    </div>
-                                </td>
-
-                                <!-- Qty -->
-                                <td class="py-4 text-center align-top">
-                                    <span class="text-sm font-medium text-gray-700">{{ item.quantity }}</span>
-                                </td>
-
-                                <!-- Unit Price -->
-                                <td class="py-4 text-right align-top">
-                                    <span class="text-sm text-gray-600">{{ parseInt(item.price).toLocaleString() }} Ks</span>
-                                </td>
-
-                                <!-- Line total -->
-                                <td class="py-4 text-right align-top">
-                                    <span class="text-sm font-bold text-gray-900">{{ lineTotal(item).toLocaleString() }} Ks</span>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-
-                    <!-- ── Totals ──────────────────────────────────────────── -->
-                    <div class="flex justify-end mb-10">
-                        <div class="w-64">
-                            <!-- Subtotal rows (extend here if you add tax/discount later) -->
-                            <div class="flex justify-between text-sm text-gray-500 mb-2">
-                                <span>Subtotal</span>
-                                <span>{{ orderSubtotal.toLocaleString() }} Ks</span>
-                            </div>
-                            <div v-if="discountAmount > 0" class="flex justify-between text-sm text-red-500 mb-2">
-                                <span>
-                                    Discount<span v-if="parseFloat(order.discount_percentage || 0) > 0"> ({{ parseFloat(order.discount_percentage) }}%)</span>
-                                </span>
-                                <span>-{{ discountAmount.toLocaleString() }} Ks</span>
-                            </div>
-                            <!-- Divider -->
-                            <div class="h-px my-3" style="background: #c9a96e;"></div>
-                            <!-- Grand total -->
-                            <div class="flex justify-between items-baseline">
-                                <span class="text-sm font-bold uppercase tracking-wider text-gray-900">Total</span>
-                                <span class="text-2xl font-bold" style="color: #b8860b;">
-                                    {{ parseFloat(order.total_amount).toLocaleString() }} Ks
-                                </span>
-                            </div>
-                            <template v-if="order.amount_paid !== null && order.amount_paid !== undefined">
-                                <div class="flex justify-between text-sm text-gray-600 mt-3">
-                                    <span>Amount Paid</span>
-                                    <span>{{ amountPaid.toLocaleString() }} Ks</span>
-                                </div>
-                                <div v-if="balanceDue > 0" class="flex justify-between text-sm font-semibold text-red-600 mt-1">
-                                    <span>Balance Due</span>
-                                    <span>{{ balanceDue.toLocaleString() }} Ks</span>
-                                </div>
-                                <div v-else-if="changeAmount > 0" class="flex justify-between text-sm font-semibold text-green-600 mt-1">
-                                    <span>Change</span>
-                                    <span>{{ changeAmount.toLocaleString() }} Ks</span>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-
-                    <!-- Thin gold divider -->
-                    <div class="h-px mb-8" style="background: linear-gradient(90deg, #c9a96e33, #c9a96e, #c9a96e33);"></div>
-
-                    <!-- ── Footer ──────────────────────────────────────────── -->
-                    <div class="text-center space-y-2">
-                        <p
-                            class="invoice-brand-name text-lg font-semibold text-gray-700"
-                            style="font-family: 'Cormorant Garamond', serif; letter-spacing: 0.08em;"
-                        >Thank you for your purchase.</p>
-                        <p class="text-xs text-gray-400 leading-relaxed max-w-sm mx-auto">
-                            For warranty service, please retain this invoice and present it along with your timepiece at any authorised service centre.
-                        </p>
-                        <div class="flex justify-center gap-1 pt-2">
-                            <div class="w-1 h-1 rounded-full bg-gray-200"></div>
-                            <div class="w-4 h-1 rounded-full" style="background: #c9a96e;"></div>
-                            <div class="w-1 h-1 rounded-full bg-gray-200"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Gold bottom accent bar -->
-                <div class="h-1.5" style="background: linear-gradient(90deg, #c9a96e, #e8c97e, #b8860b, #c9a96e);"></div>
-            </div>
+            <OrderInvoice :order="order" />
+            <div class="no-print">
             <OrderAttachments :order-id="order.id" :files="order.file_uploads || []" :read-only="!canManage" />
+            </div>
         </div>
     </AdminLayout>
 </template>
