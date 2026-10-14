@@ -96,7 +96,7 @@ class StockLabelTest extends TestCase
     public function test_label_generation_requires_inventory_access(): void
     {
         $this->postJson(route('products.labels'))->assertUnauthorized();
-        foreach (['manager', 'staff', 'user'] as $role) {
+        foreach (['staff', 'user'] as $role) {
             $this->actingAs(User::factory()->create(['role' => $role]));
             $this->postJson(route('products.labels'))->assertForbidden();
         }

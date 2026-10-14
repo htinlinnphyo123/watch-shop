@@ -26,7 +26,9 @@ class StaffOperationalAccess
             'orders.approve', 'orders.cancel', 'low-stock-notifications.index',
             'watch-services.*', 'pre-orders.*',
         );
-        $managerRoute = $role === 'manager' && $request->routeIs('attendance.*', 'articles.*');
+        $managerRoute = $role === 'manager' && $request->routeIs(
+            'attendance.*', 'articles.*', 'products.index', 'products.show', 'products.labels',
+        );
         abort_unless($operationalRoute || $managerRoute, 403);
 
         // Includes invoice, history, attachments, cancellation and approval URLs.

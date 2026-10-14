@@ -321,6 +321,7 @@ const markImageForRemoval = (imgPath, index) => {
 };
 
 const openModal = (product = null) => {
+  if (props.userRole !== 'admin') return;
   editingProduct.value = product;
   if (product) {
     form.brand_id = product.brand_id;
@@ -543,7 +544,7 @@ const deleteProduct = (product) => {
       <h1 class="text-3xl font-bold text-gray-900">Watches</h1>
 
       <div class="flex flex-wrap items-center gap-4">
-        <SecondaryButton v-if="userRole === 'admin'" :disabled="preparingLabels || labelsOpen" @click="printAllLabels" title="Print all available watch stock, across every page and regardless of filters">
+        <SecondaryButton v-if="['admin', 'manager'].includes(userRole)" :disabled="preparingLabels || labelsOpen" @click="printAllLabels" title="Print all available watch stock, across every page and regardless of filters">
           {{ preparingLabels ? 'Preparing labels…' : 'Print all the labels' }}
         </SecondaryButton>
         <!-- Currency Toggle -->
@@ -578,6 +579,7 @@ const deleteProduct = (product) => {
           {{ importingWatches ? 'Importing…' : 'Import Watches' }}
         </SecondaryButton>
         <input
+          v-if="userRole === 'admin'"
           type="file"
           ref="fileInput"
           class="hidden"
@@ -586,6 +588,7 @@ const deleteProduct = (product) => {
         />
 
         <PrimaryButton
+          v-if="userRole === 'admin'"
           @click="openModal()"
           class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold"
         >
@@ -597,7 +600,7 @@ const deleteProduct = (product) => {
     <p v-if="labelMessage" role="status" class="mb-4 text-sm text-gray-700">{{ labelMessage }}</p>
     <SystemCodeLabel :show="labelsOpen" :items="labelItems" auto-print @close="labelsOpen = false" />
 
-    <Modal :show="importHelpOpen" max-width="2xl" @close="closeImportHelp">
+    <Modal v-if="userRole === 'admin'" :show="importHelpOpen" max-width="2xl" @close="closeImportHelp">
       <div class="p-6">
         <h2 class="text-xl font-semibold text-gray-900">Import watches</h2>
         <p class="mt-2 text-sm leading-6 text-gray-600">Use <strong>Export Watches</strong> as your template. This importer only creates or updates watches; accessory rows and accessory IDs are rejected.</p>
@@ -818,6 +821,7 @@ const deleteProduct = (product) => {
                 Stock
               </th>
               <th
+                v-if="userRole === 'admin'"
                 scope="col"
                 class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
@@ -904,7 +908,7 @@ const deleteProduct = (product) => {
                   :href="route('products.show', product.id)"
                   class="inline-flex items-center text-blue-600 hover:text-blue-800 underline text-sm"
                 >
-                  Manage Stock
+                  {{ userRole === 'admin' ? 'Manage Stock' : 'View details & stock' }}
                   <span
                     class="ml-1 px-2 py-0.5 rounded-full text-xs font-bold font-mono"
                     :class="
@@ -920,6 +924,7 @@ const deleteProduct = (product) => {
                 <span v-else class="text-xs text-gray-400">—</span>
               </td>
               <td
+                v-if="userRole === 'admin'"
                 class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3"
               >
                 <button
@@ -1005,7 +1010,7 @@ const deleteProduct = (product) => {
     </div>
 
     <!-- Modal -->
-    <Modal :show="isModalOpen" @close="closeModal">
+    <Modal v-if="userRole === 'admin'" :show="isModalOpen" @close="closeModal">
       <div class="p-6 bg-white text-gray-900 max-h-[90vh] overflow-y-auto">
         <h2 class="text-lg font-medium text-gray-900 mb-4">
           {{ editingProduct ? "Edit Watch" : "Add New Watch" }}

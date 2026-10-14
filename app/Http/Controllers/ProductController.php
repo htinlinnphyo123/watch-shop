@@ -133,7 +133,7 @@ class ProductController extends Controller
             'specOptions' => $specOptions,
             'userRole' => $request->user()->role ?? 'user',
             'latestImport' => $latestImport,
-            'editingProduct' => $request->filled('edit')
+            'editingProduct' => $request->user()->role === 'admin' && $request->filled('edit')
                 ? Product::where('kind', 'watch')->with(['categories', 'customerGroups'])->findOrFail($request->integer('edit'))
                 : null,
         ]);
