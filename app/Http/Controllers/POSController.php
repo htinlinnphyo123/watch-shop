@@ -34,6 +34,7 @@ class POSController extends Controller
                 'last_page' => $products->lastPage(),
             ],
             'customers' => Customer::with('group')->get(),
+            'customerSources' => Customer::SOURCES,
             'salespeople' => \App\Models\User::whereIn('role', ['admin', 'manager', 'staff'])->orderBy('name')->get(['id', 'name']),
         ]);
     }

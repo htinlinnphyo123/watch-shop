@@ -22,6 +22,8 @@ class Customer extends Authenticatable
 
     protected $guarded = [];
 
+    protected $casts = ['is_guest' => 'boolean'];
+
     protected $hidden = [
         'password',
     ];

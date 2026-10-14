@@ -10,10 +10,13 @@ use Inertia\Inertia;
 
 class CustomerController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $request->validate(['show_guests' => 'sometimes|boolean']);
+
         return Inertia::render('Customers/Index', [
-            'customers' => Customer::with('group')->latest('updated_at')->paginate(10),
+            'showGuests' => $request->boolean('show_guests'),
+            'customers' => Customer::with('group')->when(! $request->boolean('show_guests'), fn ($query) => $query->where('is_guest', false))->latest('updated_at')->paginate(10)->withQueryString(),
             'groups' => CustomerGroup::all(),
             'sourceOptions' => Customer::SOURCES,
         ]);
@@ -47,7 +50,7 @@ class CustomerController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string',
-            'email' => 'required|email|unique:customers,email,' . $customer->id,
+            'email' => 'nullable|email|unique:customers,email,' . $customer->id,
             'phone' => ['nullable', 'string', 'max:255', Rule::unique('customers', 'phone')->ignore($customer->id)],
             'password' => 'nullable|string|min:6',
             'customer_group_id' => 'nullable|exists:customer_groups,id',

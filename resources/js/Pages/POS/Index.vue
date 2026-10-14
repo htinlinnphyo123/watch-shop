@@ -1,6 +1,7 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import SalesRecordFields from '@/Components/SalesRecordFields.vue';
+import PosGuestCustomer from '@/Components/PosGuestCustomer.vue';
 import SearchableSelect from '@/Components/SearchableSelect.vue';
 import { customerLabel, customerOptions } from '@/utils/customerPicker';
 import { salesDefaults, recordValues } from '@/utils/salesRecordFields';
@@ -24,12 +25,40 @@ const props = defineProps({
     products: { type: Array, default: () => [] },
     productsPagination: { type: Object, default: () => ({ current_page: 1, last_page: 1 }) },
     customers: { type: Array, default: () => [] },
+    customerSources: { type: Object, default: () => ({}) },
 });
 
 const searchInput = ref(null);
-const customerPickerOptions = computed(() => customerOptions(props.customers));
+const posCustomers = ref([...props.customers]);
+watch(() => props.customers, customers => { posCustomers.value = [...customers]; });
+const customerPickerOptions = computed(() => customerOptions(posCustomers.value));
+const selectedCustomer = computed(() => posCustomers.value.find(customer => String(customer.id) === String(checkoutForm.customer_id)));
+const promotingCustomer = ref(false);
+const customerMessage = ref('');
+const selectCustomer = customer => {
+    const index = posCustomers.value.findIndex(existing => existing.id === customer.id);
+    if (index === -1) posCustomers.value.push(customer);
+    else posCustomers.value[index] = customer;
+    checkoutForm.customer_id = customer.id;
+    customerMessage.value = '';
+};
+const promoteCustomer = async () => {
+    if (!selectedCustomer.value?.is_guest || promotingCustomer.value) return;
+    promotingCustomer.value = true; customerMessage.value = '';
+    try {
+        const response = await axios.patch(route('pos.customers.promote', selectedCustomer.value.id));
+        selectCustomer(response.data.customer);
+        customerMessage.value = 'Customer is now regular. Their previous orders remain linked.';
+    } catch { customerMessage.value = 'Could not promote this customer. Please try again.'; }
+    finally { promotingCustomer.value = false; }
+};
 const isCameraOpen = ref(false);
 const orderPanel = ref(null);
+const compactPane = ref('products');
+const showCompactPane = pane => {
+    compactPane.value = pane;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+};
 const search = ref('');
 const productKind = ref('');
 const scanMessage = ref('');
@@ -135,7 +164,7 @@ const discountManuallyAdjusted = ref(!!props.editingOrder);
 
 const getActiveCustomerGroup = () => {
     if (!checkoutForm.customer_id) return null;
-    const customer = props.customers.find(c => c.id == checkoutForm.customer_id);
+    const customer = posCustomers.value.find(c => c.id == checkoutForm.customer_id);
     return customer ? customer.group : null;
 };
 
@@ -342,8 +371,8 @@ const processBarcodeScan = async (scanValue, focusSearch = true) => {
         pendingScans.value--;
         await nextTick();
         if (focusSearch && !isCameraOpen.value && !isAddModalOpen.value && !isCheckoutModalOpen.value) searchInput.value?.focus();
-        if (!focusSearch && !scanFailed.value && !isAddModalOpen.value && window.innerWidth < 768) {
-            orderPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (!focusSearch && !scanFailed.value && !isAddModalOpen.value && window.innerWidth < 1024) {
+            showCompactPane('order');
         }
     }
 };
@@ -428,9 +457,9 @@ onBeforeUnmount(() => {
     <Head :title="editingOrder ? `Edit Order ${editingOrder.order_number}` : 'POS'" />
 
     <AdminLayout hide-sidebar>
-        <header class="-mx-6 -mt-6 mb-6 flex h-16 items-center justify-between gap-4 border-b border-gray-200 bg-white px-6">
+        <header class="pos-header -mx-6 -mt-6 mb-6 flex min-h-16 items-center justify-between gap-4 border-b border-gray-200 bg-white px-6">
             <h1 class="text-lg font-bold text-gray-900">POS System</h1>
-            <div class="flex items-center gap-4">
+            <div class="pos-header-links flex items-center gap-4">
                 <Link :href="route('pre-orders.index')" class="text-sm font-semibold text-gray-600 hover:text-gray-900">Pre Orders</Link>
                 <Link :href="route(['staff', 'manager'].includes($page.props.auth.user.role) ? 'orders.index' : 'dashboard')" class="text-sm font-semibold text-gray-600 hover:text-gray-900">
                     {{ $page.props.auth.user.role === 'staff' ? 'My Orders' : ($page.props.auth.user.role === 'manager' ? 'All Orders' : 'Back to Dashboard') }}
@@ -444,14 +473,18 @@ onBeforeUnmount(() => {
             </div>
             <Link :href="route('orders.show', editingOrder.id)" class="text-sm font-semibold text-gray-700 underline">Cancel Editing</Link>
         </div>
-        <div class="flex flex-col md:flex-row md:h-[calc(100vh-64px)] -m-6">
+        <div class="pos-pane-tabs" role="group" aria-label="POS view">
+            <button type="button" :aria-pressed="compactPane === 'products'" @click="showCompactPane('products')" :class="{ 'is-active': compactPane === 'products' }">Products</button>
+            <button type="button" :aria-pressed="compactPane === 'order'" @click="showCompactPane('order')" :class="{ 'is-active': compactPane === 'order' }">{{ editingOrder ? 'Edit order' : 'Current order' }} <span class="pos-cart-count">{{ cart.length }}</span></button>
+        </div>
+        <div class="pos-workspace -m-6">
 
             <!-- ── Left: Product Grid ─────────────────────────────────────── -->
-            <div class="w-full md:w-2/3 p-6 max-h-[55vh] md:max-h-none overflow-y-auto bg-gray-100">
+            <div class="pos-products bg-gray-100" :class="{ 'compact-hidden': compactPane !== 'products' }">
                 <p v-if="pendingScans" role="status" class="mb-2 text-sm text-gray-600">Processing scans…</p>
                 <p v-if="scanMessage" role="status" aria-live="polite" class="mb-2 text-sm" :class="scanFailed ? 'text-red-600' : 'text-green-700'">{{ scanMessage }}</p>
                 <!-- Search + currency toggle -->
-                <div class="mb-3 flex flex-wrap gap-3">
+                <div class="pos-search-tools mb-3 flex flex-wrap gap-3">
                     <input
                         ref="searchInput"
                         v-model="search"
@@ -460,15 +493,15 @@ onBeforeUnmount(() => {
                         maxlength="100"
                         placeholder="Search or scan system code…"
                         class="min-w-0 w-full sm:w-auto flex-1 bg-white border-gray-300 text-gray-900 rounded-lg focus:ring-gold-500 focus:border-gold-500 p-4 shadow-sm"
-                        autofocus
+                        aria-label="Search products or scan a system code"
                     />
-                    <div class="bg-gray-200 p-1 rounded-lg flex items-center shadow-inner self-stretch px-2 shrink-0">
+                    <div class="pos-currencies bg-gray-200 p-1 rounded-lg flex items-center shadow-inner self-stretch px-2 shrink-0">
                         <button
                             v-for="currency in ['MMK', 'USD', 'THB']"
                             :key="currency"
                             @click="displayCurrency = currency"
                             :class="[
-                                'h-full px-5 rounded-md text-sm font-bold transition-all duration-200',
+                                'min-h-11 px-5 rounded-md text-sm font-bold transition-all duration-200',
                                 displayCurrency === currency
                                     ? 'bg-white text-gold-600 shadow-sm'
                                     : 'text-gray-500 hover:text-gray-700',
@@ -477,23 +510,24 @@ onBeforeUnmount(() => {
                     </div>
                 </div>
 
-                <SecondaryButton class="mb-6" :disabled="pendingScans > 0" @click="isCameraOpen = true">Scan with Camera</SecondaryButton>
+                <SecondaryButton class="mb-4 min-h-11" :disabled="pendingScans > 0" @click="isCameraOpen = true">Scan with Camera</SecondaryButton>
 
-                <div class="flex gap-2 mb-4" aria-label="Product type">
+                <div class="pos-product-filters flex gap-2 mb-4" aria-label="Product type">
                     <button v-for="option in [{ value: '', label: 'All products' }, { value: 'watch', label: 'Watches' }, { value: 'accessory', label: 'Accessories' }]"
                         :key="option.value" @click="productKind = option.value" :aria-pressed="productKind === option.value"
                         class="px-4 py-2 text-sm font-semibold rounded-lg border transition-colors"
                         :class="productKind === option.value ? 'bg-gold-50 border-gold-300 text-gold-800' : 'bg-white border-gray-200 text-gray-600'">{{ option.label }}</button>
                 </div>
                 <!-- Product cards -->
-                <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                <div class="pos-product-grid grid grid-cols-2 gap-3">
                     <div
                         v-for="product in filteredProducts"
                         :key="product.id"
                         @click="selectSearchProduct(product)"
+                        role="button" tabindex="0" @keydown.enter.self.prevent="selectSearchProduct(product)" @keydown.space.self.prevent="selectSearchProduct(product)"
                         class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden cursor-pointer hover:border-gold-500 hover:shadow-md transition-all group"
                     >
-                        <div class="h-32 bg-gray-100 relative">
+                        <div class="pos-product-image h-32 bg-gray-100 relative">
                             <img
                                 v-if="product.images && product.images[0]"
                                 :src="$page.props.storage_url + '/' + product.images[0]"
@@ -541,7 +575,7 @@ onBeforeUnmount(() => {
             </div>
 
             <!-- ── Right: Cart ───────────────────────────────────────────── -->
-            <div ref="orderPanel" class="w-full md:w-1/3 bg-white border-t md:border-t-0 md:border-l border-gray-200 flex flex-col min-h-[24rem] md:min-h-0 md:h-full">
+            <div ref="orderPanel" class="pos-order bg-white border-gray-200 flex flex-col" :class="{ 'compact-hidden': compactPane !== 'order' }">
                 <!-- Header -->
                 <div class="p-4 border-b border-gray-200 bg-gray-50 space-y-3">
                     <div class="flex justify-between items-center">
@@ -557,10 +591,16 @@ onBeforeUnmount(() => {
                         search-placeholder="Search by name, phone or email"
                         option-noun="customers"
                     />
+                    <PosGuestCustomer :sources="customerSources" @selected="selectCustomer" />
+                    <div v-if="selectedCustomer?.is_guest" class="rounded-lg bg-amber-50 p-3 text-sm">
+                        <p>This is a guest customer. All their orders stay linked to this profile.</p>
+                        <button type="button" :disabled="promotingCustomer" @click="promoteCustomer" class="mt-2 font-semibold underline">{{ promotingCustomer ? 'Saving…' : 'Make regular customer' }}</button>
+                    </div>
+                    <p v-if="customerMessage" role="status" class="text-sm text-gray-700">{{ customerMessage }}</p>
                 </div>
 
                 <!-- Cart items -->
-                <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-white">
+                <div class="pos-cart-items flex-1 p-4 space-y-2 bg-white">
                     <TransitionGroup name="cart-item" tag="div" class="space-y-2">
                         <div
                             v-for="(item, index) in cart"
@@ -593,7 +633,7 @@ onBeforeUnmount(() => {
                                 <template v-else>
                                     <div class="text-gold-600 font-bold text-sm">{{ (getMmkPrice(item.product) * item.qty).toLocaleString() }} Ks</div>
                                 </template>
-                                <button @click="removeFromCart(index)" class="text-red-400 hover:text-red-600 text-[10px] hover:underline mt-1.5 block">Remove</button>
+                                <button @click="removeFromCart(index)" class="text-red-600 hover:text-red-700 text-sm hover:underline min-h-11 min-w-11 block">Remove</button>
                             </div>
                         </div>
                     </TransitionGroup>
@@ -604,7 +644,7 @@ onBeforeUnmount(() => {
                 </div>
 
                 <!-- Totals + checkout -->
-                <div class="p-4 bg-gray-50 border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.06)]">
+                <div class="pos-order-totals p-4 bg-gray-50 border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.06)]">
                     <div class="space-y-1.5 mb-4">
                         <div class="flex justify-between text-sm text-gray-500">
                             <span>Subtotal</span>
@@ -644,13 +684,18 @@ onBeforeUnmount(() => {
                     </div>
                     <PrimaryButton
                         @click="openCheckout"
-                        class="w-full justify-center py-3 bg-gold-500 hover:bg-gold-600 text-dark-900 font-bold text-base shadow-md"
-                        :disabled="cart.length === 0"
+                        class="pos-panel-checkout w-full justify-center py-3 bg-gold-500 hover:bg-gold-600 text-dark-900 font-bold text-base shadow-md"
+                        :disabled="cart.length === 0 || pendingScans > 0"
                     >
                         {{ editingOrder ? 'Review Changes' : 'Checkout' }}
                     </PrimaryButton>
                 </div>
             </div>
+        </div>
+
+        <div class="pos-mobile-dock" aria-label="Cart summary">
+            <div class="min-w-0"><p class="text-xs text-gray-500" aria-live="polite">{{ cart.length }} line(s) in order</p><p class="break-words text-lg font-bold text-gray-900">{{ total.toLocaleString() }} <span class="text-xs font-normal">Ks</span></p></div>
+            <button type="button" class="min-h-12 rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40" :disabled="cart.length === 0 || pendingScans > 0" @click="compactPane === 'products' ? showCompactPane('order') : openCheckout()">{{ pendingScans ? 'Scanning…' : compactPane === 'products' ? 'Review order →' : editingOrder ? 'Review changes →' : 'Checkout →' }}</button>
         </div>
 
         <!-- ══════════════════════════════════════════════════════════════════
@@ -723,7 +768,7 @@ onBeforeUnmount(() => {
                     <div class="flex items-center justify-center gap-4">
                         <button
                             @click="addQty = Math.max(1, addQty - 1)"
-                            class="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-gray-600 hover:border-gold-500 hover:text-gold-600 transition-colors font-bold text-lg"
+                            class="w-12 h-12 rounded-full border-2 border-gray-200 flex items-center justify-center text-gray-600 hover:border-gold-500 hover:text-gold-600 transition-colors font-bold text-lg"
                         >−</button>
                         <div class="text-center">
                             <div class="text-4xl font-bold text-gray-900 w-16 text-center">{{ addQty }}</div>
@@ -731,7 +776,7 @@ onBeforeUnmount(() => {
                         </div>
                         <button
                             @click="addQty = Math.min(maxQty, addQty + 1)"
-                            class="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-gray-600 hover:border-gold-500 hover:text-gold-600 transition-colors font-bold text-lg"
+                            class="w-12 h-12 rounded-full border-2 border-gray-200 flex items-center justify-center text-gray-600 hover:border-gold-500 hover:text-gold-600 transition-colors font-bold text-lg"
                         >+</button>
                     </div>
 
@@ -838,7 +883,7 @@ onBeforeUnmount(() => {
              Checkout Modal
         ══════════════════════════════════════════════════════════════════ -->
         <Modal :show="isCheckoutModalOpen" @close="isCheckoutModalOpen = false">
-            <div class="p-6 bg-white text-gray-900">
+            <div class="pos-checkout p-4 sm:p-6 bg-white text-gray-900">
                 <h2 class="text-lg font-bold text-gray-900 mb-4">{{ editingOrder ? 'Update Order' : 'Checkout' }}</h2>
 
                 <form @submit.prevent="submitCheckout" class="space-y-4">
@@ -890,7 +935,7 @@ onBeforeUnmount(() => {
 
                     <div class="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                         <span class="font-bold">Customer:</span>
-                        {{ customerLabel(customers.find(c => String(c.id) === String(checkoutForm.customer_id))) }}
+                        {{ customerLabel(selectedCustomer) }}
                         <span v-if="discount > 0" class="text-green-600 ml-2 font-bold">
                             (Discount: -{{ discount.toLocaleString() }} Ks)
                         </span>
@@ -951,7 +996,7 @@ onBeforeUnmount(() => {
                         </div>
                     </div>
 
-                    <div class="mt-6 flex justify-end gap-3">
+                    <div class="pos-checkout-actions mt-6 flex flex-wrap justify-end gap-3">
                         <SecondaryButton @click="isCheckoutModalOpen = false">Cancel</SecondaryButton>
                         <PrimaryButton
                             type="submit"
@@ -968,6 +1013,55 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.pos-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 360px; align-items: start; }
+.pos-products { min-width: 0; padding: 24px; }
+.pos-order { min-width: 0; border-left-width: 1px; }
+.pos-product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pos-pane-tabs, .pos-mobile-dock { display: none; }
+.pos-header-links a { display: inline-flex; align-items: center; min-height: 44px; }
+.pos-product-filters button { min-height: 44px; }
+@media (min-width: 1280px) {
+    .pos-workspace { grid-template-columns: minmax(0, 1fr) 390px; }
+    .pos-product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 1536px) {
+    .pos-product-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) and (min-height: 700px) {
+    .pos-order { position: sticky; top: 0; max-height: 100dvh; overflow-y: auto; }
+    .pos-order-totals { position: sticky; bottom: 0; z-index: 10; }
+}
+@media (max-width: 1023px) {
+    .pos-header { flex-wrap: wrap; gap: 4px 16px; padding: 8px 16px; margin-bottom: 12px; }
+    .pos-header h1 { white-space: nowrap; }
+    .pos-header-links { flex-wrap: wrap; gap: 4px 16px; }
+    .pos-header-links a { font-size: 12px; }
+    .pos-pane-tabs { display: flex; gap: 6px; padding: 6px; margin: 0 -12px 24px; border: 1px solid #e5e7eb; border-radius: 14px; background: white; }
+    .pos-pane-tabs button { display: flex; flex: 1; justify-content: center; align-items: center; gap: 8px; min-height: 44px; padding: 8px; border-radius: 9px; font-size: 14px; font-weight: 600; color: #4b5563; }
+    .pos-pane-tabs .is-active { background: #111827; color: white; }
+    .pos-cart-count { padding: 1px 7px; border-radius: 999px; background: #e5e7eb; color: #111827; font-size: 12px; }
+    .pos-workspace { display: block; padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+    .pos-workspace .compact-hidden { display: none; }
+    .pos-products { padding: 16px; }
+    .pos-order { border-left: 0; min-height: 50dvh; }
+    .pos-product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .pos-panel-checkout { display: none; }
+    .pos-mobile-dock { position: fixed; bottom: 0; left: 0; right: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid #e5e7eb; background: white; box-shadow: 0 -4px 20px #00000008; }
+    .pos-mobile-dock button { flex-shrink: 0; }
+    .pos-checkout :deep(input:not([type="checkbox"])), .pos-checkout :deep(select), .pos-checkout :deep(textarea) { font-size: 16px; min-height: 44px; }
+    .pos-checkout-actions > * { flex: 1; justify-content: center; min-height: 48px; }
+    .pos-order :deep(input:not([type="checkbox"])), .pos-order :deep(select) { font-size: 16px; min-height: 44px; }
+}
+@media (max-width: 599px) {
+    .pos-product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .pos-product-image { height: 120px; }
+    .pos-search-tools > input { flex-basis: 100%; padding: 12px; font-size: 16px; }
+    .pos-currencies { width: 100%; }
+    .pos-currencies button { flex: 1; padding-left: 12px; padding-right: 12px; }
+    .pos-product-filters { gap: 6px; }
+    .pos-product-filters button { flex: 1; padding: 8px 6px; font-size: 12px; }
+}
+
 .cart-item-enter-active,
 .cart-item-leave-active {
     transition: all 0.2s ease;

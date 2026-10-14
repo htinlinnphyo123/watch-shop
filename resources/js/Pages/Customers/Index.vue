@@ -1,6 +1,7 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { Head, useForm, Link } from '@inertiajs/vue3';
+import { Head, useForm, Link, router } from '@inertiajs/vue3';
+import axios from 'axios';
 import { ref } from 'vue';
 import Modal from '@/Components/Modal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -10,6 +11,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 
 const props = defineProps({
+    showGuests: { type: Boolean, default: false },
     customers: {
         type: Object,
         default: () => ({ data: [], links: [] }),
@@ -23,6 +25,18 @@ const props = defineProps({
         default: () => ({}),
     },
 });
+
+const promoting = ref(null);
+const promotionError = ref('');
+const promote = async customer => {
+    if (promoting.value) return;
+    promoting.value = customer.id; promotionError.value = '';
+    try {
+        await axios.patch(route('pos.customers.promote', customer.id));
+        router.reload({ only: ['customers'] });
+    } catch { promotionError.value = 'Could not promote this customer. Please try again.'; }
+    finally { promoting.value = null; }
+};
 
 const form = useForm({
     name: '',
@@ -111,6 +125,8 @@ const deleteCustomer = (customer) => {
             </PrimaryButton>
         </div>
 
+        <label class="mb-4 flex items-center gap-2 text-sm"><input type="checkbox" :checked="showGuests" @change="router.get(route('customers.index'), $event.target.checked ? { show_guests: 1 } : {}, { preserveScroll: true })" class="rounded border-gray-300" /> Show guest customers</label>
+        <p v-if="promotionError" role="alert" class="mb-4 text-sm text-red-600">{{ promotionError }}</p>
         <div class="bg-white overflow-x-auto shadow-sm sm:rounded-lg border border-gray-200">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
@@ -125,7 +141,7 @@ const deleteCustomer = (customer) => {
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     <tr v-for="customer in customers.data" :key="customer.id" class="hover:bg-gray-50 transition-colors">
-                        <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">{{ customer.name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">{{ customer.name }} <span v-if="customer.is_guest" class="ml-2 rounded bg-amber-100 px-2 py-1 text-xs text-amber-900">Guest</span></td>
                         <td class="px-6 py-4 whitespace-nowrap text-gold-600 text-sm font-mono">{{ customer.phone }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ customer.email || '-' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ customer.address || '-' }}</td>
@@ -135,6 +151,7 @@ const deleteCustomer = (customer) => {
                             <p v-else-if="customer.source_details" class="mt-1 break-words text-gray-500">{{ customer.source_details }}</p>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                            <button v-if="customer.is_guest" :disabled="promoting !== null" @click="promote(customer)" class="text-gray-700 underline">Make regular</button>
                             <button v-if="!['staff', 'manager'].includes($page.props.auth.user.role)" @click="openModal(customer)" class="text-gold-600 hover:text-gold-800">Edit</button>
                             <button v-if="!['staff', 'manager'].includes($page.props.auth.user.role)" @click="deleteCustomer(customer)" class="text-red-600 hover:text-red-800">Delete</button>
                         </td>

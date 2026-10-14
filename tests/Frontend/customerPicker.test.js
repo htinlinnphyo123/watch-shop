@@ -30,3 +30,11 @@ test('keeps walk-in searchable and supports existing label-only staff options', 
     assert.deepEqual(filterSelectOptions(options, 'walk-in').map(option => option.value), ['']);
     assert.deepEqual(filterSelectOptions([{ value: 4, label: 'Staff Name' }], 'staff'), [{ value: 4, label: 'Staff Name' }]);
 });
+
+test('guest customers remain searchable with normalized phone numbers', () => {
+    const guests = customerOptions([{ id: 8, name: 'Guest', phone: '09 123-456', is_guest: true }]);
+    assert.match(guests[1].label, /\[Guest\]/);
+    for (const query of ['09123456', '+95 9 123456', '00959123456', '123-456']) {
+        assert.deepEqual(filterSelectOptions(guests, query).map(option => option.value), [8]);
+    }
+});

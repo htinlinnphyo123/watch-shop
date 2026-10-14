@@ -83,6 +83,9 @@ Route::middleware(['auth', 'staff.access'])->group(function () {
     Route::get('customers/leaderboard', [\App\Http\Controllers\CustomerInsightsController::class, 'index'])->middleware('role:admin')->name('customers.leaderboard');
     Route::resource('customers', \App\Http\Controllers\CustomerController::class);
 
+    Route::post('/pos/customers', [\App\Http\Controllers\PosCustomerController::class, 'store'])->name('pos.customers.store');
+    Route::patch('/pos/customers/{customer}/promote', [\App\Http\Controllers\PosCustomerController::class, 'promote'])->name('pos.customers.promote');
+
     Route::get('/pos', [\App\Http\Controllers\POSController::class, 'index'])->name('pos.index');
     Route::get('/pos/products', [\App\Http\Controllers\POSController::class, 'products'])->name('pos.products');
     Route::get('/pos/products/scan', [\App\Http\Controllers\POSController::class, 'scan'])->name('pos.products.scan');
