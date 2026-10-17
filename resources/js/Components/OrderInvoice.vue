@@ -51,6 +51,7 @@ const serials = item => (item.sold_items || []).filter(unit => unit.serial_numbe
             <p class="invoice-customer-name">{{ order.customer?.name || 'Walk-in Customer' }}</p>
             <p v-if="order.customer?.phone">Phone: {{ order.customer.phone }}</p>
             <p v-if="order.customer?.email">Email: {{ order.customer.email }}</p>
+            <p v-if="order.customer?.region" class="invoice-customer-address">Region: {{ order.customer.region }}</p>
             <p v-if="order.customer?.address" class="invoice-customer-address">{{ order.customer.address }}</p>
         </section>
 
