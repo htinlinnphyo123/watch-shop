@@ -16,7 +16,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import axios from 'axios';
 import { paymentMethods, paymentCents } from '@/utils/payments';
-import { posPriceMmk, posDiscountPercentage } from '@/utils/posPricing';
+import { posPriceMmk, posDiscountPercentage, orderDiscountAmount, posOrderTotal } from '@/utils/posPricing';
 import { createCheckoutRequestId } from '@/utils/checkoutRequest';
 
 const props = defineProps({
@@ -25,6 +25,7 @@ const props = defineProps({
     products: { type: Array, default: () => [] },
     productsPagination: { type: Object, default: () => ({ current_page: 1, last_page: 1 }) },
     customers: { type: Array, default: () => [] },
+    customerRegions: { type: Array, default: () => [] },
     customerSources: { type: Object, default: () => ({}) },
 });
 
@@ -196,12 +197,13 @@ const subTotal = computed(() =>
 
 const appliedDiscountPercentage = computed(() => {
     const percentage = parseFloat(checkoutForm.discount_percentage) || 0;
-    return Math.max(0, Math.min(100, percentage));
+    return Math.round(Math.max(0, Math.min(100, percentage)) * 100) / 100;
 });
 
-const discount = computed(() => subTotal.value * (appliedDiscountPercentage.value / 100));
+const discount = computed(() => orderDiscountAmount(subTotal.value, appliedDiscountPercentage.value));
 
-const total = computed(() => paymentCents(subTotal.value - discount.value) / 100);
+const total = computed(() => posOrderTotal(subTotal.value, appliedDiscountPercentage.value));
+const roundingAdjustment = computed(() => (paymentCents(total.value) - paymentCents(subTotal.value - discount.value)) / 100);
 const amountPaid = computed(() => checkoutForm.payments.reduce((sum, payment) => sum + paymentCents(payment.amount), 0) / 100);
 const amountShort = computed(() => Math.max(0, paymentCents(total.value) - paymentCents(amountPaid.value)) / 100);
 const changeDue = computed(() => Math.max(0, paymentCents(amountPaid.value) - paymentCents(total.value)) / 100);
@@ -591,7 +593,7 @@ onBeforeUnmount(() => {
                         search-placeholder="Search by name, phone or email"
                         option-noun="customers"
                     />
-                    <PosGuestCustomer :sources="customerSources" @selected="selectCustomer" />
+                    <PosGuestCustomer :sources="customerSources" :regions="customerRegions" @selected="selectCustomer" />
                     <div v-if="selectedCustomer?.is_guest" class="rounded-lg bg-amber-50 p-3 text-sm">
                         <p>This is a guest customer. All their orders stay linked to this profile.</p>
                         <button type="button" :disabled="promotingCustomer" @click="promoteCustomer" class="mt-2 font-semibold underline">{{ promotingCustomer ? 'Saving…' : 'Make regular customer' }}</button>
@@ -676,6 +678,10 @@ onBeforeUnmount(() => {
                         <div v-if="discount > 0" class="flex justify-between text-sm text-green-600">
                             <span>Discount ({{ appliedDiscountPercentage }}%)</span>
                             <span>-{{ discount.toLocaleString() }} Ks</span>
+                        </div>
+                        <div v-if="roundingAdjustment" class="flex justify-between text-sm text-gray-500">
+                            <span>Rounding</span>
+                            <span>{{ roundingAdjustment > 0 ? '+' : '−' }}{{ Math.abs(roundingAdjustment).toLocaleString() }} Ks</span>
                         </div>
                         <div class="flex justify-between border-t border-gray-200 pt-2">
                             <span class="text-gray-900 font-bold text-lg">Total</span>

@@ -98,7 +98,7 @@ export function orderChangeGroups(before, after) {
 export function historyLabels(versions) {
     let edit = 0;
     return Object.fromEntries([...versions].sort((a, b) => a.version - b.version).map(entry => [entry.version,
-        entry.event === 'edited' ? `Edit ${++edit}` : ({ created: 'Original order', baseline: 'First saved record', approved: 'Order approved', attachment_added: 'File uploaded' }[entry.event] || 'Order updated'),
+        entry.event === 'edited' ? `Edit ${++edit}` : ({ created: 'Original order', baseline: 'First saved record', approved: 'Order approved', total_rounded: 'Total rounded', attachment_added: 'File uploaded' }[entry.event] || 'Order updated'),
     ]));
 }
 

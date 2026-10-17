@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { posPriceMmk, posDiscountPercentage } from '../../resources/js/utils/posPricing.js';
+import { posPriceMmk, posDiscountPercentage, orderDiscountAmount, posOrderTotal } from '../../resources/js/utils/posPricing.js';
 
 test('converted prices round to the nearest thousand with half-thousand rounding up', () => {
     for (const [rate, expected] of [[2145.24, 215000], [2142.32, 214000], [2145, 215000], [2144.99, 214000], [2140, 214000]]) {
@@ -23,4 +23,17 @@ test('direct MMK prices and saved order prices are never re-rounded', () => {
     assert.equal(posPriceMmk({ price: 100, currency: 'USD', pos_price_mmk: '214524.00' }, { usd_rate: 3000 }), 214524);
     assert.equal(posPriceMmk({ price: 100, currency: 'USD', pos_price_mmk: 0 }, { usd_rate: 3000 }), 0);
     assert.equal(posPriceMmk(null), 0);
+});
+
+
+test('order totals with or without discount round once to the nearest thousand, with halves up', () => {
+    assert.equal(orderDiscountAmount(1238000, 8), 99040);
+    assert.equal(posOrderTotal(1238000, 8), 1139000);
+    assert.equal(posOrderTotal(1238000, 9), 1127000);
+    assert.equal(posOrderTotal(1238000, 25), 929000);
+    assert.equal(posOrderTotal(1238000, 100), 0);
+    assert.equal(posOrderTotal(214524.25, 0), 215000);
+    assert.equal(posOrderTotal(2140200, 0), 2140000);
+    assert.equal(posOrderTotal(0, 8), 0);
+    assert.equal(posOrderTotal(214000 * 2, 10), 385000);
 });

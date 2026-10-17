@@ -20,6 +20,7 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    regionOptions: { type: Array, default: () => [] },
     sourceOptions: {
         type: Object,
         default: () => ({}),
@@ -43,6 +44,7 @@ const form = useForm({
     phone: '',
     email: '',
     password: '',
+    region: '',
     address: '',
     gender: '',
     customer_group_id: null,
@@ -71,6 +73,7 @@ const openModal = (customer = null) => {
         form.phone = customer.phone;
         form.email = customer.email;
         form.password = '';
+        form.region = customer.region || '';
         form.address = customer.address;
         form.gender = customer.gender || '';
         form.customer_group_id = customer.customer_group_id;
@@ -144,7 +147,7 @@ const deleteCustomer = (customer) => {
                         <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">{{ customer.name }} <span v-if="customer.is_guest" class="ml-2 rounded bg-amber-100 px-2 py-1 text-xs text-amber-900">Guest</span></td>
                         <td class="px-6 py-4 whitespace-nowrap text-gold-600 text-sm font-mono">{{ customer.phone }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ customer.email || '-' }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">{{ customer.address || '-' }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm"><span v-if="customer.region" class="block font-medium text-gray-700">{{ customer.region }}</span>{{ customer.address || '-' }}</td>
                         <td class="px-6 py-4 text-sm min-w-[200px] max-w-xs">
                             <p class="font-medium text-gray-800">{{ sourceOptions[customer.source] || 'Not specified' }}</p>
                             <a v-if="profileUrl(customer.source_details)" :href="profileUrl(customer.source_details)" target="_blank" rel="noopener noreferrer" class="mt-1 block break-words text-gold-600 underline hover:text-gold-800">{{ customer.source_details }}</a>
@@ -248,6 +251,12 @@ const deleteCustomer = (customer) => {
                         <InputLabel value="Customer gender (optional)" class="text-gray-700" />
                         <select v-model="form.gender" class="mt-1 block w-full rounded-md border-gray-300"><option value="">Not specified</option><option value="man">Man</option><option value="woman">Woman</option><option value="other">Other</option></select>
                         <InputError :message="form.errors.gender" />
+                        <InputLabel for="customer_region" value="Region (optional)" class="mt-4 text-gray-700" />
+                        <select id="customer_region" v-model="form.region" autocomplete="address-level1" class="mt-1 block w-full rounded-md border-gray-300">
+                            <option value="">Not specified</option>
+                            <option v-for="region in regionOptions" :key="region" :value="region">{{ region }}</option>
+                        </select>
+                        <InputError class="mt-2" :message="form.errors.region" />
                         <InputLabel value="Address (optional)" class="mt-4 text-gray-700" />
                         <TextInput type="text" class="mt-1 block w-full bg-gray-50 border-gray-300 text-gray-900" v-model="form.address" />
                         <InputError class="mt-2" :message="form.errors.address" />

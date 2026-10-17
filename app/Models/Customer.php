@@ -9,6 +9,24 @@ use Laravel\Sanctum\HasApiTokens;
 
 class Customer extends Authenticatable
 {
+    public const REGIONS = [
+        'Ayeyarwady Region',
+        'Bago Region',
+        'Magway Region',
+        'Mandalay Region',
+        'Sagaing Region',
+        'Tanintharyi Region',
+        'Yangon Region',
+        'Chin State',
+        'Kachin State',
+        'Kayah State',
+        'Kayin State',
+        'Mon State',
+        'Rakhine State',
+        'Shan State',
+        'NayPyiTaw',
+    ];
+
     public const SOURCES = [
         'tiktok' => 'TikTok',
         'facebook' => 'Facebook',

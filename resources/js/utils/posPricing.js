@@ -15,3 +15,12 @@ export const posDiscountPercentage = (product, group = null) => {
     const override = product.customer_groups?.find(candidate => String(candidate.id) === String(group.id));
     return Number(override?.pivot?.percentage ?? group.percentage) || 0;
 };
+
+// Round the final order total once, after all quantities and line prices.
+export const orderDiscountAmount = (subtotal, percentage) =>
+    Math.round(Number(subtotal) * Number(percentage) / 100 * 100) / 100;
+
+export const posOrderTotal = (subtotal, percentage) => {
+    const total = Math.round((Number(subtotal) - orderDiscountAmount(subtotal, percentage)) * 100) / 100;
+    return Math.round(total / 1000) * 1000;
+};

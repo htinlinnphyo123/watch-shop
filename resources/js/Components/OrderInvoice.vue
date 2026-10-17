@@ -1,12 +1,15 @@
 <script setup>
 import { computed } from 'vue';
+import { orderDiscountAmount } from '@/utils/posPricing';
 import { paymentMethodLabel } from '@/utils/payments';
 
 const props = defineProps({ order: { type: Object, required: true } });
 const money = value => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(Number(value) || 0);
 const lineTotal = item => Number(item.price) * Number(item.quantity);
 const subtotal = computed(() => (props.order.items || []).reduce((sum, item) => sum + lineTotal(item), 0));
-const discount = computed(() => Math.max(0, subtotal.value - Number(props.order.total_amount)));
+const discount = computed(() => Number(props.order.discount_percentage) > 0
+    ? orderDiscountAmount(subtotal.value, props.order.discount_percentage)
+    : 0);
 const paid = computed(() => Number(props.order.amount_paid) || 0);
 const balance = computed(() => Math.max(0, Number(props.order.total_amount) - paid.value));
 const change = computed(() => Math.max(0, paid.value - Number(props.order.total_amount)));

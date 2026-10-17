@@ -35,6 +35,7 @@ class POSController extends Controller
             ],
             'customers' => Customer::with('group')->get(),
             'customerSources' => Customer::SOURCES,
+            'customerRegions' => Customer::REGIONS,
             'salespeople' => \App\Models\User::whereIn('role', ['admin', 'manager', 'staff'])->orderBy('name')->get(['id', 'name']),
         ]);
     }
@@ -279,7 +280,7 @@ class POSController extends Controller
                 ? floatval($request->discount_percentage)
                 : ($subtotal > 0 ? ($watchDiscountAmount / $subtotal) * 100 : 0);
             $discountPercentage = round(max(0, min(100, $discountPercentage)), 2);
-            $totalAmount = round($subtotal * (1 - ($discountPercentage / 100)), 2);
+            $totalAmount = \App\Support\PosPrice::orderTotal($subtotal, $discountPercentage);
             $paymentDetails = (new OrderPaymentService)->summarize(
                 $request->input('payments', [[
                     'method' => $request->payment_method,

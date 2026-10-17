@@ -19,6 +19,7 @@ class CustomerController extends Controller
             'customers' => Customer::with('group')->when(! $request->boolean('show_guests'), fn ($query) => $query->where('is_guest', false))->latest('updated_at')->paginate(10)->withQueryString(),
             'groups' => CustomerGroup::all(),
             'sourceOptions' => Customer::SOURCES,
+            'regionOptions' => Customer::REGIONS,
         ]);
     }
 
@@ -30,6 +31,7 @@ class CustomerController extends Controller
             'phone' => ['nullable', 'string', 'max:255', Rule::unique('customers', 'phone')],
             'password' => 'nullable|string|min:6',
             'customer_group_id' => 'nullable|exists:customer_groups,id',
+            'region' => ['nullable', 'string', Rule::in(Customer::REGIONS)],
             'address' => 'nullable|string',
             'gender' => 'nullable|in:man,woman,other',
             'source' => ['nullable', Rule::in(array_keys(Customer::SOURCES))],
@@ -54,6 +56,7 @@ class CustomerController extends Controller
             'phone' => ['nullable', 'string', 'max:255', Rule::unique('customers', 'phone')->ignore($customer->id)],
             'password' => 'nullable|string|min:6',
             'customer_group_id' => 'nullable|exists:customer_groups,id',
+            'region' => ['nullable', 'string', Rule::in(Customer::REGIONS)],
             'address' => 'nullable|string',
             'gender' => 'nullable|in:man,woman,other',
             'source' => ['nullable', Rule::in(array_keys(Customer::SOURCES))],

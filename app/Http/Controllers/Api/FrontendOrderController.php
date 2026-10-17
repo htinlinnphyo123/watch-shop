@@ -156,7 +156,7 @@ class FrontendOrderController extends Controller
                     'subtotal'                  => $originalSubtotal,
                     'top_level_discount_amount' => $discountAmount,
                     'top_level_discount_percent'=> $discountPercentage,
-                    'final_total_amount'        => $subtotal,
+                    'final_total_amount'        => \App\Support\PosPrice::orderTotal($subtotal, 0),
                 ]
             ], 200);
 
@@ -247,7 +247,8 @@ class FrontendOrderController extends Controller
             // Generate order with 'pending' status
             $order = Order::create([
                 'customer_id'  => $customerId,
-                'total_amount' => $subtotal,
+                'total_amount' => \App\Support\PosPrice::orderTotal($subtotal, 0),
+                'discount_percentage' => $topLevelDiscount ? (float) $topLevelDiscount->percentage : 0,
                 'status'       => 'pending',
                 'order_number' => 'ORD-' . strtoupper(uniqid()),
                 'notes'        => $request->input('notes'),

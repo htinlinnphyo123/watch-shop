@@ -21,6 +21,7 @@ class PosCustomerController extends Controller
             'name' => 'required|string|max:255',
             'phone' => ['required', 'string', 'max:255', 'regex:/^\+?[0-9]+$/'],
             'email' => 'nullable|email|max:255',
+            'region' => ['nullable', 'string', Rule::in(Customer::REGIONS)],
             'address' => 'nullable|string|max:5000',
             'gender' => 'nullable|in:man,woman,other',
             'source' => ['nullable', Rule::in(array_keys(Customer::SOURCES))],

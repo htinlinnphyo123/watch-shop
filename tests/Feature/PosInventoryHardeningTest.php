@@ -181,6 +181,6 @@ class PosInventoryHardeningTest extends TestCase
             'cart' => [['product_id' => $this->watch->id, 'quantity' => 1], ['product_id' => $second->id, 'quantity' => 1]],
         ]))->assertSessionHasNoErrors();
         $this->assertSame('13.33', Order::sole()->discount_percentage);
-        $this->assertSame('26001.00', Order::sole()->total_amount);
+        $this->assertSame('26000.00', Order::sole()->total_amount);
     }
 }

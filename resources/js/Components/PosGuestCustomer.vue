@@ -4,14 +4,14 @@ import axios from 'axios';
 import Modal from '@/Components/Modal.vue';
 import InputError from '@/Components/InputError.vue';
 
-defineProps({ sources: { type: Object, default: () => ({}) } });
+defineProps({ regions: { type: Array, default: () => [] }, sources: { type: Object, default: () => ({}) } });
 const emit = defineEmits(['selected']);
 const open = ref(false);
 const more = ref(false);
 const saving = ref(false);
 const errors = ref({});
 const matches = ref([]);
-const defaults = () => ({ name: '', phone: '', email: '', address: '', gender: '', source: '', source_details: '' });
+const defaults = () => ({ name: '', phone: '', email: '', region: '', address: '', gender: '', source: '', source_details: '' });
 const form = reactive(defaults());
 const start = () => { Object.assign(form, defaults()); more.value = false; errors.value = {}; matches.value = []; open.value = true; };
 const close = () => { if (!saving.value) { open.value = false; } };
@@ -51,6 +51,14 @@ const save = async () => {
             <div v-if="more" id="guest-optional-fields" class="grid gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 sm:grid-cols-2">
                 <div><label for="guest-email" class="block text-sm font-medium">Email</label><input id="guest-email" v-model="form.email" type="email" maxlength="255" class="mt-1 w-full rounded-md border-gray-300" /><InputError :message="errors.email" /></div>
                 <div><label for="guest-gender" class="block text-sm font-medium">Gender</label><select id="guest-gender" v-model="form.gender" class="mt-1 w-full rounded-md border-gray-300"><option value="">Not specified</option><option value="man">Man</option><option value="woman">Woman</option><option value="other">Other</option></select><InputError :message="errors.gender" /></div>
+                <div class="sm:col-span-2">
+                    <label for="guest-region" class="block text-sm font-medium">Region</label>
+                    <select id="guest-region" v-model="form.region" autocomplete="address-level1" class="mt-1 w-full rounded-md border-gray-300">
+                        <option value="">Not specified</option>
+                        <option v-for="region in regions" :key="region" :value="region">{{ region }}</option>
+                    </select>
+                    <InputError :message="errors.region" />
+                </div>
                 <div class="sm:col-span-2"><label for="guest-address" class="block text-sm font-medium">Address</label><input id="guest-address" v-model="form.address" maxlength="5000" class="mt-1 w-full rounded-md border-gray-300" /><InputError :message="errors.address" /></div>
                 <div><label for="guest-source" class="block text-sm font-medium">Customer source</label><select id="guest-source" v-model="form.source" class="mt-1 w-full rounded-md border-gray-300"><option value="">Not specified</option><option v-for="(label, value) in sources" :key="value" :value="value">{{ label }}</option></select><InputError :message="errors.source" /></div>
                 <div><label for="guest-source-details" class="block text-sm font-medium">Profile link / source details</label><input id="guest-source-details" v-model="form.source_details" maxlength="2048" class="mt-1 w-full rounded-md border-gray-300" /><InputError :message="errors.source_details" /></div>
