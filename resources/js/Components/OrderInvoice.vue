@@ -79,7 +79,7 @@ const serials = item => (item.sold_items || []).filter(unit => unit.serial_numbe
             <dl class="invoice-totals">
                 <div><dt>Subtotal:</dt><dd>{{ money(subtotal) }}</dd></div>
                 <div v-if="discount > 0"><dt>Discount<span v-if="Number(order.discount_percentage)"> ({{ Number(order.discount_percentage) }}%)</span>:</dt><dd>−{{ money(discount) }}</dd></div>
-                <div><dt>{{ order.status === 'pending' ? 'Deposit:' : 'Amount Paid:' }}</dt><dd>{{ hasPayment ? money(paid) : 'Not recorded' }}</dd></div>
+                <div><dt>Amount Paid:</dt><dd>{{ hasPayment ? money(paid) : 'Not recorded' }}</dd></div>
                 <div><dt>Delivery Fee <small>(separate)</small>:</dt><dd>{{ money(order.delivery_fees) }}</dd></div>
             </dl>
         </section>
