@@ -92,12 +92,39 @@ class PendingOrderStockTest extends TestCase
     {
         $order = $this->reserve();
         $this->older->update(['status' => 'reserved']);
-        $this->post(route('orders.cancel', $order))->assertSessionHasNoErrors();
-        $this->post(route('orders.cancel', $order))->assertSessionHasNoErrors();
+        $this->post(route('orders.cancel', $order), ['cancellation_reason' => 'Customer requested cancellation'])->assertSessionHasNoErrors();
+        $this->post(route('orders.cancel', $order), ['cancellation_reason' => 'Customer requested cancellation'])->assertSessionHasNoErrors();
         $this->assertSame('cancelled', $order->fresh()->status);
         $this->assertSame('available', $this->selected->fresh()->status);
         $this->assertNull($this->selected->fresh()->order_item_id);
         $this->assertSame('reserved', $this->older->fresh()->status);
+        $this->assertSame(2, OrderAudit::where('order_id', $order->id)->count());
+    }
+
+    public function test_cancellation_requires_a_valid_reason_without_changing_stock_or_history(): void
+    {
+        $order = $this->reserve();
+        foreach ([null, '', '   ', str_repeat('x', 1001), ['invalid']] as $reason) {
+            $this->post(route('orders.cancel', $order), ['cancellation_reason' => $reason])
+                ->assertSessionHasErrors('cancellation_reason');
+            $this->assertSame('pending', $order->fresh()->status);
+            $this->assertSame('reserved', $this->selected->fresh()->status);
+            $this->assertSame(1, OrderAudit::where('order_id', $order->id)->count());
+        }
+    }
+
+    public function test_cancellation_saves_reason_in_order_and_history_and_preserves_it_on_retry(): void
+    {
+        $order = $this->reserve();
+        $reason = "Customer changed their mind.\nRequested a different model.";
+        $this->post(route('orders.cancel', $order), ['cancellation_reason' => $reason])->assertSessionHasNoErrors();
+        $this->assertSame($reason, $order->fresh()->cancellation_reason);
+        $audit = OrderAudit::where('order_id', $order->id)->where('event', 'cancelled')->sole();
+        $this->assertSame($reason, $audit->snapshot['cancellation_reason']);
+        $this->assertTrue(collect($audit->changes)->contains(fn ($change) => $change['label'] === 'Cancellation reason' && $change['after'] === $reason));
+        $this->get(route('orders.show', $order))->assertInertia(fn (Assert $page) => $page->where('order.cancellation_reason', $reason));
+        $this->post(route('orders.cancel', $order), ['cancellation_reason' => 'Replacement reason'])->assertSessionHasNoErrors();
+        $this->assertSame($reason, $order->fresh()->cancellation_reason);
         $this->assertSame(2, OrderAudit::where('order_id', $order->id)->count());
     }
 
@@ -155,7 +182,7 @@ class PendingOrderStockTest extends TestCase
         // Simulate corrupt/externally modified stock; normal inventory routes block this.
         $this->selected->update(['order_item_id' => null]);
         $this->post(route('orders.approve', $order))->assertSessionHasErrors('error');
-        $this->post(route('orders.cancel', $order))->assertSessionHasErrors('error');
+        $this->post(route('orders.cancel', $order), ['cancellation_reason' => 'Customer requested cancellation'])->assertSessionHasErrors('error');
         $this->put(route('pos.orders.update', $order), $this->payload(['edit_version' => 0]))->assertSessionHasErrors('error');
         $this->assertSame('pending', $order->fresh()->status);
         $this->assertSame('available', $this->older->fresh()->status);

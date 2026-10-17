@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 
 class OrderSummaryService
 {
-    public const METHODS = ['cash', 'kbz_pay', 'card', 'transfer', 'cod'];
+    public const METHODS = ['cash', 'kbz_pay', 'cb_pay', 'aya_pay', 'card', 'transfer', 'cod'];
 
     public function filter(Builder $query, array $filters): Builder
     {

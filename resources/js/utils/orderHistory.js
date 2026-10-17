@@ -46,6 +46,7 @@ export function orderChangeGroups(before, after) {
     const fields = [
         ...['order_date', 'buying_type', 'paid_by', 'payment_type', 'deposit_amount', 'delivery_type', 'delivery_status', 'delivery_fees', 'order_type', 'pre_order_payment', 'marketing_channel'].map(key => [key, `${key.replaceAll('_', ' ')} changed`, value => value ?? 'Not recorded']),
         ['delivery_code', 'Delivery code changed', value => value || 'Not recorded'],
+        ['cancellation_reason', 'Cancellation reason changed', value => value || 'Not recorded'],
         ['remark', 'Remark changed', value => value || 'Not recorded'],
         ['money_transfer_amount', 'Money transfer amount changed', value => value == null ? 'Not recorded' : money(value)],
         ['customer', 'Customer changed', value => value?.name || 'Walk-in Customer'],
@@ -98,7 +99,7 @@ export function orderChangeGroups(before, after) {
 export function historyLabels(versions) {
     let edit = 0;
     return Object.fromEntries([...versions].sort((a, b) => a.version - b.version).map(entry => [entry.version,
-        entry.event === 'edited' ? `Edit ${++edit}` : ({ created: 'Original order', baseline: 'First saved record', approved: 'Order approved', total_rounded: 'Total rounded', attachment_added: 'File uploaded' }[entry.event] || 'Order updated'),
+        entry.event === 'edited' ? `Edit ${++edit}` : ({ created: 'Original order', baseline: 'First saved record', approved: 'Order approved', cancelled: 'Order cancelled', total_rounded: 'Total rounded', attachment_added: 'File uploaded' }[entry.event] || 'Order updated'),
     ]));
 }
 

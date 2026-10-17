@@ -96,7 +96,7 @@ class PosInventoryHardeningTest extends TestCase
         $this->assertNull($unit->fresh()->deleted_at);
         $this->assertNotNull($unit->fresh()->order_item_id);
         $this->put(route('items.update', $unit), ['status' => 'sold', 'serial_number' => 'CORRECTED-SERIAL'])->assertSessionHasNoErrors();
-        $this->post(route('orders.cancel', Order::sole()))->assertSessionHasNoErrors();
+        $this->post(route('orders.cancel', Order::sole()), ['cancellation_reason' => 'Customer requested cancellation'])->assertSessionHasNoErrors();
         $this->assertSame('available', $unit->fresh()->status);
     }
 

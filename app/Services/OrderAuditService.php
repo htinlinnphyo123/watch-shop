@@ -40,6 +40,7 @@ class OrderAuditService
         return [
             'salespeople' => $order->salespeople->mapWithKeys(fn ($person) => [$person->id => ['id' => $person->id, 'name' => $person->name]])->all(),
             'order_number' => $order->order_number, 'status' => $order->status,
+            'cancellation_reason' => $order->cancellation_reason,
             ...collect($order->only([...\App\Support\SalesRecordFields::COMMON, ...\App\Support\SalesRecordFields::SALES]))
                 ->map(fn ($value) => $value instanceof \DateTimeInterface ? $value->format('Y-m-d') : $value)->all(),
             'customer' => ['id' => $order->customer_id, 'name' => $order->customer?->name ?? ($order->customer_id ? 'Deleted customer' : 'Walk-in Customer')],
@@ -91,7 +92,7 @@ class OrderAuditService
                 $changes[] = ['section' => 'Order', 'label' => ucfirst(str_replace('_', ' ', $key)), 'before' => $this->display($before[$key] ?? null), 'after' => $this->display($after[$key] ?? null)];
             }
         }
-        foreach (['delivery_code' => 'Delivery code', 'remark' => 'Remark', 'money_transfer_amount' => 'Money transfer amount (Ks)'] as $key => $label) {
+        foreach (['cancellation_reason' => 'Cancellation reason', 'delivery_code' => 'Delivery code', 'remark' => 'Remark', 'money_transfer_amount' => 'Money transfer amount (Ks)'] as $key => $label) {
             if (($before[$key] ?? null) !== ($after[$key] ?? null)) {
                 $changes[] = ['section' => 'Order', 'label' => $label, 'before' => $this->display($before[$key] ?? null), 'after' => $this->display($after[$key] ?? null)];
             }

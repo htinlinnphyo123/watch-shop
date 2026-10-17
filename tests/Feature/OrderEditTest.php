@@ -66,14 +66,14 @@ class OrderEditTest extends TestCase
     public function test_cancellation_restores_only_owned_units_once_and_keeps_history(): void
     {
         $other = ProductItem::create(['product_id' => $this->product->id, 'status' => 'sold']);
-        $this->post(route('orders.cancel', $this->order))->assertSessionHasNoErrors();
+        $this->post(route('orders.cancel', $this->order), ['cancellation_reason' => 'Customer requested cancellation'])->assertSessionHasNoErrors();
         $this->assertSame('cancelled', $this->order->fresh()->status);
         $this->assertSame('available', $this->unit->fresh()->status);
         $this->assertNull($this->unit->fresh()->order_item_id);
         $this->assertSame('sold', $other->fresh()->status);
         $this->assertSame(1, $this->order->items()->count());
         $this->assertSame('18000.00', $this->order->fresh()->amount_paid);
-        $this->post(route('orders.cancel', $this->order))->assertSessionHasNoErrors();
+        $this->post(route('orders.cancel', $this->order), ['cancellation_reason' => 'Customer requested cancellation'])->assertSessionHasNoErrors();
         $this->assertSame(1, \App\Models\OrderAudit::where('order_id', $this->order->id)->where('event', 'cancelled')->count());
         $this->save()->assertSessionHasErrors('error');
     }
@@ -102,7 +102,7 @@ class OrderEditTest extends TestCase
         $this->get('/pos?order_id='.$order->id)->assertInertia(fn (Assert $page) => $page
             ->where('editingOrder.delivery_code', 'COD-123')->where('editingOrder.remark', 'Call before delivery')
             ->where('editingOrder.money_transfer_amount', '1000.00'));
-        $this->post(route('orders.cancel', $order))->assertSessionHasNoErrors();
+        $this->post(route('orders.cancel', $order), ['cancellation_reason' => 'Customer requested cancellation'])->assertSessionHasNoErrors();
         $this->assertSame('available', $this->unit->fresh()->status);
         $this->assertSame(1, ProductItem::where('status', 'available')->count());
     }
@@ -112,7 +112,7 @@ class OrderEditTest extends TestCase
         $this->save(['money_transfer_amount' => -1])->assertSessionHasErrors('money_transfer_amount');
         $this->save(['delivery_code' => str_repeat('x', 256)])->assertSessionHasErrors('delivery_code');
         $this->unit->update(['status' => 'reserved']);
-        $this->post(route('orders.cancel', $this->order))->assertSessionHasErrors('error');
+        $this->post(route('orders.cancel', $this->order), ['cancellation_reason' => 'Customer requested cancellation'])->assertSessionHasErrors('error');
         $this->assertSame('completed', $this->order->fresh()->status);
         $this->assertSame('reserved', $this->unit->fresh()->status);
     }

@@ -11,6 +11,7 @@ const money = value => value == null ? 'Not recorded' : `${Number(value).toLocal
             <dt class="text-gray-500">Customer</dt><dd>{{ snapshot.customer.name }}</dd>
             <dt class="text-gray-500">Salespeople</dt><dd>{{ Object.values(snapshot.salespeople || {}).map(person => person.name).join(", ") || "Not recorded" }}</dd>
             <dt class="text-gray-500">Status</dt><dd class="capitalize">{{ snapshot.status }}</dd>
+            <template v-if="snapshot.cancellation_reason"><dt class="text-gray-500">Cancellation Reason</dt><dd class="whitespace-pre-wrap break-words">{{ snapshot.cancellation_reason }}</dd></template>
             <dt class="text-gray-500">Discount</dt><dd>{{ snapshot.discount_percentage }}%</dd>
             <dt class="text-gray-500">Total</dt><dd class="font-semibold">{{ money(snapshot.total_amount) }}</dd>
             <dt class="text-gray-500">Amount received</dt><dd>{{ money(snapshot.amount_paid) }}</dd>

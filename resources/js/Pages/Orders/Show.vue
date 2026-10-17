@@ -1,7 +1,9 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { Head, Link, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { Head, Link, usePage, useForm } from '@inertiajs/vue3';
+import { computed, ref, nextTick } from 'vue';
+import Modal from '@/Components/Modal.vue';
+import InputError from '@/Components/InputError.vue';
 import OrderAttachments from '@/Components/OrderAttachments.vue';
 import OrderInvoice from '@/Components/OrderInvoice.vue';
 import { canManageOrder } from '@/utils/operationalAccess';
@@ -25,10 +27,48 @@ const approveOrder = () => {
     }
 };
 
-const cancelOrder = () => {
-    if (confirm('Cancel this order? Its reserved or sold stock will return to available inventory. The order and payment history will be kept. Arrange any refund separately.')) {
-        router.post(route('orders.cancel', props.order.id));
+const showCancellationModal = ref(false);
+const cancellationReasonInput = ref(null);
+const cancelButton = ref(null);
+const cancellationForm = useForm({ cancellation_reason: '' });
+
+const openCancellationModal = async () => {
+    cancellationForm.reset();
+    cancellationForm.clearErrors();
+    showCancellationModal.value = true;
+    await nextTick();
+    cancellationReasonInput.value?.focus();
+};
+
+const closeCancellationModal = () => {
+    if (cancellationForm.processing) return;
+    showCancellationModal.value = false;
+    cancelButton.value?.focus();
+};
+
+const trapCancellationFocus = (event) => {
+    const controls = [...event.currentTarget.querySelectorAll('textarea:not(:disabled), button:not(:disabled)')];
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
     }
+};
+
+const cancelOrder = () => {
+    if (cancellationForm.processing) return;
+    cancellationForm.post(route('orders.cancel', props.order.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            showCancellationModal.value = false;
+            cancellationForm.reset();
+        },
+        onError: () => cancellationReasonInput.value?.focus(),
+    });
 };
 </script>
 
@@ -74,7 +114,7 @@ const cancelOrder = () => {
                     Back to Orders
                 </Link>
                 <div class="flex flex-wrap gap-3">
-                    <button v-if="canManage && ['completed', 'pending'].includes(order.status)" @click="cancelOrder" class="rounded-lg border border-red-300 px-5 py-2.5 text-sm font-semibold text-red-700">Cancel Order</button>
+                    <button v-if="canManage && ['completed', 'pending'].includes(order.status)" ref="cancelButton" @click="openCancellationModal" class="rounded-lg border border-red-300 px-5 py-2.5 text-sm font-semibold text-red-700">Cancel Order</button>
                     <Link :href="route('orders.history', order.id)" class="inline-flex items-center rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">View History</Link>
                     <Link v-if="canManage && ['completed', 'pending'].includes(order.status)" :href="route('pos.index', { order_id: order.id })" class="inline-flex items-center rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">Edit Order</Link>
                     <button
@@ -112,10 +152,25 @@ const cancelOrder = () => {
                 </div>
                 <p v-if="order.status === 'cancelled'" class="text-red-700">Cancelled. Linked reserved or sold stock was returned to inventory. Payment history is retained; refunds are handled separately.</p>
             </section>
+            <p v-if="order.status === 'cancelled' && order.cancellation_reason" class="no-print mb-6 whitespace-pre-wrap break-words rounded-xl border border-red-100 bg-red-50 p-5 text-sm text-red-800"><span class="font-semibold">Cancellation Reason:</span> {{ order.cancellation_reason }}</p>
             <OrderInvoice :order="order" />
             <div class="no-print">
             <OrderAttachments :order-id="order.id" :files="order.file_uploads || []" :read-only="!canManage" />
             </div>
         </div>
+        <Modal :show="showCancellationModal" max-width="lg" :closeable="!cancellationForm.processing" @close="closeCancellationModal">
+            <form role="dialog" aria-modal="true" aria-labelledby="cancellation-title" aria-describedby="cancellation-description" class="p-6" @keydown.tab="trapCancellationFocus" @submit.prevent="cancelOrder">
+                <h2 id="cancellation-title" class="text-lg font-semibold text-gray-900">Cancel Order</h2>
+                <p id="cancellation-description" class="mt-2 text-sm text-gray-600">Reserved or sold stock will return to available inventory. Order and payment history will be kept. Arrange any refund separately.</p>
+                <label for="cancellation-reason" class="mt-5 block text-sm font-medium text-gray-700">Cancellation Reason <span class="text-red-600">*</span></label>
+                <textarea id="cancellation-reason" ref="cancellationReasonInput" v-model="cancellationForm.cancellation_reason" required maxlength="1000" rows="4" :disabled="cancellationForm.processing" :aria-invalid="!!cancellationForm.errors.cancellation_reason" aria-describedby="cancellation-reason-error" placeholder="Enter the reason for cancelling this order" class="mt-2 block w-full rounded-lg border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500" />
+                <InputError id="cancellation-reason-error" :message="cancellationForm.errors.cancellation_reason" class="mt-2" />
+                <InputError :message="cancellationForm.errors.error" class="mt-2" />
+                <div class="mt-6 flex justify-end gap-3">
+                    <button type="button" :disabled="cancellationForm.processing" @click="closeCancellationModal" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 disabled:opacity-50">Keep Order</button>
+                    <button type="submit" :disabled="cancellationForm.processing || !cancellationForm.cancellation_reason.trim()" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">{{ cancellationForm.processing ? 'Cancelling…' : 'Confirm Cancellation' }}</button>
+                </div>
+            </form>
+        </Modal>
     </AdminLayout>
 </template>

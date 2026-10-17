@@ -130,19 +130,20 @@ class OrderController extends Controller
         }
     }
 
-    public function cancel(Order $order)
+    public function cancel(Request $request, Order $order)
     {
-        \Illuminate\Support\Facades\DB::transaction(function () use ($order) {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($order, $request) {
             $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
             if ($order->status === 'cancelled') {
                 return;
             }
             abort_unless(in_array($order->status, ['pending', 'completed'], true), 422);
+            $validated = $request->validate(['cancellation_reason' => 'required|string|max:1000']);
             $audit = app(\App\Services\OrderAuditService::class);
             $before = $audit->before($order);
             $lines = $order->items()->with(['soldItems' => fn ($query) => $query->lockForUpdate()])->get();
             app(OrderStockService::class)->release($order, $lines);
-            $order->update(['status' => 'cancelled', 'edit_version' => $order->edit_version + 1]);
+            $order->update(['status' => 'cancelled', 'cancellation_reason' => $validated['cancellation_reason'], 'edit_version' => $order->edit_version + 1]);
             foreach ($lines->pluck('product_id')->unique()->sort() as $productId) {
                 if ($product = Product::find($productId)) {
                     $this->lowStockNotifications->sync($product);
