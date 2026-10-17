@@ -234,13 +234,13 @@ class SalesWorkbookExportTest extends TestCase
         $this->assertSame('Old courier note', app(SalesWorkbookExport::class)->saleRow($order->fresh())['Delivery Status']);
     }
 
-    public function test_sales_receipts_handle_change_legacy_payments_and_do_not_add_transfer_twice(): void
+    public function test_sales_receipts_apply_transfer_toward_balance_without_double_counting(): void
     {
         $export = app(SalesWorkbookExport::class);
         foreach ([
-            [['payments' => [['method' => 'cash', 'amount' => 120]], 'amount_paid' => 120, 'payment_method' => 'cash'], 100, 0, 'Cash'],
-            [['payments' => [['method' => 'cash', 'amount' => 0]], 'amount_paid' => 0, 'payment_method' => 'cash'], 0, 100, 'Cash'],
-            [['payments' => null, 'amount_paid' => 60, 'payment_method' => 'transfer'], 60, 40, 'Mbanking'],
+            [['payments' => [['method' => 'cash', 'amount' => 120]], 'amount_paid' => 120, 'payment_method' => 'cash'], 20, 0, 'Cash'],
+            [['payments' => [['method' => 'cash', 'amount' => 0]], 'amount_paid' => 0, 'payment_method' => 'cash'], 0, 20, 'Cash'],
+            [['payments' => null, 'amount_paid' => 60, 'payment_method' => 'transfer'], 20, 0, 'Mbanking'],
             [['payments' => null, 'amount_paid' => null, 'payment_method' => null], null, null, null],
         ] as [$payments, $received, $opening, $type]) {
             $order = new Order($payments + ['total_amount' => 100, 'money_transfer_amount' => 80]);

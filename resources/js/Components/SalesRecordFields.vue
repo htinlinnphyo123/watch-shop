@@ -32,7 +32,7 @@ const quotedTotal = computed(() => props.form.price === '' || props.form.price =
     <details class="rounded-lg border border-gray-200 bg-gray-50 p-4">
         <summary class="cursor-pointer text-sm font-semibold text-gray-800">Sales &amp; delivery details (optional)</summary>
         <p v-if="preOrder" class="mt-3 text-xs text-gray-500">Include the deposit in the total paid so far. Delivery fees and received money are tracked separately. FOC is a label; set the quoted price or discount for a free order.</p>
-        <p v-else class="mt-3 text-xs text-gray-500">Payment details come from the payment entries. Select the marketing channel for this order independently of the customer source. Delivery fees are recorded separately from the invoice total.</p>
+        <p v-else class="mt-3 text-xs text-gray-500">Money transfer amounts count as deposits toward the amount due. Enter only additional receipts in payment entries. Delivery fees are included in the invoice total.</p>
         <div class="mt-4 grid gap-4 sm:grid-cols-2">
             <div v-for="field in fields" :key="field.key">
                 <label :for="`record-${field.key}`" class="block text-sm font-medium text-gray-700">{{ field.label }}</label>

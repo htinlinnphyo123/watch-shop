@@ -205,17 +205,19 @@ const discount = computed(() => orderDiscountAmount(subTotal.value, appliedDisco
 const merchandiseTotal = computed(() => posOrderTotal(subTotal.value, appliedDiscountPercentage.value));
 const deliveryFee = computed(() => Math.max(0, Number(checkoutForm.delivery_fees) || 0));
 const total = computed(() => merchandiseTotal.value + deliveryFee.value);
+const moneyTransferAmount = computed(() => Math.max(0, Number(checkoutForm.money_transfer_amount) || 0));
+const paymentDue = computed(() => Math.max(0, paymentCents(total.value - moneyTransferAmount.value)) / 100);
 const roundingAdjustment = computed(() => (paymentCents(merchandiseTotal.value) - paymentCents(subTotal.value - discount.value)) / 100);
 const amountPaid = computed(() => checkoutForm.payments.reduce((sum, payment) => sum + paymentCents(payment.amount), 0) / 100);
-const amountShort = computed(() => Math.max(0, paymentCents(total.value) - paymentCents(amountPaid.value)) / 100);
-const changeDue = computed(() => Math.max(0, paymentCents(amountPaid.value) - paymentCents(total.value)) / 100);
+const amountShort = computed(() => Math.max(0, paymentCents(paymentDue.value) - paymentCents(amountPaid.value)) / 100);
+const changeDue = computed(() => Math.max(0, paymentCents(amountPaid.value) - paymentCents(paymentDue.value)) / 100);
 const nonCashOverpaid = computed(() => checkoutForm.payments
     .filter(payment => payment.method !== 'cash')
-    .reduce((sum, payment) => sum + paymentCents(payment.amount), 0) > paymentCents(total.value));
+    .reduce((sum, payment) => sum + paymentCents(payment.amount), 0) > paymentCents(paymentDue.value));
 const invalidPayment = computed(() => checkoutForm.payments.some(payment =>
     payment.amount === '' || !Number.isFinite(Number(payment.amount)) ||
     Number(payment.amount) < 0 ||
-    (paymentCents(payment.amount) === 0 && ((total.value > 0 && checkoutForm.status !== 'pending') || checkoutForm.payments.length > 1))
+    (paymentCents(payment.amount) === 0 && ((paymentDue.value > 0 && checkoutForm.status !== 'pending') || checkoutForm.payments.length > 1))
 ));
 const checkoutPaymentMethods = computed(() => paymentMethods.some(method => method.value === 'transfer') ? paymentMethods : [...paymentMethods, { value: 'transfer', label: 'Bank Transfer' }]);
 const addPayment = () => {
@@ -239,9 +241,17 @@ watch(cart, () => {
 
 watch(() => checkoutForm.delivery_fees, (newFee, oldFee) => {
     if (props.editingOrder || checkoutForm.payments.length !== 1 || checkoutForm.payments[0].method !== 'cash') return;
-    const oldTotal = merchandiseTotal.value + (Number(oldFee) || 0);
-    if (paymentCents(checkoutForm.payments[0].amount) === paymentCents(oldTotal)) {
-        checkoutForm.payments[0].amount = total.value;
+    const oldDue = Math.max(0, paymentCents(merchandiseTotal.value + (Number(oldFee) || 0) - moneyTransferAmount.value)) / 100;
+    if (paymentCents(checkoutForm.payments[0].amount) === paymentCents(oldDue)) {
+        checkoutForm.payments[0].amount = paymentDue.value;
+    }
+});
+
+watch(() => checkoutForm.money_transfer_amount, (newAmount, oldAmount) => {
+    if (props.editingOrder || checkoutForm.payments.length !== 1 || checkoutForm.payments[0].method !== 'cash') return;
+    const oldDue = Math.max(0, paymentCents(total.value - (Number(oldAmount) || 0))) / 100;
+    if (paymentCents(checkoutForm.payments[0].amount) === paymentCents(oldDue)) {
+        checkoutForm.payments[0].amount = paymentDue.value;
     }
 });
 // ─────────────────────────────────────────────────────────────────────────────
@@ -429,7 +439,7 @@ const openCheckout = () => {
 };
 
 const submitCheckout = () => {
-    if ((amountShort.value > 0 && checkoutForm.status !== 'pending') || nonCashOverpaid.value || invalidPayment.value || checkoutForm.processing) return;
+    if (nonCashOverpaid.value || invalidPayment.value || checkoutForm.processing) return;
     checkoutForm.discount_percentage = appliedDiscountPercentage.value;
     checkoutForm.submit(props.editingOrder ? 'put' : 'post', props.editingOrder ? route('pos.orders.update', props.editingOrder.id) : route('pos.checkout'), {
         onSuccess: () => {
@@ -936,7 +946,7 @@ onBeforeUnmount(() => {
                     <div>
                         <InputLabel value="Money transfer amount (Ks, optional)" />
                         <TextInput v-model="checkoutForm.money_transfer_amount" type="number" min="0" max="999999999999" step="0.01" class="mt-1 block w-full" />
-                        <p class="mt-1 text-xs text-gray-500">Record the transferred/deposit amount here; it appears as Deposit in the Sales export. Include actual receipts in the payment entries below to update the balance due.</p>
+                        <p class="mt-1 text-xs text-gray-500">This deposit reduces the payment due. Enter only additional receipts in the payment entries below.</p>
                         <InputError :message="checkoutForm.errors.money_transfer_amount" />
                     </div>
                     <div>
@@ -1003,11 +1013,12 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div class="pt-3 border-t border-gray-200 space-y-1">
-                        <div class="flex justify-between text-sm"><span>Total Received</span><span>{{ amountPaid.toLocaleString() }} Ks</span></div>
-                        <div v-if="deliveryFee > 0" class="flex justify-between text-sm"><span>Delivery fee</span><span>{{ deliveryFee.toLocaleString() }} Ks</span></div>
+                        <div class="flex justify-between text-sm"><span>Grand Total</span><span>{{ total.toLocaleString() }} Ks</span></div>
+                        <div v-if="moneyTransferAmount > 0" class="flex justify-between text-sm"><span>Money transfer amount</span><span>−{{ moneyTransferAmount.toLocaleString() }} Ks</span></div>
+                        <div v-if="amountPaid > 0" class="flex justify-between text-sm"><span>Additional payments</span><span>{{ amountPaid.toLocaleString() }} Ks</span></div>
                         <div class="flex justify-between text-lg font-bold">
-                            <span class="text-gray-900">Total Due</span>
-                            <span class="text-gold-600">{{ total.toLocaleString() }} Ks</span>
+                            <span class="text-gray-900">Payment Due</span>
+                            <span class="text-gold-600">{{ paymentDue.toLocaleString() }} Ks</span>
                         </div>
                         <div class="flex justify-between text-sm">
                             <span class="text-gray-500">{{ amountShort > 0 ? 'Balance Due' : 'Cash Change' }}</span>
@@ -1022,8 +1033,8 @@ onBeforeUnmount(() => {
                         <PrimaryButton
                             type="submit"
                             class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold"
-                            :class="{ 'opacity-25': checkoutForm.processing || (amountShort > 0 && checkoutForm.status !== 'pending') || nonCashOverpaid || invalidPayment }"
-                            :disabled="checkoutForm.processing || (amountShort > 0 && checkoutForm.status !== 'pending') || nonCashOverpaid || invalidPayment"
+                            :class="{ 'opacity-25': checkoutForm.processing || nonCashOverpaid || invalidPayment }"
+                            :disabled="checkoutForm.processing || nonCashOverpaid || invalidPayment"
                         >{{ checkoutForm.processing ? 'Saving…' : editingOrder ? 'Save Order Changes' : checkoutForm.status === 'pending' ? 'Save Pending Order' : 'Complete Sale' }}</PrimaryButton>
                     </div>
                 </form>

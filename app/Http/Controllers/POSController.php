@@ -281,13 +281,19 @@ class POSController extends Controller
                 : ($subtotal > 0 ? ($watchDiscountAmount / $subtotal) * 100 : 0);
             $discountPercentage = round(max(0, min(100, $discountPercentage)), 2);
             $totalAmount = \App\Support\PosPrice::orderTotal($subtotal, $discountPercentage);
-            $paymentTotal = $totalAmount + (float) ($recordDetails['delivery_fees'] ?? 0);
+            $grossPaymentTotal = $totalAmount + (float) ($recordDetails['delivery_fees'] ?? 0);
+            $moneyTransferAmount = (float) ($request->input('money_transfer_amount') ?? 0);
+            if ($moneyTransferAmount > $grossPaymentTotal) {
+                throw ValidationException::withMessages(['money_transfer_amount' => 'The transfer amount cannot exceed the order total.']);
+            }
+            $paymentTotal = max(0, $grossPaymentTotal - $moneyTransferAmount);
             $paymentDetails = (new OrderPaymentService)->summarize(
                 $request->input('payments', [[
                     'method' => $request->payment_method,
                     'amount' => $request->amount_paid,
                 ]]),
                 $paymentTotal,
+                true,
                 $status === 'pending',
             );
 

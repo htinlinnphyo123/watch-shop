@@ -49,7 +49,7 @@ class OrderAuditService
             'delivery_code' => $order->delivery_code,
             'remark' => $order->remark,
             'money_transfer_amount' => $order->money_transfer_amount,
-            'change' => number_format(max(0, (float) $order->amount_paid - (float) $order->total_amount - (float) $order->delivery_fees), 2, '.', ''),
+            'change' => number_format(max(0, (float) $order->amount_paid - max(0, (float) $order->total_amount + (float) $order->delivery_fees - (float) $order->money_transfer_amount)), 2, '.', ''),
             'watches' => $watches, 'payments' => $payments, 'attachments' => $attachments,
         ];
     }

@@ -79,27 +79,31 @@ class PosPriceRoundingTest extends TestCase
         $product->items()->create(['status' => 'available']);
         $payload = [
             'cart' => [['product_id' => $product->id, 'quantity' => 1]],
-            'discount_percentage' => 8, 'delivery_fees' => 10000,
+            'discount_percentage' => 8, 'delivery_fees' => 10000, 'money_transfer_amount' => 50000,
             'payments' => [['method' => 'card', 'amount' => 1138960]],
         ];
         $this->post(route('pos.checkout'), $payload)->assertSessionHasErrors('payments');
         $this->assertDatabaseCount('orders', 0);
         $this->assertSame(1, $product->items()->where('status', 'available')->count());
 
-        $payload['payments'][0]['amount'] = 1139000;
-        $this->post(route('pos.checkout'), $payload)->assertSessionHasErrors('payments');
-        $payload['payments'][0]['amount'] = 1149000;
+        $payload['money_transfer_amount'] = 1150000;
+        $payload['payments'][0]['amount'] = 0;
+        $this->post(route('pos.checkout'), $payload)->assertSessionHasErrors('money_transfer_amount');
+        $payload['money_transfer_amount'] = 50000;
+        $this->post(route('pos.checkout'), $payload)->assertSessionHasErrors('payments.0.amount');
+        $payload['payments'][0]['amount'] = 1089000;
         $payload['payments'][0]['method'] = 'cod';
         $this->post(route('pos.checkout'), $payload)->assertSessionHasNoErrors();
         $order = Order::sole();
         $this->assertSame('1139000.00', $order->total_amount);
         $this->assertSame('10000.00', $order->delivery_fees);
-        $this->assertSame('1149000.00', $order->amount_paid);
+        $this->assertSame('50000.00', $order->money_transfer_amount);
+        $this->assertSame('1089000.00', $order->amount_paid);
         $this->assertSame('cod', $order->payment_method);
-        $this->assertSame(['cod' => 114900000], app(\App\Services\OrderSummaryService::class)->retainedPayments($order));
+        $this->assertSame(['cod' => 108900000], app(\App\Services\OrderSummaryService::class)->retainedPayments($order));
         $this->get(route('orders.show', $order))->assertInertia(fn (Assert $page) => $page
             ->where('order.total_amount', '1139000.00')
-            ->where('order.amount_paid', '1149000.00')
+            ->where('order.amount_paid', '1089000.00')
             ->where('order.discount_percentage', '8.00'));
     }
 

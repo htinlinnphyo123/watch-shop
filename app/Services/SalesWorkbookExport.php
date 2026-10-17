@@ -44,7 +44,7 @@ class SalesWorkbookExport
             $paymentType, null, // No separate pre-order payment breakdown is stored.
             round($subtotal, 2), $this->money($order->discount_percentage) === null ? null : (float) $order->discount_percentage / 100,
             $this->money($order->money_transfer_amount),
-            $received === null ? null : max(0, round((float) $order->total_amount + (float) $order->delivery_fees - $received, 2)),
+            $received === null ? null : max(0, round((float) $order->total_amount + (float) $order->delivery_fees - (float) $order->money_transfer_amount - $received, 2)),
             (float) $order->total_amount, $order->delivery_type, $order->delivery_code, $order->delivery_status,
             $this->money($order->delivery_fees), $received, $order->marketing_channel, $order->remark,
         ]);

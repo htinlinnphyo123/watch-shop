@@ -53,7 +53,7 @@ class OrderSummaryService
             // Older orders recorded only one method and may include overpayment.
             $payments = [[
                 'method' => $order->payment_method,
-                'amount' => min((float) $order->amount_paid, (float) $order->total_amount + (float) $order->delivery_fees),
+                'amount' => min((float) $order->amount_paid, max(0, (float) $order->total_amount + (float) $order->delivery_fees - (float) $order->money_transfer_amount)),
             ]];
         }
 
@@ -62,7 +62,7 @@ class OrderSummaryService
             $method = in_array($payment['method'], self::METHODS, true) ? $payment['method'] : 'other';
             $totals[$method] = ($totals[$method] ?? 0) + (int) round((float) $payment['amount'] * 100);
         }
-        $totalDueCents = (int) round(((float) $order->total_amount + (float) $order->delivery_fees) * 100);
+        $totalDueCents = (int) round(max(0, (float) $order->total_amount + (float) $order->delivery_fees - (float) $order->money_transfer_amount) * 100);
         $change = max(0, array_sum($totals) - $totalDueCents);
         if (isset($totals['cash'])) {
             $totals['cash'] = max(0, $totals['cash'] - $change);
@@ -78,7 +78,7 @@ class OrderSummaryService
         $unrecordedOrders = 0;
 
         foreach ((clone $filteredQuery)->where('status', 'completed')
-            ->select(['id', 'total_amount', 'delivery_fees', 'amount_paid', 'payment_method', 'payments'])->lazyById(500) as $order) {
+            ->select(['id', 'total_amount', 'delivery_fees', 'money_transfer_amount', 'amount_paid', 'payment_method', 'payments'])->lazyById(500) as $order) {
             $completedOrders++;
             $payments = $this->retainedPayments($order);
             if ($payments === null) {

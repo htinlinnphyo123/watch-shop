@@ -114,7 +114,7 @@ class OrderAuditTest extends TestCase
     public function test_failed_edits_do_not_create_versions(): void
     {
         $order = $this->checkout();
-        $this->edit($order, ['payments' => [['method' => 'cash', 'amount' => 1]]])->assertSessionHasErrors('payments');
+        $this->edit($order, ['payments' => [['method' => 'invalid', 'amount' => 1]]])->assertSessionHasErrors('payments.0.method');
         $this->assertDatabaseCount('order_audits', 1);
         $this->assertSame('20000.00', $order->fresh()->total_amount);
     }

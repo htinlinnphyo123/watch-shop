@@ -164,13 +164,13 @@ class OrderEditTest extends TestCase
         $this->assertDatabaseCount('orders', 1);
     }
 
-    public function test_underpayment_rolls_back_order_lines_and_released_stock(): void
+    public function test_partial_payment_edit_keeps_order_and_stock_state(): void
     {
-        $this->save(['payments' => [['method' => 'cash', 'amount' => 1]]])->assertSessionHasErrors('payments');
+        $this->save(['payments' => [['method' => 'cash', 'amount' => 1]]])->assertSessionHasNoErrors();
         $this->assertSame('sold', $this->unit->fresh()->status);
-        $this->assertSame($this->lineId, $this->unit->fresh()->order_item_id);
-        $this->assertSame(0, $this->order->fresh()->edit_version);
+        $this->assertSame(1, $this->order->fresh()->edit_version);
         $this->assertSame('18000.00', $this->order->fresh()->total_amount);
+        $this->assertSame('1.00', $this->order->fresh()->amount_paid);
     }
 
     public function test_other_orders_sold_units_cannot_be_taken(): void

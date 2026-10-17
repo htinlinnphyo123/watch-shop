@@ -8,12 +8,14 @@ const money = value => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2
 const lineTotal = item => Number(item.price) * Number(item.quantity);
 const subtotal = computed(() => (props.order.items || []).reduce((sum, item) => sum + lineTotal(item), 0));
 const discount = computed(() => Number(props.order.discount_percentage) > 0
-    ? orderDiscountAmount(subtotal.value, props.order.discount_percentage)
+    ? Math.round(orderDiscountAmount(subtotal.value, props.order.discount_percentage) / 1000) * 1000
     : 0);
 const paid = computed(() => Number(props.order.amount_paid) || 0);
+const moneyTransferAmount = computed(() => Number(props.order.money_transfer_amount) || 0);
 const grandTotal = computed(() => (Number(props.order.total_amount) || 0) + (Number(props.order.delivery_fees) || 0));
-const balance = computed(() => Math.max(0, grandTotal.value - paid.value));
-const change = computed(() => Math.max(0, paid.value - grandTotal.value));
+const paymentDue = computed(() => Math.max(0, grandTotal.value - moneyTransferAmount.value));
+const balance = computed(() => Math.max(0, paymentDue.value - paid.value));
+const change = computed(() => Math.max(0, paid.value - paymentDue.value));
 const hasPayment = computed(() => props.order.amount_paid !== null && props.order.amount_paid !== undefined);
 const invoiceDate = computed(() => {
     const value = props.order.order_date || props.order.created_at;
@@ -80,14 +82,16 @@ const serials = item => (item.sold_items || []).filter(unit => unit.serial_numbe
             <dl class="invoice-totals">
                 <div><dt>Subtotal:</dt><dd>{{ money(subtotal) }}</dd></div>
                 <div v-if="discount > 0"><dt>Discount<span v-if="Number(order.discount_percentage)"> ({{ Number(order.discount_percentage) }}%)</span>:</dt><dd>−{{ money(discount) }}</dd></div>
-                <div><dt></dt><dd>---------------------------------</dd></div>
-                <div><dt></dt><dd>{{ hasPayment ? money(paid) : 'Not recorded' }}</dd></div>
+                <div><dt>Total After Discount:</dt><dd>{{ money(order.total_amount) }}</dd></div>
+                <div v-if="moneyTransferAmount > 0"><dt>Deposit:</dt><dd>−{{ money(moneyTransferAmount) }}</dd></div>
                 <div><dt>Delivery Fee:</dt><dd>{{ money(order.delivery_fees) }}</dd></div>
             </dl>
         </section>
 
         <section class="invoice-total-block" aria-label="Grand total">
             <div class="invoice-grand-total"><span>Grand Total:</span><strong>{{ money(grandTotal) }} MMK</strong></div>
+            <div class="invoice-balance"><span>Still Due:</span><strong>{{ money(balance) }} MMK</strong></div>
+            <div v-if="change > 0" class="invoice-balance"><span>Change:</span><strong>{{ money(change) }} MMK</strong></div>
         </section>
 
         <footer class="invoice-footer">
