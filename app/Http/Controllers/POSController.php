@@ -281,12 +281,13 @@ class POSController extends Controller
                 : ($subtotal > 0 ? ($watchDiscountAmount / $subtotal) * 100 : 0);
             $discountPercentage = round(max(0, min(100, $discountPercentage)), 2);
             $totalAmount = \App\Support\PosPrice::orderTotal($subtotal, $discountPercentage);
+            $paymentTotal = $totalAmount + (float) ($recordDetails['delivery_fees'] ?? 0);
             $paymentDetails = (new OrderPaymentService)->summarize(
                 $request->input('payments', [[
                     'method' => $request->payment_method,
                     'amount' => $request->amount_paid,
                 ]]),
-                $totalAmount,
+                $paymentTotal,
                 $status === 'pending',
             );
 

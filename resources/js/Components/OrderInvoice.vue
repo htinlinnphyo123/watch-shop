@@ -11,8 +11,9 @@ const discount = computed(() => Number(props.order.discount_percentage) > 0
     ? orderDiscountAmount(subtotal.value, props.order.discount_percentage)
     : 0);
 const paid = computed(() => Number(props.order.amount_paid) || 0);
-const balance = computed(() => Math.max(0, Number(props.order.total_amount) - paid.value));
-const change = computed(() => Math.max(0, paid.value - Number(props.order.total_amount)));
+const grandTotal = computed(() => (Number(props.order.total_amount) || 0) + (Number(props.order.delivery_fees) || 0));
+const balance = computed(() => Math.max(0, grandTotal.value - paid.value));
+const change = computed(() => Math.max(0, paid.value - grandTotal.value));
 const hasPayment = computed(() => props.order.amount_paid !== null && props.order.amount_paid !== undefined);
 const invoiceDate = computed(() => {
     const value = props.order.order_date || props.order.created_at;
@@ -79,15 +80,14 @@ const serials = item => (item.sold_items || []).filter(unit => unit.serial_numbe
             <dl class="invoice-totals">
                 <div><dt>Subtotal:</dt><dd>{{ money(subtotal) }}</dd></div>
                 <div v-if="discount > 0"><dt>Discount<span v-if="Number(order.discount_percentage)"> ({{ Number(order.discount_percentage) }}%)</span>:</dt><dd>−{{ money(discount) }}</dd></div>
-                <div><dt>Amount Paid:</dt><dd>{{ hasPayment ? money(paid) : 'Not recorded' }}</dd></div>
-                <div><dt>Delivery Fee <small>(separate)</small>:</dt><dd>{{ money(order.delivery_fees) }}</dd></div>
+                <div><dt></dt><dd>---------------------------------</dd></div>
+                <div><dt></dt><dd>{{ hasPayment ? money(paid) : 'Not recorded' }}</dd></div>
+                <div><dt>Delivery Fee:</dt><dd>{{ money(order.delivery_fees) }}</dd></div>
             </dl>
         </section>
 
         <section class="invoice-total-block" aria-label="Grand total">
-            <div class="invoice-grand-total"><span>Grand Total:</span><strong>{{ money(order.total_amount) }} MMK</strong></div>
-            <div v-if="hasPayment && (balance > 0 || change > 0)" class="invoice-balance"><span>{{ balance > 0 ? 'Balance Due:' : 'Change:' }}</span><strong>{{ money(balance > 0 ? balance : change) }} MMK</strong></div>
-            <p v-if="Number(order.delivery_fees) > 0" class="invoice-fee-note">Delivery fee is recorded separately and is not included in the grand total or balance above.</p>
+            <div class="invoice-grand-total"><span>Grand Total:</span><strong>{{ money(grandTotal) }} MMK</strong></div>
         </section>
 
         <footer class="invoice-footer">

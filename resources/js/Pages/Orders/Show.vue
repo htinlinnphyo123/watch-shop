@@ -13,7 +13,7 @@ const page = usePage();
 const canManage = computed(() => canManageOrder(page.props.auth.user, props.order));
 
 const amountPaid = computed(() => parseFloat(props.order.amount_paid) || 0);
-const balanceDue = computed(() => Math.max(0, (parseFloat(props.order.total_amount) || 0) - amountPaid.value));
+const balanceDue = computed(() => Math.max(0, (parseFloat(props.order.total_amount) || 0) + (parseFloat(props.order.delivery_fees) || 0) - amountPaid.value));
 
 const printOrder = () => window.print();
 

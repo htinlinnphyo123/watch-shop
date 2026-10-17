@@ -202,8 +202,10 @@ const appliedDiscountPercentage = computed(() => {
 
 const discount = computed(() => orderDiscountAmount(subTotal.value, appliedDiscountPercentage.value));
 
-const total = computed(() => posOrderTotal(subTotal.value, appliedDiscountPercentage.value));
-const roundingAdjustment = computed(() => (paymentCents(total.value) - paymentCents(subTotal.value - discount.value)) / 100);
+const merchandiseTotal = computed(() => posOrderTotal(subTotal.value, appliedDiscountPercentage.value));
+const deliveryFee = computed(() => Math.max(0, Number(checkoutForm.delivery_fees) || 0));
+const total = computed(() => merchandiseTotal.value + deliveryFee.value);
+const roundingAdjustment = computed(() => (paymentCents(merchandiseTotal.value) - paymentCents(subTotal.value - discount.value)) / 100);
 const amountPaid = computed(() => checkoutForm.payments.reduce((sum, payment) => sum + paymentCents(payment.amount), 0) / 100);
 const amountShort = computed(() => Math.max(0, paymentCents(total.value) - paymentCents(amountPaid.value)) / 100);
 const changeDue = computed(() => Math.max(0, paymentCents(amountPaid.value) - paymentCents(total.value)) / 100);
@@ -234,6 +236,14 @@ watch(() => checkoutForm.customer_id, () => {
 watch(cart, () => {
     if (!discountManuallyAdjusted.value) applyDefaultDiscount();
 }, { deep: true });
+
+watch(() => checkoutForm.delivery_fees, (newFee, oldFee) => {
+    if (props.editingOrder || checkoutForm.payments.length !== 1 || checkoutForm.payments[0].method !== 'cash') return;
+    const oldTotal = merchandiseTotal.value + (Number(oldFee) || 0);
+    if (paymentCents(checkoutForm.payments[0].amount) === paymentCents(oldTotal)) {
+        checkoutForm.payments[0].amount = total.value;
+    }
+});
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── How many of this product are already in the cart ─────────────────────────
@@ -683,6 +693,10 @@ onBeforeUnmount(() => {
                             <span>Rounding</span>
                             <span>{{ roundingAdjustment > 0 ? '+' : '−' }}{{ Math.abs(roundingAdjustment).toLocaleString() }} Ks</span>
                         </div>
+                        <div v-if="deliveryFee > 0" class="flex justify-between text-sm text-gray-500">
+                            <span>Delivery fee</span>
+                            <span>{{ deliveryFee.toLocaleString() }} Ks</span>
+                        </div>
                         <div class="flex justify-between border-t border-gray-200 pt-2">
                             <span class="text-gray-900 font-bold text-lg">Total</span>
                             <span class="text-2xl font-bold text-gold-600">{{ total.toLocaleString() }} Ks</span>
@@ -990,6 +1004,7 @@ onBeforeUnmount(() => {
 
                     <div class="pt-3 border-t border-gray-200 space-y-1">
                         <div class="flex justify-between text-sm"><span>Total Received</span><span>{{ amountPaid.toLocaleString() }} Ks</span></div>
+                        <div v-if="deliveryFee > 0" class="flex justify-between text-sm"><span>Delivery fee</span><span>{{ deliveryFee.toLocaleString() }} Ks</span></div>
                         <div class="flex justify-between text-lg font-bold">
                             <span class="text-gray-900">Total Due</span>
                             <span class="text-gold-600">{{ total.toLocaleString() }} Ks</span>
