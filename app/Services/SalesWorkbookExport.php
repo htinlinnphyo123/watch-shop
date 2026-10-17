@@ -20,7 +20,7 @@ class SalesWorkbookExport
         $customer = $order->customer;
         $subtotal = $order->items->sum(fn ($line) => (float) $line->price * $line->quantity);
         $payments = $order->payments ?: ($order->payment_method ? [['method' => $order->payment_method]] : []);
-        $methods = ['cash' => 'Cash', 'kbz_pay' => 'Kpay', 'cb_pay' => 'CB Pay', 'aya_pay' => 'AYA Pay', 'card' => 'Card', 'transfer' => 'Bank Transfer', 'other' => 'Other'];
+        $methods = ['cash' => 'Cash', 'kbz_pay' => 'Kpay', 'cb_pay' => 'CB Pay', 'aya_pay' => 'AYA Pay', 'card' => 'Card', 'transfer' => 'Bank Transfer', 'cod' => 'COD', 'other' => 'Other'];
         $paymentMethods = collect($payments)->pluck('method')->unique();
         $paidBy = $paymentMethods->map(fn ($method) => $methods[$method] ?? ucfirst($method))->implode(', ');
         $paymentType = (float) $order->total_amount === 0.0 ? 'FOC'
@@ -29,6 +29,7 @@ class SalesWorkbookExport
                     'cash' => 'Cash',
                     'kbz_pay', 'cb_pay', 'aya_pay', 'transfer' => 'Mbanking',
                     'card' => 'Card',
+                    'cod' => 'COD',
                     'other' => 'Other',
                     default => null,
                 });

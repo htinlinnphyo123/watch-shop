@@ -89,11 +89,14 @@ class PosPriceRoundingTest extends TestCase
         $payload['payments'][0]['amount'] = 1139000;
         $this->post(route('pos.checkout'), $payload)->assertSessionHasErrors('payments');
         $payload['payments'][0]['amount'] = 1149000;
+        $payload['payments'][0]['method'] = 'cod';
         $this->post(route('pos.checkout'), $payload)->assertSessionHasNoErrors();
         $order = Order::sole();
         $this->assertSame('1139000.00', $order->total_amount);
         $this->assertSame('10000.00', $order->delivery_fees);
         $this->assertSame('1149000.00', $order->amount_paid);
+        $this->assertSame('cod', $order->payment_method);
+        $this->assertSame(['cod' => 114900000], app(\App\Services\OrderSummaryService::class)->retainedPayments($order));
         $this->get(route('orders.show', $order))->assertInertia(fn (Assert $page) => $page
             ->where('order.total_amount', '1139000.00')
             ->where('order.amount_paid', '1149000.00')

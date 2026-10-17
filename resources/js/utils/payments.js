@@ -3,6 +3,7 @@ export const paymentMethods = [
     { value: 'kbz_pay', label: 'KBZ Pay' },
     { value: 'card', label: 'Card' },
     { value: 'cb_pay', label: 'CB Pay' },
+    { value: 'cod', label: 'COD' },
     { value: 'aya_pay', label: 'Aya Pay' },
     { value: 'other', label: 'Other' },
 ];
