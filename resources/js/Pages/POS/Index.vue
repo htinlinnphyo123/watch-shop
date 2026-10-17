@@ -207,6 +207,7 @@ const deliveryFee = computed(() => Math.max(0, Number(checkoutForm.delivery_fees
 const total = computed(() => merchandiseTotal.value + deliveryFee.value);
 const moneyTransferAmount = computed(() => Math.max(0, Number(checkoutForm.money_transfer_amount) || 0));
 const paymentDue = computed(() => Math.max(0, paymentCents(total.value - moneyTransferAmount.value)) / 100);
+const allowZeroPayment = computed(() => checkoutForm.status === 'pending' || moneyTransferAmount.value > 0);
 const roundingAdjustment = computed(() => (paymentCents(merchandiseTotal.value) - paymentCents(subTotal.value - discount.value)) / 100);
 const amountPaid = computed(() => checkoutForm.payments.reduce((sum, payment) => sum + paymentCents(payment.amount), 0) / 100);
 const amountShort = computed(() => Math.max(0, paymentCents(paymentDue.value) - paymentCents(amountPaid.value)) / 100);
@@ -217,7 +218,7 @@ const nonCashOverpaid = computed(() => checkoutForm.payments
 const invalidPayment = computed(() => checkoutForm.payments.some(payment =>
     payment.amount === '' || !Number.isFinite(Number(payment.amount)) ||
     Number(payment.amount) < 0 ||
-    (paymentCents(payment.amount) === 0 && ((paymentDue.value > 0 && checkoutForm.status !== 'pending') || checkoutForm.payments.length > 1))
+    (paymentCents(payment.amount) === 0 && ((paymentDue.value > 0 && !allowZeroPayment.value) || checkoutForm.payments.length > 1))
 ));
 const checkoutPaymentMethods = computed(() => paymentMethods.some(method => method.value === 'transfer') ? paymentMethods : [...paymentMethods, { value: 'transfer', label: 'Bank Transfer' }]);
 const addPayment = () => {
@@ -1005,7 +1006,7 @@ onBeforeUnmount(() => {
                             </div>
                             <p v-if="checkoutForm.errors[`payments.${index}.method`]" class="mt-1 text-sm text-red-600">{{ checkoutForm.errors[`payments.${index}.method`] }}</p>
                             <p v-if="checkoutForm.errors[`payments.${index}.amount`]" class="mt-1 text-sm text-red-600">{{ checkoutForm.errors[`payments.${index}.amount`] }}</p>
-                            <p v-else-if="paymentCents(payment.amount) <= 0 && ((total > 0 && checkoutForm.status !== 'pending') || checkoutForm.payments.length > 1)" class="mt-1 text-sm text-red-600">Enter an amount greater than zero, or remove this payment.</p>
+                            <p v-else-if="paymentCents(payment.amount) <= 0 && ((paymentDue > 0 && !allowZeroPayment) || checkoutForm.payments.length > 1)" class="mt-1 text-sm text-red-600">Enter an amount greater than zero, or remove this payment.</p>
                         </div>
                         <p v-if="amountShort > 0" role="status" class="text-sm text-red-600">{{ amountShort.toLocaleString() }} Ks still due.</p>
                         <p v-if="nonCashOverpaid" role="alert" class="text-sm text-red-600">Non-cash payments cannot exceed the total due. Change can only be returned from cash.</p>

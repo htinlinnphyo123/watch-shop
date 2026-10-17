@@ -90,7 +90,6 @@ class PosPriceRoundingTest extends TestCase
         $payload['payments'][0]['amount'] = 0;
         $this->post(route('pos.checkout'), $payload)->assertSessionHasErrors('money_transfer_amount');
         $payload['money_transfer_amount'] = 50000;
-        $this->post(route('pos.checkout'), $payload)->assertSessionHasErrors('payments.0.amount');
         $payload['payments'][0]['amount'] = 1089000;
         $payload['payments'][0]['method'] = 'cod';
         $this->post(route('pos.checkout'), $payload)->assertSessionHasNoErrors();
@@ -105,6 +104,30 @@ class PosPriceRoundingTest extends TestCase
             ->where('order.total_amount', '1139000.00')
             ->where('order.amount_paid', '1089000.00')
             ->where('order.discount_percentage', '8.00'));
+    }
+
+    public function test_transfer_deposit_allows_zero_additional_payment_with_balance_due(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        $product = Product::create([
+            'name' => 'COD Watch', 'brand_id' => Brand::create(['name' => 'Test'])->id,
+            'price' => 157000, 'currency' => 'MMK',
+        ]);
+        $product->items()->create(['status' => 'available']);
+        $payload = [
+            'cart' => [['product_id' => $product->id, 'quantity' => 1]],
+            'discount_percentage' => 0,
+            'payments' => [['method' => 'cash', 'amount' => 0]],
+        ];
+
+        $this->post(route('pos.checkout'), $payload)->assertSessionHasErrors('payments.0.amount');
+        $payload['money_transfer_amount'] = 50000;
+        $this->post(route('pos.checkout'), $payload)->assertSessionHasNoErrors();
+
+        $order = Order::sole();
+        $this->assertSame('157000.00', $order->total_amount);
+        $this->assertSame('50000.00', $order->money_transfer_amount);
+        $this->assertSame('0.00', $order->amount_paid);
     }
 
     public function test_undiscounted_pos_and_online_orders_use_rounded_totals(): void

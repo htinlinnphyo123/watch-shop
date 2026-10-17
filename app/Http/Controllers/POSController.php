@@ -294,7 +294,7 @@ class POSController extends Controller
                 ]]),
                 $paymentTotal,
                 true,
-                $status === 'pending',
+                $status === 'pending' || $moneyTransferAmount > 0,
             );
 
             $order = $editingOrder ?? new Order(['user_id' => auth()->id(), 'order_number' => 'ORD-'.strtoupper(uniqid()), 'status' => $status]);
