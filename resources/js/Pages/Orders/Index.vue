@@ -38,7 +38,7 @@ const formatDate = (dateString) => {
 
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-gray-900">Orders</h1>
-            <a v-if="$page.props.auth.user.role === 'admin'" :href="route('orders.export', filters)" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700">Export completed sales (Excel)</a>
+            <a v-if="$page.props.auth.user.role === 'admin'" :href="route('orders.export', filters)" title="One row per watch. Order totals, transfers, and delivery fees appear on the first row of each order. Current date and payment filters apply." class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700">Export all orders (Excel)</a>
             <Link :href="route('pos.index')">
                 <PrimaryButton class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold">
                     New Sale (POS)

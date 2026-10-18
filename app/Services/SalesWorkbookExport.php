@@ -12,7 +12,7 @@ use OpenSpout\Writer\XLSX\Entity\SheetView;
 
 class SalesWorkbookExport
 {
-    public const SALES_HEADERS = ['No', 'Fb Acc', 'Customer Name', 'Customer Gender', 'Address', 'Phone', 'Seller', 'Brand', 'Model No.', 'Watch Gender', 'Order Date', 'Order Type', 'Buying Type', 'Paid by', 'Payment Type', 'Pre-Order Payment', 'Price', 'Discount', 'Deposit', 'Opening', 'Total Payment', 'Delivery Type', 'Delivery ID', 'Delivery Status', 'Delivery Fees', 'Received Money', 'Marketing Channel', 'Remark'];
+    public const SALES_HEADERS = ['No', 'Fb Acc', 'Customer Name', 'Customer Gender', 'Address', 'Phone', 'Seller', 'Brand', 'Model No.', 'Watch Gender', 'Order Date', 'Order Type', 'Buying Type', 'Paid by', 'Payment Type', 'Pre-Order Payment', 'Price', 'Discount', 'Opening', 'Total Payment', 'Delivery Type', 'Delivery ID', 'Delivery Status', 'Delivery Fees', 'Received Money', 'Marketing Channel', 'Remark', 'Order Number', 'Order Status', 'Money Transfer Amount'];
     public const PRE_ORDER_HEADERS = ['No', 'Fb Acc', 'Customer Name', 'Address', 'Phone', 'Brand', 'Model No.', 'Order Date', 'Order type', 'Buying Type', 'Paid by', 'Payment Type', 'Price', 'Discount', 'Deposit', 'Opening', 'Total Payment', 'Delivery Type', 'Delivery ID', 'Delivery Status', 'Delivery Fees', 'Received Money'];
 
     public function saleRow(Order $order): array
@@ -20,19 +20,9 @@ class SalesWorkbookExport
         $customer = $order->customer;
         $subtotal = $order->items->sum(fn ($line) => (float) $line->price * $line->quantity);
         $payments = $order->payments ?: ($order->payment_method ? [['method' => $order->payment_method]] : []);
-        $methods = ['cash' => 'Cash', 'kbz_pay' => 'Kpay', 'cb_pay' => 'CB Pay', 'aya_pay' => 'AYA Pay', 'card' => 'Card', 'transfer' => 'Bank Transfer', 'cod' => 'COD', 'other' => 'Other'];
+        $methods = ['cash' => 'Cash', 'kbz_pay' => 'KBZ Pay', 'cb_pay' => 'CB Pay', 'aya_pay' => 'AYA Pay', 'card' => 'Card', 'transfer' => 'Bank Transfer', 'cod' => 'COD', 'other' => 'Other'];
         $paymentMethods = collect($payments)->pluck('method')->unique();
         $paidBy = $paymentMethods->map(fn ($method) => $methods[$method] ?? ucfirst($method))->implode(', ');
-        $paymentType = (float) $order->total_amount === 0.0 ? 'FOC'
-            : ($paymentMethods->count() > 1 || $order->payment_method === 'split' ? 'Split'
-                : match ($paymentMethods->first()) {
-                    'cash' => 'Cash',
-                    'kbz_pay', 'cb_pay', 'aya_pay', 'transfer' => 'Mbanking',
-                    'card' => 'Card',
-                    'cod' => 'COD',
-                    'other' => 'Other',
-                    default => null,
-                });
         $retained = (new OrderSummaryService())->retainedPayments($order);
         $received = $retained === null ? null : array_sum($retained) / 100;
         return array_combine(self::SALES_HEADERS, [
@@ -41,13 +31,40 @@ class SalesWorkbookExport
             $order->items->map(fn ($line) => ($line->product?->model_number ?: $line->product?->name ?: 'Deleted product').($line->quantity > 1 ? ' (x'.$line->quantity.')' : ''))->implode(', '),
             $order->items->map(fn ($line) => $line->product?->gender)->filter()->unique()->implode(', '),
             $order->order_date ?? $order->created_at, $this->label($order->order_type), $this->label($order->buying_type), $paidBy,
-            $paymentType, null, // No separate pre-order payment breakdown is stored.
+            $paidBy ?: null, null, // No separate pre-order payment breakdown is stored.
             round($subtotal, 2), $this->money($order->discount_percentage) === null ? null : (float) $order->discount_percentage / 100,
-            $this->money($order->money_transfer_amount),
             $received === null ? null : max(0, round((float) $order->total_amount + (float) $order->delivery_fees - (float) $order->money_transfer_amount - $received, 2)),
             (float) $order->total_amount, $order->delivery_type, $order->delivery_code, $order->delivery_status,
             $this->money($order->delivery_fees), $received, $order->marketing_channel, $order->remark,
+            $order->order_number, $this->label($order->status), $this->money($order->money_transfer_amount),
         ]);
+    }
+
+    /** One row per physical watch; order-level amounts appear only on the first row. */
+    public function saleRows(Order $order): iterable
+    {
+        $base = $this->saleRow($order);
+        $first = true;
+        foreach ($order->items as $line) {
+            for ($unit = 0; $unit < $line->quantity; $unit++) {
+                $row = $base;
+                $row['Brand'] = $line->product?->brand?->name;
+                $row['Model No.'] = $line->product?->model_number ?: $line->product?->name ?: 'Deleted product';
+                $row['Watch Gender'] = $line->product?->gender;
+                $row['Price'] = (float) $line->price;
+                $discount = $line->discount_percentage ?? $order->discount_percentage;
+                $row['Discount'] = $discount === null ? null : (float) $discount / 100;
+                if (! $first) {
+                    foreach (['Opening', 'Total Payment', 'Delivery Fees', 'Received Money', 'Money Transfer Amount'] as $header) {
+                        $row[$header] = null;
+                    }
+                }
+                yield $row;
+                $first = false;
+            }
+        }
+        // Keep legacy orders without items visible in the export too.
+        if ($first) yield $base;
     }
 
     public function preOrderRow(PreOrder $record): array

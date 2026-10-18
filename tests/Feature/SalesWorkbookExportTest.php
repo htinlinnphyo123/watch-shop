@@ -35,7 +35,7 @@ class SalesWorkbookExportTest extends TestCase
         }
     }
 
-    public function test_sales_columns_match_template_and_staff_export_only_own_completed_sales(): void
+    public function test_sales_export_includes_all_statuses_and_one_row_per_watch_for_admins(): void
     {
         $staff = User::factory()->create(['role' => 'staff']);
         $admin = User::factory()->create(['role' => 'admin']);
@@ -51,35 +51,50 @@ class SalesWorkbookExportTest extends TestCase
         foreach ([['user_id' => $admin->id, 'status' => 'completed'], ['user_id' => $staff->id, 'status' => 'cancelled'], ['user_id' => $staff->id, 'status' => 'pending']] as $index => $data) {
             Order::create($data + ['order_number' => 'EXCLUDED-'.$index, 'total_amount' => 100]);
         }
+        $this->get(route('orders.export'))->assertForbidden();
+        $this->actingAs($admin);
         $rows = $this->readExport('orders.export');
-        $this->assertCount(1, $rows);
+        $this->assertCount(6, $rows);
         $row = $rows[0];
         $this->assertSame(SalesWorkbookExport::SALES_HEADERS, array_keys($row));
-        $this->assertCount(28, $row);
+        $this->assertCount(30, $row);
         $this->assertSame('Customer', $row['Customer Name']);
         $this->assertSame('Profile', $row['Fb Acc']);
         $this->assertSame('', $row['Marketing Channel']);
         $order->update(['marketing_channel' => 'Walk-in']);
         $this->assertSame('Walk-in', $this->readExport('orders.export')[0]['Marketing Channel']);
-        $this->assertSame('Cash, Kpay', $row['Paid by']);
-        $this->assertSame('Split', $row['Payment Type']);
+        $this->assertSame('Cash, KBZ Pay', $row['Paid by']);
+        $this->assertSame('Cash, KBZ Pay', $row['Payment Type']);
+        $this->assertSame('SAMPLE', $row['Order Number']);
+        $this->assertSame('Completed', $row['Order Status']);
+        $this->assertEquals(50, $row['Money Transfer Amount']);
+        $this->assertEquals(5, $row['Delivery Fees']);
         $this->assertSame('', $row['Pre-Order Payment']);
-        $this->assertEquals(50, $row['Deposit']);
+        $this->assertArrayNotHasKey('Deposit', $row);
         $this->assertEquals(150, $row['Received Money']);
         $this->assertSame('09123456', $row['Phone']);
         $this->assertSame('001234', $row['Delivery ID']);
         $this->assertSame('Courier', $row['Delivery Type']);
-        $this->assertSame('00123 (x2), 00123', $row['Model No.']);
-        $this->assertEquals(250, $row['Price']);
+        $this->assertSame('00123', $row['Model No.']);
+        $this->assertEquals(100, $row['Price']);
+        $this->assertEquals([100, 100, 50], array_column(array_slice($rows, 0, 3), 'Price'));
+        foreach (array_slice($rows, 1, 2) as $extra) {
+            $this->assertSame($row['No'], $extra['No']);
+            foreach (['Opening', 'Total Payment', 'Delivery Fees', 'Received Money', 'Money Transfer Amount'] as $header) {
+                $this->assertSame('', $extra[$header]);
+            }
+        }
+        $this->assertSame(['Completed', 'Completed', 'Completed', 'Completed', 'Cancelled', 'Pending'], array_column($rows, 'Order Status'));
         $this->assertEquals(0.1, $row['Discount']);
-        $this->assertEquals(75, $row['Opening']);
+        $this->assertEquals(30, $row['Opening']);
         $this->assertEquals(225, $row['Total Payment']);
         $this->assertSame('Woman', $row['Customer Gender']);
         $this->assertSame('2026-09-20', $row['Order Date']->format('Y-m-d'));
         $this->assertCount(0, $this->readExport('orders.export', ['date_from' => '2099-01-01']));
-        $this->assertCount(1, $this->readExport('orders.export', ['date_from' => '2026-09-20', 'date_to' => '2026-09-20']));
+        $this->assertCount(3, $this->readExport('orders.export', ['date_from' => '2026-09-20', 'date_to' => '2026-09-20']));
         $this->actingAs($admin);
-        $this->assertCount(2, $this->readExport('orders.export'));
+        $this->assertCount(6, $this->readExport('orders.export'));
+        $this->assertCount(3, $this->readExport('orders.export', ['payment_type' => 'split', 'payment_method' => 'kbz_pay']));
     }
 
     public function test_preorders_save_export_update_and_validate_template_fields_without_creating_stock(): void
@@ -240,7 +255,7 @@ class SalesWorkbookExportTest extends TestCase
         foreach ([
             [['payments' => [['method' => 'cash', 'amount' => 120]], 'amount_paid' => 120, 'payment_method' => 'cash'], 20, 0, 'Cash'],
             [['payments' => [['method' => 'cash', 'amount' => 0]], 'amount_paid' => 0, 'payment_method' => 'cash'], 0, 20, 'Cash'],
-            [['payments' => null, 'amount_paid' => 60, 'payment_method' => 'transfer'], 20, 0, 'Mbanking'],
+            [['payments' => null, 'amount_paid' => 60, 'payment_method' => 'transfer'], 20, 0, 'Bank Transfer'],
             [['payments' => null, 'amount_paid' => null, 'payment_method' => null], null, null, null],
         ] as [$payments, $received, $opening, $type]) {
             $order = new Order($payments + ['total_amount' => 100, 'money_transfer_amount' => 80]);
@@ -248,10 +263,27 @@ class SalesWorkbookExportTest extends TestCase
             $row = $export->saleRow($order);
             $this->assertEquals($received, $row['Received Money']);
             $this->assertEquals($opening, $row['Opening']);
-            $this->assertEquals(80, $row['Deposit']);
+            $this->assertEquals(80, $row['Money Transfer Amount']);
             $this->assertSame($type, $row['Payment Type']);
             $this->assertNull($row['Pre-Order Payment']);
         }
+    }
+
+    public function test_watch_rows_keep_individual_products_and_saved_line_discounts(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        $order = Order::create(['order_number' => 'TWO-WATCHES', 'status' => 'pending', 'total_amount' => 260, 'discount_percentage' => 5]);
+        foreach ([['FIRST', 100, 20], ['SECOND', 200, 10]] as [$model, $price, $discount]) {
+            $product = Product::create(['name' => $model, 'model_number' => $model, 'price' => $price]);
+            $order->items()->create(['product_id' => $product->id, 'price' => $price, 'quantity' => 1, 'discount_percentage' => $discount]);
+        }
+        $rows = $this->readExport('orders.export');
+        $this->assertCount(2, $rows);
+        $this->assertSame(['FIRST', 'SECOND'], array_column($rows, 'Model No.'));
+        $this->assertEquals([0.2, 0.1], array_column($rows, 'Discount'));
+        $this->assertEquals(260, array_sum(array_map('floatval', array_column($rows, 'Total Payment'))));
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('order_items', 2);
     }
 
     public function test_formula_like_text_remains_literal_in_excel(): void
