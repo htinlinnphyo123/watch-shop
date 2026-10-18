@@ -1,15 +1,20 @@
 <script setup>
 import { computed } from 'vue';
-import { orderDiscountAmount } from '@/utils/posPricing';
+import { orderDiscountAmount, lineDiscountAmount } from '@/utils/posPricing';
 import { paymentMethodLabel } from '@/utils/payments';
 
 const props = defineProps({ order: { type: Object, required: true } });
-const money = value => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(Number(value) || 0);
+const money = value => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Number(value) || 0);
 const lineTotal = item => Number(item.price) * Number(item.quantity);
 const subtotal = computed(() => (props.order.items || []).reduce((sum, item) => sum + lineTotal(item), 0));
-const discount = computed(() => Number(props.order.discount_percentage) > 0
-    ? Math.round(orderDiscountAmount(subtotal.value, props.order.discount_percentage) / 1000) * 1000
-    : 0);
+const hasLineDiscounts = computed(() => (props.order.items || []).some(item => item.discount_percentage != null));
+const itemPercentage = item => Number(item.discount_percentage ?? props.order.discount_percentage ?? 0);
+const itemDiscount = item => lineDiscountAmount(item.price, item.quantity, itemPercentage(item));
+const itemNet = item => lineTotal(item) - itemDiscount(item);
+const discount = computed(() => hasLineDiscounts.value
+    ? (props.order.items || []).reduce((sum, item) => sum + itemDiscount(item), 0)
+    : orderDiscountAmount(subtotal.value, props.order.discount_percentage || 0));
+const rounding = computed(() => Math.round(Number(props.order.total_amount) - (subtotal.value - discount.value)));
 const paid = computed(() => Number(props.order.amount_paid) || 0);
 const moneyTransferAmount = computed(() => Number(props.order.money_transfer_amount) || 0);
 const grandTotal = computed(() => (Number(props.order.total_amount) || 0) + (Number(props.order.delivery_fees) || 0));
@@ -60,14 +65,13 @@ const serials = item => (item.sold_items || []).filter(unit => unit.serial_numbe
 
         <div class="invoice-table-scroll">
             <table class="invoice-items">
-                <colgroup><col style="width: 8%" /><col style="width: 25%" /><col style="width: 22%" /><col style="width: 17%" /><col style="width: 9%" /><col style="width: 19%" /></colgroup>
-                <thead><tr><th scope="col">No</th><th scope="col" class="invoice-description">Item Description</th><th scope="col">Model Number</th><th scope="col">Price</th><th scope="col">Qty.</th><th scope="col">Total</th></tr></thead>
+                <colgroup><col style="width: 8%" /><col :style="{ width: hasLineDiscounts ? '32%' : '47%' }" /><col style="width: 17%" /><col style="width: 9%" /><col v-if="hasLineDiscounts" style="width: 15%" /><col style="width: 19%" /></colgroup>
+                <thead><tr><th scope="col">No</th><th scope="col" class="invoice-description">Model Number</th><th scope="col">{{ hasLineDiscounts ? 'Original Price' : 'Price' }}</th><th scope="col">Qty.</th><th v-if="hasLineDiscounts" scope="col">Discount</th><th scope="col">Total</th></tr></thead>
                 <tbody>
                     <tr v-for="(item, index) in order.items" :key="item.id">
                         <td>{{ String(index + 1).padStart(2, '0') }}.</td>
-                        <td class="invoice-description"><p class="invoice-item-name">{{ item.product?.name || 'Watch' }}</p><p v-if="item.product?.warranty_period" class="invoice-item-detail">{{ item.product.warranty_period }}-month warranty</p><p v-for="unit in serials(item)" :key="unit.id" class="invoice-item-detail">S/N: {{ unit.serial_number }}</p></td>
-                        <td>{{ item.product?.model_number || '—' }}</td>
-                        <td class="invoice-numeric">{{ money(item.price) }}</td><td>{{ item.quantity }}</td><td class="invoice-numeric">{{ money(lineTotal(item)) }}</td>
+                        <td class="invoice-description"><p class="invoice-item-name">{{ item.product?.name || item.product?.model_number || '—' }}</p><p v-if="item.product?.warranty_period" class="invoice-item-detail">{{ item.product.warranty_period }}-month warranty</p><p v-for="unit in serials(item)" :key="unit.id" class="invoice-item-detail">S/N: {{ unit.serial_number }}</p></td>
+                        <td class="invoice-numeric">{{ money(item.price) }}</td><td>{{ item.quantity }}</td><td v-if="hasLineDiscounts" class="invoice-numeric">{{ itemPercentage(item) }}%<br /><small>−{{ money(itemDiscount(item)) }}</small></td><td class="invoice-numeric">{{ money(hasLineDiscounts ? itemNet(item) : lineTotal(item)) }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -81,7 +85,8 @@ const serials = item => (item.sold_items || []).filter(unit => unit.serial_numbe
             </div>
             <dl class="invoice-totals">
                 <div><dt>Subtotal:</dt><dd>{{ money(subtotal) }}</dd></div>
-                <div v-if="discount > 0"><dt>Discount<span v-if="Number(order.discount_percentage)"> ({{ Number(order.discount_percentage) }}%)</span>:</dt><dd>−{{ money(discount) }}</dd></div>
+                <div v-if="discount > 0"><dt>Discount<span v-if="!hasLineDiscounts && Number(order.discount_percentage)"> ({{ Number(order.discount_percentage) }}%)</span>:</dt><dd>−{{ money(discount) }}</dd></div>
+                <div v-if="rounding"><dt>Rounding:</dt><dd>{{ rounding > 0 ? '+' : '−' }}{{ money(Math.abs(rounding)) }}</dd></div>
                 <div><dt>Total After Discount:</dt><dd>{{ money(order.total_amount) }}</dd></div>
                 <div v-if="moneyTransferAmount > 0"><dt>Deposit:</dt><dd>−{{ money(moneyTransferAmount) }}</dd></div>
                 <div><dt>Delivery Fee:</dt><dd>{{ money(order.delivery_fees) }}</dd></div>

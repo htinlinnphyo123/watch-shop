@@ -33,6 +33,8 @@ const equal = (a, b) => {
 const rows = value => [{ label: '', value }];
 const kind = (before, after) => before == null ? 'added' : after == null ? 'removed' : 'updated';
 const watchFields = {
+    price_source: ['Price basis', value => value === 'web' ? 'Web price' : value === 'shop' ? 'Shop price' : 'Not recorded'],
+    discount_percentage: ['Discount', value => value == null ? 'Not recorded' : `${Number(value)}%`],
     name: ['Watch', value => value], model: ['Model', value => value || 'Not recorded'],
     quantity: ['Quantity', value => String(value)], unit_price: ['Price each', money],
     system_code: ['System code', value => value || 'Not assigned'], serial: ['Serial number', value => value || 'Not recorded'],
@@ -70,7 +72,7 @@ export function orderChangeGroups(before, after) {
         if (equal(old, next)) continue;
         const type = kind(old, next);
         const keys = old && next ? Object.keys(watchFields).filter(field => !equal(old[field], next[field]))
-            : ['quantity', 'unit_price', 'system_code', 'serial'].filter(field => !['system_code', 'serial'].includes(field) || (next || old)[field]);
+            : ['quantity', 'unit_price', 'price_source', 'discount_percentage', 'system_code', 'serial'].filter(field => !['system_code', 'serial'].includes(field) || (next || old)[field]);
         if (!keys.length) continue;
         groups.Watches.push({ title: type === 'added' ? 'Watch added' : type === 'removed' ? 'Watch removed' : 'Watch details changed',
             kind: type, name: (next || old).name, subtitle: (next || old).model,

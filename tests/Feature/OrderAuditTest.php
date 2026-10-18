@@ -82,7 +82,8 @@ class OrderAuditTest extends TestCase
         $this->assertSame('18000.00', $second->snapshot['total_amount']);
         $this->assertSame('8000.00', $second->snapshot['payments']['cash']);
         $this->assertContains('Customer', array_column($second->changes, 'label'));
-        $this->assertNotContains('Watches', array_column($second->changes, 'section'));
+        $this->assertContains('Watches', array_column($second->changes, 'section'));
+        $this->assertSame('10.00', $second->snapshot['watches']['unit:'.$this->unit->id]['discount_percentage']);
 
         $new = ProductItem::create(['product_id' => $this->product->id, 'system_unique_id' => 'NEW-UNIT', 'status' => 'available']);
         $this->edit($order, ['cart' => [['product_id' => $this->product->id, 'item_id' => $new->id]]])->assertSessionHasNoErrors();

@@ -81,6 +81,7 @@ class POSController extends Controller
                     if ($line) {
                         $item->setAttribute('original_line_id', $line->id);
                         $item->setAttribute('pos_price_mmk', (float) $line->price);
+                        $item->setAttribute('saved_pricing', $this->savedPricing($line, $line->order));
                     }
 
                     return $item;
@@ -112,6 +113,7 @@ class POSController extends Controller
         $originalLine = $editingOrder && $item ? $editingOrder->items()->whereKey($item->order_item_id)->first() : null;
         if ($originalLine) {
             $product->setAttribute('pos_price_mmk', $originalLine->price);
+            $product->setAttribute('saved_pricing', $this->savedPricing($originalLine, $editingOrder));
         }
 
         return response()->json([
@@ -156,6 +158,8 @@ class POSController extends Controller
             'cart.*.item_id' => 'nullable|exists:product_items,id|distinct',
             'cart.*.original_line_id' => 'nullable|integer',
             'cart.*.quantity' => 'nullable|integer|min:1',
+            'cart.*.price_source' => 'nullable|in:shop,web',
+            'cart.*.discount_percentage' => 'nullable|numeric|min:0|max:100|decimal:0,2',
         ]);
 
         try {
@@ -253,9 +257,16 @@ class POSController extends Controller
                     }
                 }
 
-                // ── Convert to MMK ────────────────────────────────────────────
-                $mmkPrice = $originalLine ? (float) $originalLine->price
-                    : \App\Support\PosPrice::inMmk((float) $product->price, $product->currency, $settings);
+                // Preserve both quoted prices when editing an existing order line.
+                $shopPrice = $originalLine?->shop_price ?? ($originalLine ? $originalLine->price
+                    : \App\Support\PosPrice::inMmk((float) $product->price, $product->currency, $settings));
+                $webPrice = $originalLine?->price_source !== null ? $originalLine->web_price
+                    : ($product->web_price > 0 ? \App\Support\PosPrice::inMmk((float) $product->web_price, $product->currency, $settings) : null);
+                $priceSource = $cartLine['price_source'] ?? $originalLine?->price_source ?? 'shop';
+                if ($priceSource === 'web' && $webPrice === null) {
+                    throw ValidationException::withMessages(["cart.$lineIndex.price_source" => 'This watch has no web price. Choose shop price or set its web price first.']);
+                }
+                $mmkPrice = (float) ($priceSource === 'web' ? $webPrice : $shopPrice);
                 $chosenIds = array_merge($chosenIds, $items->pluck('id')->all());
 
                 $lineSubtotal = $mmkPrice * $items->count();
@@ -264,23 +275,29 @@ class POSController extends Controller
                 $lineDiscount = $customerGroup
                     ? (float) ($groupOverride?->pivot->percentage ?? $customerGroup->percentage)
                     : (float) ($product->discount ?? 0);
-                $watchDiscountAmount += $lineSubtotal * ($lineDiscount / 100);
+                $shopSellingPrice = (float) $shopPrice - round((float) $shopPrice * $lineDiscount / 100, 2);
+                $automaticDiscount = $mmkPrice > 0 ? max(0, min(100, ($mmkPrice - $shopSellingPrice) / $mmkPrice * 100)) : 0;
+                $samePriceSource = $originalLine && $priceSource === ($originalLine->price_source ?? 'shop');
+                $lineDiscount = round((float) ($cartLine['discount_percentage']
+                    ?? ($request->filled('discount_percentage') ? $request->discount_percentage : null)
+                    ?? ($samePriceSource ? ($originalLine->discount_percentage ?? $editingOrder->discount_percentage) : null)
+                    ?? $automaticDiscount), 2);
+                $watchDiscountAmount += round($mmkPrice * $lineDiscount / 100, 2) * $items->count();
 
                 $orderItemsData[] = [
                     'product_id' => $product->id,
                     'quantity' => $items->count(),
                     'price' => $mmkPrice,
+                    'price_source' => $priceSource, 'shop_price' => $shopPrice, 'web_price' => $webPrice,
+                    'discount_percentage' => $lineDiscount,
                     'item_ids' => $items->pluck('id')->all(),
                 ];
             }
 
-            // The submitted value is the salesperson's final override. Older
-            // clients that omit it still receive the same authoritative default.
-            $discountPercentage = $request->filled('discount_percentage')
-                ? floatval($request->discount_percentage)
-                : ($subtotal > 0 ? ($watchDiscountAmount / $subtotal) * 100 : 0);
-            $discountPercentage = round(max(0, min(100, $discountPercentage)), 2);
-            $totalAmount = \App\Support\PosPrice::orderTotal($subtotal, $discountPercentage);
+            // This blended percentage is retained for legacy reports only.
+            // The amount is calculated from each watch's own discount, without rounding the blend.
+            $discountPercentage = round($subtotal > 0 ? ($watchDiscountAmount / $subtotal) * 100 : 0, 2);
+            $totalAmount = \App\Support\PosPrice::orderTotal($subtotal - $watchDiscountAmount, 0);
             $grossPaymentTotal = $totalAmount + (float) ($recordDetails['delivery_fees'] ?? 0);
             $moneyTransferAmount = (float) ($request->input('money_transfer_amount') ?? 0);
             if ($moneyTransferAmount > $grossPaymentTotal) {
@@ -330,6 +347,9 @@ class POSController extends Controller
                     'product_id' => $lineData['product_id'],
                     'quantity' => $lineData['quantity'],
                     'price' => $lineData['price'],
+                    'price_source' => $lineData['price_source'],
+                    'shop_price' => $lineData['shop_price'], 'web_price' => $lineData['web_price'],
+                    'discount_percentage' => $lineData['discount_percentage'],
                 ]);
 
                 // Pending POS orders hold the exact same units until approval/cancellation.
@@ -383,6 +403,17 @@ class POSController extends Controller
         });
     }
 
+    private function savedPricing($line, Order $order): array
+    {
+        return [
+            'price_source' => $line->price_source ?? 'shop',
+            'shop_price' => (float) ($line->shop_price ?? $line->price),
+            'web_price' => $line->price_source !== null ? $line->web_price
+                : ($line->product->web_price > 0 ? \App\Support\PosPrice::inMmk((float) $line->product->web_price, $line->product->currency, \App\Models\Setting::pluck('value', 'key')->all()) : null),
+            'discount_percentage' => (float) ($line->discount_percentage ?? $order->discount_percentage ?? 0),
+        ];
+    }
+
     private function editPayload(Order $order): array
     {
         $order->load(['items.product.customerGroups', 'items.soldItems']);
@@ -391,9 +422,10 @@ class POSController extends Controller
         $cart = [];
         foreach ($order->items as $line) {
             abort_unless($line->product, 422, 'An original watch is no longer in the catalog. Restore it before editing this order.');
-            $product = $line->product->only(['id', 'name', 'model_number', 'barcode', 'images', 'currency', 'price', 'discount']);
+            $product = $line->product->only(['id', 'name', 'model_number', 'barcode', 'images', 'currency', 'price', 'web_price', 'discount']);
             $product['customer_groups'] = $line->product->customerGroups;
             $product['pos_price_mmk'] = (float) $line->price;
+            $product['saved_pricing'] = $this->savedPricing($line, $order);
             $product['available_items_count'] = $this->stockQuery($line->product->items(), $order)->count();
             if ($stock->hasAllocatedStock($order)) {
                 foreach ($line->soldItems as $unit) {
@@ -429,6 +461,7 @@ class POSController extends Controller
                 'images',
                 'currency',
                 'price',
+                'web_price',
                 'discount',
                 'kind',
                 'accessory_attributes',

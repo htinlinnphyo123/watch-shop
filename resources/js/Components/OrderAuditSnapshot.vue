@@ -22,6 +22,7 @@ const money = value => value == null ? 'Not recorded' : `${Number(value).toLocal
             <li v-for="(watch, key) in snapshot.watches" :key="key" class="py-3 text-sm">
                 <p class="font-medium">{{ watch.name }} <span class="text-gray-500">{{ watch.model }}</span></p>
                 <p class="text-gray-600">Qty: {{ watch.quantity }} · {{ money(watch.unit_price) }} each</p>
+                <p v-if="watch.discount_percentage != null" class="text-gray-600">{{ watch.price_source === 'web' ? 'Web price' : 'Shop price' }} · Discount: {{ Number(watch.discount_percentage) }}%</p>
                 <p v-if="watch.system_code" class="font-mono break-all text-gray-600">Code: {{ watch.system_code }}</p>
                 <p v-if="watch.serial" class="text-gray-600 break-all">Serial: {{ watch.serial }}</p>
             </li>

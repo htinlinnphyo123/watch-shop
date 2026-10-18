@@ -16,7 +16,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import axios from 'axios';
 import { paymentMethods, paymentCents } from '@/utils/payments';
-import { posPriceMmk, posDiscountPercentage, orderDiscountAmount, posOrderTotal } from '@/utils/posPricing';
+import { posPriceMmk, posOrderTotal, posLinePriceSource, posLinePrices, posLinePrice, posLineDiscountPercentage, posLineAutoDiscountPercentage, setPosLinePriceSource, lineDiscountAmount } from '@/utils/posPricing';
 import { createCheckoutRequestId } from '@/utils/checkoutRequest';
 
 const props = defineProps({
@@ -113,7 +113,6 @@ const checkoutForm = useForm({
     remark: props.editingOrder?.remark || '',
     money_transfer_amount: props.editingOrder?.money_transfer_amount ?? '',
     customer_id: props.editingOrder?.customer_id || '',
-    discount_percentage: props.editingOrder?.discount_percentage || 0,
     payments: props.editingOrder?.payments.map(payment => ({ ...payment })) || [{ method: 'cash', amount: 0 }],
     edit_version: props.editingOrder?.edit_version ?? null,
     cart: [],
@@ -161,48 +160,29 @@ watch([search, productKind], () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Order discount ───────────────────────────────────────────────────────────
-const discountManuallyAdjusted = ref(!!props.editingOrder);
-
-const getActiveCustomerGroup = () => {
-    if (!checkoutForm.customer_id) return null;
-    const customer = posCustomers.value.find(c => c.id == checkoutForm.customer_id);
-    return customer ? customer.group : null;
+const getActiveCustomerGroup = () => selectedCustomer.value?.group ?? null;
+const linePrices = item => posLinePrices(item, page.props.settings);
+const linePrice = item => posLinePrice(item, page.props.settings);
+const linePercentage = item => posLineDiscountPercentage(item, getActiveCustomerGroup(), page.props.settings);
+const changeLinePriceSource = (item, source) => setPosLinePriceSource(item, source, getActiveCustomerGroup(), page.props.settings);
+const restoreEmptyDiscount = item => {
+    if (item.discount_percentage === '') item.discount_percentage = posLineAutoDiscountPercentage(item, getActiveCustomerGroup(), page.props.settings);
 };
-
-const defaultDiscountPercentage = computed(() => {
-    const group = getActiveCustomerGroup();
-    if (subTotal.value <= 0) return 0;
-    const watchDiscount = cart.value.reduce((sum, item) => {
-        const percentage = posDiscountPercentage(item.product, group);
-        return sum + (getMmkPrice(item.product) * item.qty * percentage / 100);
-    }, 0);
-
-    return Number(((watchDiscount / subTotal.value) * 100).toFixed(2));
-});
-
-const defaultDiscountSource = computed(() => {
-    const group = getActiveCustomerGroup();
-    return group ? `${group.name}: watch overrides, then group default` : 'product record';
-});
-
-const applyDefaultDiscount = () => {
-    checkoutForm.discount_percentage = defaultDiscountPercentage.value;
+const lineDiscount = item => lineDiscountAmount(linePrice(item), item.qty, linePercentage(item));
+const lineNet = item => linePrice(item) * item.qty - lineDiscount(item);
+const invalidLinePricing = computed(() => cart.value.some(item => {
+    const percent = linePercentage(item);
+    return item.discount_percentage === '' || !Number.isFinite(percent) || percent < 0 || percent > 100 || Math.abs(percent * 100 - Math.round(percent * 100)) > 0.000001;
+}));
+const splitCartLine = index => {
+    const item = cart.value[index];
+    if (item.qty <= 1) return;
+    item.qty--;
+    cart.value.splice(index + 1, 0, { ...item, product: { ...item.product }, qty: 1 });
 };
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─── Cart totals ──────────────────────────────────────────────────────────────
-const subTotal = computed(() =>
-    cart.value.reduce((sum, item) => sum + getMmkPrice(item.product) * item.qty, 0)
-);
-
-const appliedDiscountPercentage = computed(() => {
-    const percentage = parseFloat(checkoutForm.discount_percentage) || 0;
-    return Math.round(Math.max(0, Math.min(100, percentage)) * 100) / 100;
-});
-
-const discount = computed(() => orderDiscountAmount(subTotal.value, appliedDiscountPercentage.value));
-
-const merchandiseTotal = computed(() => posOrderTotal(subTotal.value, appliedDiscountPercentage.value));
+const subTotal = computed(() => cart.value.reduce((sum, item) => sum + linePrice(item) * item.qty, 0));
+const discount = computed(() => cart.value.reduce((sum, item) => sum + lineDiscount(item), 0));
+const merchandiseTotal = computed(() => posOrderTotal(subTotal.value - discount.value, 0));
 const deliveryFee = computed(() => Math.max(0, Number(checkoutForm.delivery_fees) || 0));
 const total = computed(() => merchandiseTotal.value + deliveryFee.value);
 const moneyTransferAmount = computed(() => Math.max(0, Number(checkoutForm.money_transfer_amount) || 0));
@@ -230,15 +210,6 @@ const removePayment = index => {
     checkoutForm.payments.splice(index, 1);
     checkoutForm.clearErrors();
 };
-
-watch(() => checkoutForm.customer_id, () => {
-    discountManuallyAdjusted.value = false;
-    applyDefaultDiscount();
-});
-
-watch(cart, () => {
-    if (!discountManuallyAdjusted.value) applyDefaultDiscount();
-}, { deep: true });
 
 watch(() => checkoutForm.delivery_fees, (newFee, oldFee) => {
     if (props.editingOrder || checkoutForm.payments.length !== 1 || checkoutForm.payments[0].method !== 'cash') return;
@@ -327,18 +298,7 @@ const confirmAddQty = () => {
     const qty = parseInt(addQty.value) || 1;
     if (qty < 1 || qty > maxQty.value) return;
 
-    // Merge into existing generic cart line for this product (if any)
-    const existing = cart.value.find(c => c.product.id === selectedProduct.value.id && !c.item_id && !c.original_line_id);
-    if (existing) {
-        existing.qty += qty;
-    } else {
-        cart.value.push({
-            product: selectedProduct.value,
-            item_id: null,        // generic — backend auto-picks
-            serial_number: null,
-            qty,
-        });
-    }
+    cart.value.push({ product: selectedProduct.value, item_id: null, serial_number: null, qty });
     closeAddModal();
 };
 
@@ -349,7 +309,7 @@ const confirmAddSerial = (item) => {
         return;
     }
     cart.value.push({
-        product: item.pos_price_mmk !== undefined ? { ...selectedProduct.value, pos_price_mmk: item.pos_price_mmk } : selectedProduct.value,
+        product: item.pos_price_mmk !== undefined ? { ...selectedProduct.value, pos_price_mmk: item.pos_price_mmk, saved_pricing: item.saved_pricing } : selectedProduct.value,
         original_line_id: item.original_line_id || null,
         item_id: item.id,
         serial_number: item.serial_number || item.system_unique_id,
@@ -427,7 +387,7 @@ const handleCameraScan = (code) => {
 const removeFromCart = (index) => { cart.value.splice(index, 1); };
 
 const openCheckout = () => {
-    if (cart.value.length === 0 || pendingScans.value > 0) return;
+    if (cart.value.length === 0 || pendingScans.value > 0 || invalidLinePricing.value) return;
     if (!props.editingOrder) checkoutForm.payments = [{ method: 'cash', amount: total.value }];
     checkoutForm.clearErrors();
     checkoutForm.cart = cart.value.map(c => ({
@@ -435,19 +395,19 @@ const openCheckout = () => {
         product_id: c.product.id,
         item_id: c.item_id || null,
         quantity: c.qty,
+        price_source: posLinePriceSource(c),
+        discount_percentage: linePercentage(c),
     }));
     isCheckoutModalOpen.value = true;
 };
 
 const submitCheckout = () => {
     if (nonCashOverpaid.value || invalidPayment.value || checkoutForm.processing) return;
-    checkoutForm.discount_percentage = appliedDiscountPercentage.value;
     checkoutForm.submit(props.editingOrder ? 'put' : 'post', props.editingOrder ? route('pos.orders.update', props.editingOrder.id) : route('pos.checkout'), {
         onSuccess: () => {
             cart.value = [];
             isCheckoutModalOpen.value = false;
             checkoutForm.reset();
-            discountManuallyAdjusted.value = false;
         },
         onError: (errors) => {
             if (Object.keys(errors).some(key => key.startsWith('cart'))) loadProducts(false);
@@ -642,19 +602,30 @@ onBeforeUnmount(() => {
                                     <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"/></svg>
                                     Qty: {{ item.qty }} unit{{ item.qty > 1 ? 's' : '' }}
                                 </div>
+                                <div class="mt-3 space-y-2">
+                                    <label :for="`line-price-${index}`" class="block text-xs font-medium text-gray-600">Original price</label>
+                                    <select :id="`line-price-${index}`" :value="posLinePriceSource(item)" @change="changeLinePriceSource(item, $event.target.value)" class="w-full rounded-md border-gray-300 text-xs">
+                                        <option value="shop">Shop price · {{ Number(linePrices(item).shop_price).toLocaleString() }} Ks</option>
+                                        <option value="web" :disabled="linePrices(item).web_price == null">{{ linePrices(item).web_price == null ? 'Web price not set' : `Web price · ${Number(linePrices(item).web_price).toLocaleString()} Ks` }}</option>
+                                    </select>
+                                    <label :for="`line-discount-${index}`" class="block text-xs font-medium text-gray-600">Discount (%)</label>
+                                    <input :id="`line-discount-${index}`" :value="item.discount_percentage ?? linePercentage(item)" @input="item.discount_percentage = $event.target.value" @blur="restoreEmptyDiscount(item)" type="number" min="0" max="100" step="0.01" required class="w-full rounded-md border-gray-300 text-sm" />
+                                    <p class="text-xs text-gray-500">Changing the original price recalculates the discount from the shop selling price. You can adjust it.</p>
+                                    <p v-if="item.qty > 1" class="text-xs text-gray-500">Applies to all {{ item.qty }} watches in this row. <button type="button" @click="splitCartLine(index)" class="font-semibold underline">Separate one watch</button></p>
+                                </div>
                             </div>
                             <div class="text-right shrink-0">
-                                <template v-if="appliedDiscountPercentage > 0">
-                                    <div class="text-gray-400 line-through text-[10px]">{{ (getMmkPrice(item.product) * item.qty).toLocaleString() }} Ks</div>
+                                <template v-if="linePercentage(item) > 0">
+                                    <div class="text-gray-400 line-through text-[10px]">{{ (linePrice(item) * item.qty).toLocaleString() }} Ks</div>
                                     <div class="text-gold-600 font-bold text-sm leading-tight">
-                                        {{ (getMmkPrice(item.product) * item.qty * (1 - appliedDiscountPercentage / 100)).toLocaleString() }} Ks
+                                        {{ (lineNet(item)).toLocaleString() }} Ks
                                     </div>
                                     <div class="text-[10px] text-green-600 bg-green-50 border border-green-100 px-1.5 py-0.5 rounded mt-0.5">
-                                        -{{ appliedDiscountPercentage }}%
+                                        -{{ linePercentage(item) }}%
                                     </div>
                                 </template>
                                 <template v-else>
-                                    <div class="text-gold-600 font-bold text-sm">{{ (getMmkPrice(item.product) * item.qty).toLocaleString() }} Ks</div>
+                                    <div class="text-gold-600 font-bold text-sm">{{ (linePrice(item) * item.qty).toLocaleString() }} Ks</div>
                                 </template>
                                 <button @click="removeFromCart(index)" class="text-red-600 hover:text-red-700 text-sm hover:underline min-h-11 min-w-11 block">Remove</button>
                             </div>
@@ -673,31 +644,9 @@ onBeforeUnmount(() => {
                             <span>Subtotal</span>
                             <span>{{ subTotal.toLocaleString() }} Ks</span>
                         </div>
-                        <div class="py-2">
-                            <div class="flex items-center justify-between gap-3">
-                                <label for="order_discount_percentage" class="text-sm text-gray-600">
-                                    Discount percentage
-                                </label>
-                                <div class="relative w-24">
-                                    <input
-                                        id="order_discount_percentage"
-                                        v-model.number="checkoutForm.discount_percentage"
-                                        @input="discountManuallyAdjusted = true"
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        step="0.01"
-                                        class="w-full rounded-md border-gray-300 py-1.5 pr-7 text-right text-sm focus:border-gold-500 focus:ring-gold-500"
-                                    />
-                                    <span class="pointer-events-none absolute right-2 top-1.5 text-sm text-gray-400">%</span>
-                                </div>
-                            </div>
-                            <p class="mt-1 text-right text-[10px] text-gray-400">
-                                Default from {{ defaultDiscountSource }}; editable by salesperson
-                            </p>
-                        </div>
+                        <p v-if="invalidLinePricing" role="alert" class="text-sm text-red-600">Enter a discount from 0 to 100 with at most two decimal places for each watch.</p>
                         <div v-if="discount > 0" class="flex justify-between text-sm text-green-600">
-                            <span>Discount ({{ appliedDiscountPercentage }}%)</span>
+                            <span>Total watch discounts</span>
                             <span>-{{ discount.toLocaleString() }} Ks</span>
                         </div>
                         <div v-if="roundingAdjustment" class="flex justify-between text-sm text-gray-500">
@@ -980,7 +929,7 @@ onBeforeUnmount(() => {
                                 <span v-if="item.system_unique_id || item.serial_number" class="ml-1 text-gold-600 font-mono text-xs">{{ item.system_unique_id ? `Code: ${item.system_unique_id}` : `Serial: ${item.serial_number}` }}</span>
                                 <span v-else class="ml-1 text-blue-500 text-xs">×{{ item.qty }}</span>
                             </div>
-                            <span class="text-gray-700">{{ (getMmkPrice(item.product) * item.qty).toLocaleString() }} Ks</span>
+                            <span class="text-right text-gray-700"><span class="block">{{ lineNet(item).toLocaleString() }} Ks</span><span class="text-xs text-gray-500">{{ posLinePriceSource(item) === 'web' ? 'Web' : 'Shop' }}: {{ linePrice(item).toLocaleString() }} Ks · {{ linePercentage(item) }}% off</span></span>
                         </div>
                     </div>
 

@@ -11,6 +11,8 @@ class OrderItem extends Model
 
     protected $guarded = [];
 
+    protected $casts = ['shop_price' => 'decimal:2', 'web_price' => 'decimal:2', 'discount_percentage' => 'decimal:2'];
+
     public function order()
     {
         return $this->belongsTo(Order::class);

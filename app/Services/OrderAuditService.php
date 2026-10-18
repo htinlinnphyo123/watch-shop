@@ -15,6 +15,7 @@ class OrderAuditService
         foreach ($order->items as $line) {
             $base = [
                 'product_id' => $line->product_id, 'name' => $line->product?->name ?? 'Deleted watch',
+                ...($line->price_source !== null ? ['price_source' => $line->price_source, 'discount_percentage' => $line->discount_percentage] : []),
                 'model' => $line->product?->model_number, 'unit_price' => number_format((float) $line->price, 2, '.', ''),
             ];
             foreach ($line->soldItems as $unit) {
@@ -23,6 +24,7 @@ class OrderAuditService
             $remaining = $line->quantity - $line->soldItems->count();
             if ($remaining > 0) {
                 $key = 'product:'.$line->product_id.':'.$base['unit_price'];
+                if ($line->price_source !== null) $key .= ':'.$line->price_source.':'.$line->discount_percentage;
                 $watches[$key] = [...$base, 'unit_id' => null, 'system_code' => null, 'serial' => null,
                     'quantity' => ($watches[$key]['quantity'] ?? 0) + $remaining];
             }
@@ -126,7 +128,9 @@ class OrderAuditService
         }
         if (isset($value['quantity'])) {
             return $value['name'].' · Model: '.($value['model'] ?: '—').' · Code: '.($value['system_code'] ?: '—')
-                .' · Serial: '.($value['serial'] ?: '—').' · Qty: '.$value['quantity'].' · '.$value['unit_price'].' Ks each';
+                .' · Serial: '.($value['serial'] ?: '—').' · Qty: '.$value['quantity'].' · '.$value['unit_price'].' Ks each'
+                .(isset($value['discount_percentage']) ? ' · Discount: '.$value['discount_percentage'].'%' : '')
+                .(isset($value['price_source']) ? ' · Price: '.$value['price_source'] : '');
         }
         if (isset($value['size'])) {
             return $value['name'].' · '.$value['size'].' bytes · '.$value['mime_type'];
