@@ -14,7 +14,6 @@ const itemNet = item => lineTotal(item) - itemDiscount(item);
 const discount = computed(() => hasLineDiscounts.value
     ? (props.order.items || []).reduce((sum, item) => sum + itemDiscount(item), 0)
     : orderDiscountAmount(subtotal.value, props.order.discount_percentage || 0));
-const rounding = computed(() => Math.round(Number(props.order.total_amount) - (subtotal.value - discount.value)));
 const paid = computed(() => Number(props.order.amount_paid) || 0);
 const moneyTransferAmount = computed(() => Number(props.order.money_transfer_amount) || 0);
 const grandTotal = computed(() => (Number(props.order.total_amount) || 0) + (Number(props.order.delivery_fees) || 0));
@@ -86,7 +85,6 @@ const serials = item => (item.sold_items || []).filter(unit => unit.serial_numbe
             <dl class="invoice-totals">
                 <div><dt>Subtotal:</dt><dd>{{ money(subtotal) }}</dd></div>
                 <div v-if="discount > 0"><dt>Discount<span v-if="!hasLineDiscounts && Number(order.discount_percentage)"> ({{ Number(order.discount_percentage) }}%)</span>:</dt><dd>−{{ money(discount) }}</dd></div>
-                <div v-if="rounding"><dt>Rounding:</dt><dd>{{ rounding > 0 ? '+' : '−' }}{{ money(Math.abs(rounding)) }}</dd></div>
                 <div><dt>Total After Discount:</dt><dd>{{ money(order.total_amount) }}</dd></div>
                 <div v-if="moneyTransferAmount > 0"><dt>Deposit:</dt><dd>−{{ money(moneyTransferAmount) }}</dd></div>
                 <div><dt>Delivery Fee:</dt><dd>{{ money(order.delivery_fees) }}</dd></div>
