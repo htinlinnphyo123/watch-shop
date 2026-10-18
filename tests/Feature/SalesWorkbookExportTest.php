@@ -64,7 +64,7 @@ class SalesWorkbookExportTest extends TestCase
         $order->update(['marketing_channel' => 'Walk-in']);
         $this->assertSame('Walk-in', $this->readExport('orders.export')[0]['Marketing Channel']);
         $this->assertSame('Cash, KBZ Pay', $row['Paid by']);
-        $this->assertSame('Cash, KBZ Pay', $row['Payment Type']);
+        $this->assertSame('Cash (50), KBZ Pay (100)', $row['Payment Type']);
         $this->assertSame('SAMPLE', $row['Order Number']);
         $this->assertSame('Completed', $row['Order Status']);
         $this->assertEquals(50, $row['Money Transfer Amount']);
@@ -267,6 +267,22 @@ class SalesWorkbookExportTest extends TestCase
             $this->assertSame($type, $row['Payment Type']);
             $this->assertNull($row['Pre-Order Payment']);
         }
+    }
+
+    public function test_split_payment_amounts_match_receipts_after_cash_change(): void
+    {
+        $order = new Order([
+            'total_amount' => 30000.5, 'payment_method' => 'split',
+            'payments' => [
+                ['method' => 'aya_pay', 'amount' => 6000],
+                ['method' => 'aya_pay', 'amount' => 4000.5],
+                ['method' => 'cash', 'amount' => 25000],
+            ],
+        ]);
+        $order->setRelation('items', collect())->setRelation('customer', null)->setRelation('salespeople', collect());
+        $row = app(SalesWorkbookExport::class)->saleRow($order);
+        $this->assertSame('AYA Pay (10000.5), Cash (20000)', $row['Payment Type']);
+        $this->assertEquals(30000.5, $row['Received Money']);
     }
 
     public function test_watch_rows_keep_individual_products_and_saved_line_discounts(): void

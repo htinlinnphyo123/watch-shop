@@ -25,13 +25,20 @@ class SalesWorkbookExport
         $paidBy = $paymentMethods->map(fn ($method) => $methods[$method] ?? ucfirst($method))->implode(', ');
         $retained = (new OrderSummaryService())->retainedPayments($order);
         $received = $retained === null ? null : array_sum($retained) / 100;
+        $paymentType = $paidBy ?: null;
+        if ($retained !== null && ($paymentMethods->count() > 1 || $order->payment_method === 'split')) {
+            $paymentType = collect($retained)->map(function ($cents, $method) use ($methods) {
+                $amount = rtrim(rtrim(number_format($cents / 100, 2, '.', ''), '0'), '.');
+                return ($methods[$method] ?? ucfirst($method)).' ('.$amount.')';
+            })->implode(', ');
+        }
         return array_combine(self::SALES_HEADERS, [
             $order->id, $customer?->source_details, $customer?->name ?? 'Walk-in Customer', $this->label($customer?->gender), $customer?->address, $customer?->phone,
             $order->salespeople->pluck('name')->implode(', '), $order->items->map(fn ($line) => $line->product?->brand?->name)->filter()->unique()->implode(', '),
             $order->items->map(fn ($line) => ($line->product?->model_number ?: $line->product?->name ?: 'Deleted product').($line->quantity > 1 ? ' (x'.$line->quantity.')' : ''))->implode(', '),
             $order->items->map(fn ($line) => $line->product?->gender)->filter()->unique()->implode(', '),
             $order->order_date ?? $order->created_at, $this->label($order->order_type), $this->label($order->buying_type), $paidBy,
-            $paidBy ?: null, null, // No separate pre-order payment breakdown is stored.
+            $paymentType, null, // No separate pre-order payment breakdown is stored.
             round($subtotal, 2), $this->money($order->discount_percentage) === null ? null : (float) $order->discount_percentage / 100,
             $received === null ? null : max(0, round((float) $order->total_amount + (float) $order->delivery_fees - (float) $order->money_transfer_amount - $received, 2)),
             (float) $order->total_amount, $order->delivery_type, $order->delivery_code, $order->delivery_status,
