@@ -21,8 +21,8 @@ const page = usePage();
 const labels = computed(() => props.items.map(item => stockLabelDetails(item, props.product, page.props.settings)));
 const labelRows = computed(() => {
     const rows = [];
-    for (let index = 0; index < labels.value.length; index += 2) {
-        rows.push(labels.value.slice(index, index + 2));
+    for (let index = 0; index < labels.value.length; index += 3) {
+        rows.push(labels.value.slice(index, index + 3));
     }
     return rows;
 });
@@ -93,12 +93,12 @@ const printLabel = async () => {
             <p v-if="error" role="alert" class="mt-4 text-sm text-red-600">{{ error }}</p>
             <p v-if="preparing" role="status" class="mt-4 text-sm text-gray-600">Preparing barcodes…</p>
             <div v-show="!error" class="my-6 max-h-96 overflow-auto rounded-lg border border-gray-200 bg-white p-4">
-                <div ref="label" style="width: 120mm;">
+                <div ref="label" style="width: 180mm;">
                     <div v-for="(row, rowIndex) in labelRows" :key="row[0].id"
-                        style="display: grid; grid-template-columns: repeat(2, 60mm); break-inside: avoid; page-break-inside: avoid;">
+                        style="display: grid; grid-template-columns: repeat(3, 60mm); break-inside: avoid; page-break-inside: avoid;">
                         <div v-for="(item, columnIndex) in row" :key="item.id" class="watch-label"
                             style="width: 60mm; height: 25mm; padding: 1mm; box-sizing: border-box; overflow: hidden; text-align: center; color: black; background: white;"
-                            :style="{ borderRight: columnIndex === 0 ? '1px dotted #666' : 'none', borderBottom: rowIndex < labelRows.length - 1 ? '1px dotted #666' : 'none' }">
+                            :style="{ borderRight: columnIndex < 2 ? '1px dotted #666' : 'none', borderBottom: rowIndex < labelRows.length - 1 ? '1px dotted #666' : 'none' }">
                             <p :title="item.name" style="margin: 0; height: 3mm; line-height: 3mm; font-size: 7pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ item.name }}</p>
                             <p :title="item.model_number" style="margin: 0; height: 3mm; line-height: 3mm; font-size: 7pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ item.model_number }}</p>
                             <svg :data-system-code="String(item.system_unique_id)" preserveAspectRatio="none" style="display: block; width: 56mm; height: 12mm; margin: 0 auto;" :aria-label="`System code ${item.system_unique_id}`" role="img"></svg>
@@ -107,7 +107,7 @@ const printLabel = async () => {
                     </div>
                 </div>
             </div>
-            <p class="mb-4 text-xs text-gray-500">Print on A4 or Letter paper at 100% / Actual size with browser headers and footers off. Each label is 6 cm wide × 2.5 cm high, arranged in two columns. Cut along the dotted lines.</p>
+            <p class="mb-4 text-xs text-gray-500">Print on A4 or Letter paper at 100% / Actual size with browser headers and footers off. Each label is 6 cm wide × 2.5 cm high, arranged in three columns. Cut along the dotted lines.</p>
             <p class="mb-4 text-xs text-gray-500">Prices are current POS unit prices in MMK before checkout discounts.</p>
             <div class="flex justify-end gap-3">
                 <SecondaryButton @click="emit('close')">Close</SecondaryButton>
