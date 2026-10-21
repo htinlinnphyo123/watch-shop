@@ -1,7 +1,7 @@
 <script setup>
 import AdminLayout from "@/Layouts/AdminLayout.vue";
 import { Head, useForm, router, Link, usePage } from "@inertiajs/vue3";
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { onBeforeUnmount, onMounted, ref, watch, nextTick } from "vue";
 import debounce from "lodash/debounce";
 import Modal from "@/Components/Modal.vue";
 import InputLabel from "@/Components/InputLabel.vue";
@@ -9,6 +9,7 @@ import TextInput from "@/Components/TextInput.vue";
 import InputError from "@/Components/InputError.vue";
 import PrimaryButton from "@/Components/PrimaryButton.vue";
 import SecondaryButton from "@/Components/SecondaryButton.vue";
+import StockLabelPicker from "@/Components/StockLabelPicker.vue";
 import SystemCodeLabel from "@/Components/SystemCodeLabel.vue";
 import axios from "axios";
 
@@ -56,6 +57,13 @@ const props = defineProps({
 const page = usePage();
 const displayCurrency = ref("MMK"); // Default view
 const labelsOpen = ref(false);
+const labelPickerOpen = ref(false);
+const printSelectedLabels = async items => {
+  labelPickerOpen.value = false;
+  labelItems.value = items;
+  await nextTick();
+  labelsOpen.value = true;
+};
 const labelItems = ref([]);
 const preparingLabels = ref(false);
 const labelMessage = ref('');
@@ -547,6 +555,7 @@ const deleteProduct = (product) => {
         <SecondaryButton v-if="['admin', 'manager'].includes(userRole)" :disabled="preparingLabels || labelsOpen" @click="printAllLabels" title="Print all available watch stock, across every page and regardless of filters">
           {{ preparingLabels ? 'Preparing labels…' : 'Print all the labels' }}
         </SecondaryButton>
+        <SecondaryButton v-if="['admin', 'manager'].includes(userRole)" :disabled="preparingLabels || labelsOpen" @click="labelPickerOpen = true">Select barcodes to print</SecondaryButton>
         <!-- Currency Toggle -->
         <div class="bg-gray-200 p-1 rounded-lg flex items-center shadow-inner">
           <button
@@ -598,6 +607,7 @@ const deleteProduct = (product) => {
     </div>
 
     <p v-if="labelMessage" role="status" class="mb-4 text-sm text-gray-700">{{ labelMessage }}</p>
+    <StockLabelPicker v-if="['admin', 'manager'].includes(userRole)" :show="labelPickerOpen" @close="labelPickerOpen = false" @prepared="printSelectedLabels" />
     <SystemCodeLabel :show="labelsOpen" :items="labelItems" auto-print @close="labelsOpen = false" />
 
     <Modal v-if="userRole === 'admin'" :show="importHelpOpen" max-width="2xl" @close="closeImportHelp">

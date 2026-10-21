@@ -27,7 +27,7 @@ class StaffOperationalAccess
             'watch-services.*', 'pre-orders.*',
         );
         $managerRoute = $role === 'manager' && $request->routeIs(
-            'attendance.*', 'articles.*', 'products.index', 'products.show', 'products.labels',
+            'attendance.*', 'articles.*', 'products.index', 'products.show', 'products.labels', 'products.label-items',
         );
         abort_unless($operationalRoute || $managerRoute, 403);
 

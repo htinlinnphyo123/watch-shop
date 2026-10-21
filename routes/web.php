@@ -34,6 +34,7 @@ Route::middleware(['auth', 'staff.access'])->group(function () {
     Route::post('collections/reorder', [\App\Http\Controllers\CollectionController::class, 'reorder'])->name('collections.reorder');
     Route::resource('collections', \App\Http\Controllers\CollectionController::class);
     Route::get('products/export', [\App\Http\Controllers\ProductController::class, 'export'])->middleware('role:admin')->name('products.export');
+    Route::get('products/label-items', [\App\Http\Controllers\StockLabelController::class, 'index'])->middleware('role:admin,manager')->name('products.label-items');
     Route::post('products/labels', \App\Http\Controllers\StockLabelController::class)->middleware('role:admin,manager')->name('products.labels');
     Route::post('products/presigned-url', [\App\Http\Controllers\ProductController::class, 'presignedUrl'])->name('products.presigned-url');
     Route::post('products/import', [\App\Http\Controllers\ProductController::class, 'import'])->middleware('role:admin')->name('products.import');

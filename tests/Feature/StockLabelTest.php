@@ -93,12 +93,69 @@ class StockLabelTest extends TestCase
         $this->getJson(route('pos.products.scan', ['code' => $code]))->assertOk()->assertJsonPath('item.id', $missing->id);
     }
 
+    public function test_selected_labels_combine_models_and_generate_codes_only_for_selected_units(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'manager']));
+        $first = $this->watch(['name' => 'First model']);
+        $second = $this->watch(['name' => 'Second model']);
+        $one = $first->items()->create(['status' => 'available', 'system_unique_id' => '000000000123']);
+        $unselected = $first->items()->create(['status' => 'available']);
+        $two = $second->items()->create(['status' => 'available']);
+        $response = $this->postJson(route('products.labels'), ['item_ids' => [$one->id, $two->id]])
+            ->assertOk()->assertJsonCount(2, 'items')
+            ->assertJsonPath('items.0.product.name', 'First model')
+            ->assertJsonPath('items.1.product.name', 'Second model')
+            ->assertJsonPath('items.0.system_unique_id', '000000000123');
+        $this->assertSame([$one->id, $two->id], array_column($response->json('items'), 'id'));
+        $this->assertNotEmpty($two->fresh()->system_unique_id);
+        $this->assertNull($unselected->fresh()->system_unique_id);
+        $this->assertSame(3, ProductItem::where('status', 'available')->count());
+    }
+
+    public function test_selection_rejects_empty_duplicate_missing_and_unavailable_units_without_partial_generation(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        $watch = $this->watch();
+        $available = $watch->items()->create(['status' => 'available']);
+        $sold = $watch->items()->create(['status' => 'sold']);
+        $reserved = $watch->items()->create(['status' => 'reserved']);
+        $deleted = $watch->items()->create(['status' => 'available']);
+        $deleted->delete();
+        $accessory = $this->watch(['kind' => 'accessory'])->items()->create(['status' => 'available']);
+        foreach ([[], [$available->id, $available->id], [$available->id, 999999], [$available->id, $sold->id], [$available->id, $reserved->id], [$available->id, $deleted->id], [$available->id, $accessory->id]] as $ids) {
+            $this->postJson(route('products.labels'), ['item_ids' => $ids])->assertUnprocessable();
+            $this->assertNull($available->fresh()->system_unique_id);
+        }
+    }
+
+    public function test_picker_searches_models_codes_and_serials_without_generating_codes_and_paginates(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'manager']));
+        $watch = $this->watch(['name' => 'Casio', 'model_number' => 'A158WA']);
+        $unit = $watch->items()->create(['status' => 'available', 'system_unique_id' => '000000000123', 'serial_number' => 'SERIAL-ABC']);
+        $missing = $watch->items()->create(['status' => 'available']);
+        $watch->items()->create(['status' => 'sold', 'system_unique_id' => '000000000999']);
+        $this->watch(['kind' => 'accessory', 'name' => 'Casio'])->items()->create(['status' => 'available']);
+        foreach (['casio', 'a158wa'] as $search) {
+            $this->getJson(route('products.label-items', ['search' => $search]))->assertOk()->assertJsonCount(2, 'data');
+        }
+        foreach (['000000000123', 'serial-abc'] as $search) {
+            $this->getJson(route('products.label-items', ['search' => $search]))->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $unit->id);
+        }
+        $this->assertNull($missing->fresh()->system_unique_id);
+        for ($i = 0; $i < 30; $i++) $watch->items()->create(['status' => 'available']);
+        $this->getJson(route('products.label-items'))->assertOk()->assertJsonCount(30, 'data')->assertJsonPath('total', 32);
+        $this->getJson(route('products.label-items', ['page' => 2]))->assertOk()->assertJsonCount(2, 'data');
+    }
+
     public function test_label_generation_requires_inventory_access(): void
     {
         $this->postJson(route('products.labels'))->assertUnauthorized();
+        $this->getJson(route('products.label-items'))->assertUnauthorized();
         foreach (['staff', 'user'] as $role) {
             $this->actingAs(User::factory()->create(['role' => $role]));
             $this->postJson(route('products.labels'))->assertForbidden();
+            $this->getJson(route('products.label-items'))->assertForbidden();
         }
     }
 }
