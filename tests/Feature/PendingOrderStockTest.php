@@ -52,6 +52,42 @@ class PendingOrderStockTest extends TestCase
         return Order::latest('id')->firstOrFail();
     }
 
+    public function test_reserved_type_forces_stock_hold_and_supports_normal_order_lifecycle(): void
+    {
+        $this->post(route('pos.checkout'), $this->payload(['order_type' => 'reserved', 'status' => 'completed']))
+            ->assertSessionHasNoErrors();
+        $order = Order::sole();
+        $this->assertSame('reserved', $order->order_type);
+        $this->assertSame('pending', $order->status);
+        $this->assertNotNull($order->stock_reserved_at);
+        $this->assertSame('reserved', $this->selected->fresh()->status);
+        $this->assertDatabaseCount('pre_orders', 0);
+        $this->put(route('pos.orders.update', $order), $this->payload([
+            'order_type' => 'reserved', 'edit_version' => $order->edit_version,
+            'payments' => [['method' => 'cash', 'amount' => 2000]],
+        ]))->assertSessionHasNoErrors();
+        $this->assertEquals(2000, $order->fresh()->amount_paid);
+        $this->post(route('orders.approve', $order))->assertSessionHasNoErrors();
+        $this->assertSame('completed', $order->fresh()->status);
+        $this->assertSame('reserved', $order->fresh()->order_type);
+        $this->assertSame('sold', $this->selected->fresh()->status);
+    }
+
+    public function test_completed_sale_cannot_be_changed_to_reserved_type(): void
+    {
+        $this->post(route('pos.checkout'), $this->payload([
+            'status' => 'completed', 'order_type' => 'instock',
+            'payments' => [['method' => 'cash', 'amount' => 10000]],
+        ]))->assertSessionHasNoErrors();
+        $order = Order::sole();
+        $this->put(route('pos.orders.update', $order), $this->payload([
+            'status' => 'completed', 'order_type' => 'reserved', 'edit_version' => $order->edit_version,
+        ]))->assertSessionHasErrors('order_type');
+        $this->assertSame('completed', $order->fresh()->status);
+        $this->assertSame('instock', $order->fresh()->order_type);
+        $this->assertSame('sold', $this->selected->fresh()->status);
+    }
+
     public function test_pending_checkout_reserves_exact_code_and_blocks_sales_manual_release_and_deletion(): void
     {
         $order = $this->reserve();

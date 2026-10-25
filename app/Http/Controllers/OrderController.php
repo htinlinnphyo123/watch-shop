@@ -67,7 +67,7 @@ class OrderController extends Controller
     public function show(Order $order)
     {
         return Inertia::render('Orders/Show', [
-            'order' => $order->load(['customer', 'user', 'salespeople:id,name', 'items.product', 'items.soldItems', 'fileUploads']),
+            'order' => $order->load(['sourcePreOrder:id,converted_order_id,customer_id', 'customer', 'user', 'salespeople:id,name', 'items.product', 'items.soldItems', 'fileUploads']),
         ]);
     }
 

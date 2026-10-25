@@ -86,7 +86,7 @@ const formatDate = (dateString) => {
                             {{ formatDate(order.created_at) }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span v-if="order.status === 'pending'" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Pending</span>
+                            <span v-if="order.status === 'pending'" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">{{ order.order_type === 'reserved' ? 'Reserved' : 'Pending' }}</span>
                             <span v-else-if="order.status === 'completed'" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Completed</span>
                             <span v-else-if="order.status === 'cancelled'" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Cancelled</span>
                             <span v-else class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">{{ order.status }}</span>

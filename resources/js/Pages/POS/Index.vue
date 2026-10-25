@@ -20,6 +20,7 @@ import { posPriceMmk, posOrderTotal, posLinePriceSource, posLinePrices, posLineP
 import { createCheckoutRequestId } from '@/utils/checkoutRequest';
 
 const props = defineProps({
+    sourcePreOrder: { type: Object, default: null },
     salespeople: { type: Array, default: () => [] },
     editingOrder: { type: Object, default: null },
     products: { type: Array, default: () => [] },
@@ -107,15 +108,30 @@ const formatPrice = (amount) => new Intl.NumberFormat('en-US', {
 const checkoutForm = useForm({
     salesperson_ids: props.editingOrder ? [...props.editingOrder.salesperson_ids] : [page.props.auth.user.id],
     checkout_request_id: createCheckoutRequestId(),
-    ...recordValues(props.editingOrder, salesDefaults),
-    status: props.editingOrder?.status || 'completed',
-    delivery_code: props.editingOrder?.delivery_code || '',
-    remark: props.editingOrder?.remark || '',
-    money_transfer_amount: props.editingOrder?.money_transfer_amount ?? '',
-    customer_id: props.editingOrder?.customer_id || '',
+    pre_order_id: props.sourcePreOrder?.id || null,
+    pre_order_version: props.sourcePreOrder?.updated_at || null,
+    ...recordValues(props.editingOrder || props.sourcePreOrder, salesDefaults),
+    order_type: props.editingOrder?.order_type || (props.sourcePreOrder ? 'reserved' : ''),
+    status: props.editingOrder?.status || (props.sourcePreOrder ? 'pending' : 'completed'),
+    delivery_code: props.editingOrder?.delivery_code || props.sourcePreOrder?.delivery_code || '',
+    remark: props.editingOrder?.remark || props.sourcePreOrder?.remark || '',
+    money_transfer_amount: props.editingOrder?.money_transfer_amount ?? props.sourcePreOrder?.amount_paid ?? '',
+    customer_id: props.editingOrder?.customer_id || props.sourcePreOrder?.customer_id || '',
     payments: props.editingOrder?.payments.map(payment => ({ ...payment })) || [{ method: 'cash', amount: 0 }],
     edit_version: props.editingOrder?.edit_version ?? null,
     cart: [],
+});
+
+watch(() => checkoutForm.order_type, (type, previous) => {
+    if (props.editingOrder) return;
+    if (type === 'reserved') {
+        checkoutForm.status = 'pending';
+        if (checkoutForm.payments.length === 1 && Number(checkoutForm.payments[0].amount) === total.value) {
+            checkoutForm.payments[0].amount = 0;
+        }
+    } else if (previous === 'reserved') {
+        checkoutForm.status = 'completed';
+    }
 });
 
 // ─── Paginated server-side product search ────────────────────────────────────
@@ -388,7 +404,7 @@ const removeFromCart = (index) => { cart.value.splice(index, 1); };
 
 const openCheckout = () => {
     if (cart.value.length === 0 || pendingScans.value > 0 || invalidLinePricing.value) return;
-    if (!props.editingOrder) checkoutForm.payments = [{ method: 'cash', amount: total.value }];
+    if (!props.editingOrder) checkoutForm.payments = [{ method: 'cash', amount: checkoutForm.order_type === 'reserved' ? 0 : paymentDue.value }];
     checkoutForm.clearErrors();
     checkoutForm.cart = cart.value.map(c => ({
         original_line_id: c.original_line_id || null,
@@ -443,12 +459,21 @@ onBeforeUnmount(() => {
         <header class="pos-header -mx-6 -mt-6 mb-6 flex min-h-16 items-center justify-between gap-4 border-b border-gray-200 bg-white px-6">
             <h1 class="text-lg font-bold text-gray-900">POS System</h1>
             <div class="pos-header-links flex items-center gap-4">
-                <Link :href="route('pre-orders.index')" class="text-sm font-semibold text-gray-600 hover:text-gray-900">Pre Orders</Link>
                 <Link :href="route(['staff', 'manager'].includes($page.props.auth.user.role) ? 'orders.index' : 'dashboard')" class="text-sm font-semibold text-gray-600 hover:text-gray-900">
                     {{ $page.props.auth.user.role === 'staff' ? 'My Orders' : ($page.props.auth.user.role === 'manager' ? 'All Orders' : 'Back to Dashboard') }}
                 </Link>
             </div>
         </header>
+        <div v-if="sourcePreOrder || editingOrder?.source_pre_order_id" class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+            <p class="font-semibold">{{ sourcePreOrder ? 'Converting' : 'Converted from' }} Pre Order PO-{{ sourcePreOrder?.id || editingOrder.source_pre_order_id }}</p>
+            <template v-if="sourcePreOrder">
+                <p class="mt-2">Customer: {{ sourcePreOrder.customer?.name }} · Requested watch: {{ sourcePreOrder.product?.name || sourcePreOrder.watch_details || sourcePreOrder.brand?.name }}</p>
+                <p>Select one arrived watch by system code. Review its current POS price and discount before saving.</p>
+                <p v-if="sourcePreOrder.price != null">Previous quote: {{ Number(sourcePreOrder.price).toLocaleString() }} Ks; discount: {{ Number(sourcePreOrder.discount_amount || 0).toLocaleString() }} Ks.</p>
+            </template>
+            <p class="mt-2">Deposit already received: {{ Number(checkoutForm.money_transfer_amount || 0).toLocaleString() }} Ks. This is credited once. Enter only additional money received in Payments.</p>
+            <p v-if="checkoutForm.errors.pre_order_id" role="alert" class="mt-2 text-red-700">{{ checkoutForm.errors.pre_order_id }}</p>
+        </div>
         <div v-if="editingOrder" class="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gold-200 bg-gold-50 p-4">
             <div>
                 <h1 class="font-bold text-gray-900">Editing Order {{ editingOrder.order_number }}</h1>
@@ -566,7 +591,8 @@ onBeforeUnmount(() => {
                         <span class="text-gray-400 text-sm">{{ cart.length }} line(s)</span>
                     </div>
                     <label for="pos-customer" class="block text-sm font-medium text-gray-700">Customer</label>
-                    <SearchableSelect
+                    <p v-if="sourcePreOrder || editingOrder?.source_pre_order_id" class="text-sm font-semibold">{{ selectedCustomer?.name || sourcePreOrder?.customer?.name }}</p>
+                    <SearchableSelect v-else
                         id="pos-customer"
                         v-model="checkoutForm.customer_id"
                         :options="customerPickerOptions"
@@ -574,7 +600,7 @@ onBeforeUnmount(() => {
                         search-placeholder="Search by name, phone or email"
                         option-noun="customers"
                     />
-                    <PosGuestCustomer :sources="customerSources" :regions="customerRegions" @selected="selectCustomer" />
+                    <PosGuestCustomer v-if="!sourcePreOrder && !editingOrder?.source_pre_order_id" :sources="customerSources" :regions="customerRegions" @selected="selectCustomer" />
                     <div v-if="selectedCustomer?.is_guest" class="rounded-lg bg-amber-50 p-3 text-sm">
                         <p>This is a guest customer. All their orders stay linked to this profile.</p>
                         <button type="button" :disabled="promotingCustomer" @click="promoteCustomer" class="mt-2 font-semibold underline">{{ promotingCustomer ? 'Saving…' : 'Make regular customer' }}</button>
@@ -881,7 +907,7 @@ onBeforeUnmount(() => {
                     <SalesRecordFields :form="checkoutForm" />
                     <div>
                         <InputLabel value="Order status" />
-                        <select v-model="checkoutForm.status" :disabled="!!editingOrder" class="mt-1 block w-full rounded-md border-gray-300">
+                        <select v-model="checkoutForm.status" :disabled="!!editingOrder || checkoutForm.order_type === 'reserved'" class="mt-1 block w-full rounded-md border-gray-300">
                             <option value="completed">Completed sale</option>
                             <option value="pending">Pending / Reserve stock / COD</option>
                         </select>
@@ -895,7 +921,7 @@ onBeforeUnmount(() => {
                     </div>
                     <div>
                         <InputLabel value="Money transfer amount (Ks, optional)" />
-                        <TextInput v-model="checkoutForm.money_transfer_amount" type="number" min="0" max="999999999999" step="0.01" class="mt-1 block w-full" />
+                        <TextInput :disabled="!!sourcePreOrder || !!editingOrder?.source_pre_order_id" v-model="checkoutForm.money_transfer_amount" type="number" min="0" max="999999999999" step="0.01" class="mt-1 block w-full" />
                         <p class="mt-1 text-xs text-gray-500">This deposit reduces the payment due. Enter only additional receipts in the payment entries below.</p>
                         <InputError :message="checkoutForm.errors.money_transfer_amount" />
                     </div>
@@ -906,6 +932,8 @@ onBeforeUnmount(() => {
                     </div>
                     <p v-for="(message, key) in Object.fromEntries(Object.entries(checkoutForm.errors).filter(([key]) => key.startsWith('cart') || key === 'edit_version' || key === 'customer_id'))" :key="key" role="alert" class="text-sm text-red-600">{{ message }}</p>
                     <InputError :message="checkoutForm.errors.checkout_request_id" />
+                    <InputError :message="checkoutForm.errors.pre_order_id" />
+                    <InputError :message="checkoutForm.errors.pre_order_version" />
                     <div
                         v-if="checkoutForm.errors.error"
                         class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
@@ -985,7 +1013,7 @@ onBeforeUnmount(() => {
                             class="bg-gold-500 hover:bg-gold-600 border-none text-dark-900 font-bold"
                             :class="{ 'opacity-25': checkoutForm.processing || nonCashOverpaid || invalidPayment }"
                             :disabled="checkoutForm.processing || nonCashOverpaid || invalidPayment"
-                        >{{ checkoutForm.processing ? 'Saving…' : editingOrder ? 'Save Order Changes' : checkoutForm.status === 'pending' ? 'Save Pending Order' : 'Complete Sale' }}</PrimaryButton>
+                        >{{ checkoutForm.processing ? 'Saving…' : editingOrder ? 'Save Order Changes' : checkoutForm.status === 'pending' ? (checkoutForm.order_type === 'reserved' ? 'Save Reserved Order' : 'Save Pending Order') : 'Complete Sale' }}</PrimaryButton>
                     </div>
                 </form>
             </div>

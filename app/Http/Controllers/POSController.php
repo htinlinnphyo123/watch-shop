@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Models\Order;
+use App\Models\PreOrder;
 use App\Models\Product;
 use App\Models\ProductItem;
 use App\Services\LowStockNotificationService;
@@ -21,12 +22,19 @@ class POSController extends Controller
     public function index(Request $request)
     {
         $editingOrder = $this->editingOrder($request);
+        $request->validate(['pre_order_id' => 'nullable|integer|exists:pre_orders,id']);
+        $source = $request->filled('pre_order_id') ? PreOrder::with(['customer', 'product', 'brand'])->findOrFail($request->pre_order_id) : null;
+        if ($source) {
+            abort_if($editingOrder, 422, 'Open a new POS order to convert a pre-order.');
+            $this->assertConvertible($source);
+        }
         $products = $this->productQuery(null, $editingOrder)->paginate(24);
 
         return Inertia::render('POS/Index', [
             'deliveryStatusOptions' => \App\Enums\DeliveryStatus::options(),
             'deliveryTypeOptions' => \App\Enums\DeliveryType::options(),
             'marketingChannelOptions' => \App\Enums\MarketingChannel::options(),
+            'sourcePreOrder' => $source,
             'editingOrder' => $editingOrder ? $this->editPayload($editingOrder) : null,
             'products' => $products->items(),
             'productsPagination' => [
@@ -140,6 +148,8 @@ class POSController extends Controller
             'salesperson_ids' => 'sometimes|required|array|list|min:1',
             'salesperson_ids.*' => ['required', 'integer', 'distinct', \Illuminate\Validation\Rule::exists('users', 'id')->whereIn('role', ['admin', 'manager', 'staff'])],
             'checkout_request_id' => 'nullable|uuid',
+            'pre_order_id' => 'nullable|integer|exists:pre_orders,id',
+            'pre_order_version' => 'nullable|string',
             'edit_version' => $editingOrder ? 'required|integer|min:0' : 'nullable|integer',
             'customer_id' => 'nullable|exists:customers,id',
             'status' => 'sometimes|required|in:pending,completed',
@@ -180,6 +190,33 @@ class POSController extends Controller
                     return redirect()->route('orders.show', $previous);
                 }
             }
+            $source = null;
+            if (! $editingOrder && $request->filled('pre_order_id')) {
+                $source = PreOrder::whereKey($request->pre_order_id)->lockForUpdate()->firstOrFail();
+                $this->assertConvertible($source);
+                if ($request->pre_order_version !== $source->updated_at->toISOString()) {
+                    throw ValidationException::withMessages(['pre_order_id' => 'The pre-order changed. Reopen Convert to POS Order to load the latest deposit and details.']);
+                }
+                if (count($request->cart) !== 1 || (int) ($request->cart[0]['quantity'] ?? 1) !== 1 || empty($request->cart[0]['item_id'])) {
+                    throw ValidationException::withMessages(['cart' => 'Select one arrived watch by its system code for this pre-order.']);
+                }
+                $product = Product::find($request->cart[0]['product_id']);
+                if (! $product || $product->kind !== 'watch' || (int) $product->brand_id !== (int) $source->brand_id
+                    || ($source->product_id && (int) $product->id !== (int) $source->product_id)) {
+                    throw ValidationException::withMessages(['cart' => 'Select the watch model requested in this pre-order (or its brand when no model was linked).']);
+                }
+            } elseif ($editingOrder) {
+                $source = PreOrder::where('converted_order_id', $editingOrder->id)->lockForUpdate()->first();
+                if ($request->filled('pre_order_id')) {
+                    throw ValidationException::withMessages(['pre_order_id' => 'A pre-order can only be converted into a new POS order.']);
+                }
+            }
+            if ($source) {
+                if ((int) $request->customer_id !== (int) $source->customer_id
+                    || abs((float) $request->money_transfer_amount - (float) $source->amount_paid) > 0.001) {
+                    throw ValidationException::withMessages(['pre_order_id' => 'The linked customer and carried deposit cannot be changed. Reload the order.']);
+                }
+            }
             $auditBefore = null;
             $originalLines = collect();
             $originalProducts = collect();
@@ -198,7 +235,11 @@ class POSController extends Controller
                 // Release only this order's units, then reallocate atomically below.
                 $stock->release($editingOrder, $originalLines);
             }
-            $status = $editingOrder?->status ?? $request->input('status', 'completed');
+            $reserved = ($recordDetails['order_type'] ?? $editingOrder?->order_type) === 'reserved';
+            if ($editingOrder && $editingOrder->status === 'completed' && $reserved && $editingOrder->order_type !== 'reserved') {
+                throw ValidationException::withMessages(['order_type' => 'A completed sale cannot be changed into a reservation. Create a new reserved order.']);
+            }
+            $status = $editingOrder?->status ?? ($reserved ? 'pending' : $request->input('status', 'completed'));
             if ($editingOrder && $request->has('status') && $request->status !== $status) {
                 throw ValidationException::withMessages(['status' => 'Use the order approval or cancellation action to change its status.']);
             }
@@ -335,6 +376,11 @@ class POSController extends Controller
             }
 
             $order->save();
+            if ($source && ! $editingOrder) {
+                $source->converted_order_id = $order->id;
+                $source->status = 'converted';
+                $source->save();
+            }
             if ($request->has('salesperson_ids') || ! $editingOrder) {
                 $order->salespeople()->sync($request->input('salesperson_ids', [$request->user()->id]));
             }
@@ -375,6 +421,16 @@ class POSController extends Controller
             DB::rollBack();
 
             return redirect()->back()->withErrors(['error' => ($editingOrder ? 'Order update failed: ' : 'Checkout failed: ').$e->getMessage()]);
+        }
+    }
+
+    private function assertConvertible(PreOrder $source): void
+    {
+        if ($source->type !== 'pre_order' || ! in_array($source->status, ['pending', 'ordered', 'sold_out'], true) || $source->converted_order_id) {
+            throw ValidationException::withMessages(['pre_order_id' => 'This pre-order is cancelled, completed, or already converted.']);
+        }
+        if (! Customer::whereKey($source->customer_id)->exists()) {
+            throw ValidationException::withMessages(['pre_order_id' => 'Restore the pre-order customer before conversion.']);
         }
     }
 
@@ -438,6 +494,7 @@ class POSController extends Controller
         }
 
         return [
+            'source_pre_order_id' => $order->sourcePreOrder?->id,
             'id' => $order->id, 'order_number' => $order->order_number, 'status' => $order->status,
             ...$order->only([...\App\Support\SalesRecordFields::COMMON, ...\App\Support\SalesRecordFields::SALES]),
             'salesperson_ids' => $order->salespeople()->pluck('users.id')->all(),

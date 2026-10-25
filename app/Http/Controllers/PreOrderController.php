@@ -18,12 +18,12 @@ class PreOrderController extends Controller
     {
         $filters = $this->filters($request);
 
-        return Inertia::render('PreOrders/Index', [
+        $data = [
             'deliveryStatusOptions' => \App\Enums\DeliveryStatus::options(),
             'deliveryTypeOptions' => \App\Enums\DeliveryType::options(),
             'marketingChannelOptions' => \App\Enums\MarketingChannel::options(),
             'filters' => $filters,
-            'preOrders' => $this->filteredQuery($filters)->with(['customer:id,name,phone,address,source,source_details', 'brand:id,name', 'user:id,name', 'fileUploads', 'reservedItem:id,product_id,system_unique_id,serial_number,status',
+            'preOrders' => $this->filteredQuery($filters)->with(['convertedOrder:id,order_number,status', 'customer:id,name,phone,address,source,source_details', 'brand:id,name', 'user:id,name', 'fileUploads', 'reservedItem:id,product_id,system_unique_id,serial_number,status',
                 'product' => fn ($query) => $query->select(['id', 'brand_id', 'name', 'model_number', 'deleted_at'])
                     ->withCount(['items as available_stock' => fn ($items) => $items->where('status', 'available')]),
             ])
@@ -32,12 +32,16 @@ class PreOrderController extends Controller
             'products' => Product::orderBy('name')->get(['id', 'brand_id', 'name', 'model_number']),
             'brands' => Brand::orderBy('name')->get(['id', 'name']),
             'customers' => Customer::orderBy('name')->get(['id', 'name', 'phone']),
-        ]);
+        ];
+
+        return $request->expectsJson() ? response()->json($data) : Inertia::render('PreOrders/Index', $data);
     }
 
     public function store(Request $request)
     {
-        app(ReservationService::class)->save($this->validated($request), $request->user()->id);
+        $record = app(ReservationService::class)->save($this->validated($request), $request->user()->id);
+
+        if ($request->expectsJson()) return response()->json(['id' => $record->id], 201);
 
         return to_route('pre-orders.index')->with('success', 'Pre-order added.');
     }
@@ -46,7 +50,7 @@ class PreOrderController extends Controller
     {
         return $request->validate([
             'type' => ['nullable', Rule::in(['pre_order', 'reservation'])],
-            'status' => ['nullable', Rule::in(['pending', 'ordered', 'sold_out', 'completed', 'cancelled'])],
+            'status' => ['nullable', Rule::in(['pending', 'ordered', 'sold_out', 'completed', 'cancelled', 'converted'])],
             'brand_id' => ['nullable', 'integer', 'exists:brands,id'],
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'product_id' => ['nullable', 'integer', 'exists:products,id'],
@@ -64,7 +68,7 @@ class PreOrderController extends Controller
 
     public function export(Request $request, \App\Services\SalesWorkbookExport $export)
     {
-        $records = $this->filteredQuery($this->filters($request))->with(['customer', 'brand', 'product'])->lazyById(200);
+        $records = $this->filteredQuery($this->filters($request))->whereNull('converted_order_id')->with(['customer', 'brand', 'product'])->lazyById(200);
         return $export->download($records->map(fn (PreOrder $record) => $export->preOrderRow($record)), true);
     }
 
@@ -72,12 +76,19 @@ class PreOrderController extends Controller
     {
         app(ReservationService::class)->save($this->validated($request, $preOrder), $request->user()->id, $preOrder);
 
+        if ($request->expectsJson()) return response()->json(['id' => $preOrder->id]);
+
         return back()->with('success', 'Pre-order updated.');
     }
 
     private function validated(Request $request, ?PreOrder $preOrder = null): array
     {
         $type = $request->input('type', $preOrder?->type ?? 'pre_order');
+        if ($type === 'reservation' && $preOrder?->type !== 'reservation') {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'type' => 'Create reservations in POS by choosing Order type: Reserved.',
+            ]);
+        }
 
         return $request->validate(\App\Support\SalesRecordFields::rules(true) + [
             'type' => ['sometimes', 'required', Rule::in(['pre_order', 'reservation'])],

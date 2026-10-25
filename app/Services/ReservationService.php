@@ -14,6 +14,9 @@ class ReservationService
     {
         return DB::transaction(function () use ($data, $creatorId, $existing) {
             $record = $existing ? PreOrder::whereKey($existing->id)->lockForUpdate()->firstOrFail() : new PreOrder(['user_id' => $creatorId]);
+            if ($record->converted_order_id) {
+                throw ValidationException::withMessages(['status' => 'This pre-order has been converted. Manage payments and stock in the linked POS order.']);
+            }
             $price = array_key_exists('price', $data) ? $data['price'] : $record->price;
             $discount = array_key_exists('discount_amount', $data) ? $data['discount_amount'] : $record->discount_amount;
             if ((float) $discount > 0 && ($price === null || (float) $discount > (float) $price)) {

@@ -100,6 +100,7 @@ const cancelOrder = () => {
     <Head :title="'Invoice #' + order.order_number" />
 
     <AdminLayout>
+        <p v-if="order.source_pre_order" class="mb-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-900">Converted from <Link :href="route('pre-orders.index', { customer_id: order.source_pre_order.customer_id })" class="font-semibold underline">Pre Order PO-{{ order.source_pre_order.id }}</Link>. Its deposit is included once in this order.</p>
         <div class="max-w-[900px] mx-auto pb-12">
 
             <!-- ── Admin toolbar (hidden on print) ──────────────────────── -->

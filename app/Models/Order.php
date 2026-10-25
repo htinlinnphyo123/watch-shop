@@ -35,6 +35,11 @@ class Order extends Model
         return $this->belongsToMany(User::class, 'order_salespeople')->withTimestamps()->orderBy('users.id');
     }
 
+    public function sourcePreOrder()
+    {
+        return $this->hasOne(PreOrder::class, 'converted_order_id');
+    }
+
     public function customer()
     {
         return $this->belongsTo(Customer::class);

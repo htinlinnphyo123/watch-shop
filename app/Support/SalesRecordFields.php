@@ -33,7 +33,7 @@ class SalesRecordFields
             'delivery_code' => 'nullable|string|max:255',
             'money_transfer_amount' => self::MONEY_RULE,
         ] : [
-            'order_type' => 'nullable|in:instock,preorder',
+            'order_type' => 'nullable|in:instock,preorder,reserved',
         ]);
     }
 }

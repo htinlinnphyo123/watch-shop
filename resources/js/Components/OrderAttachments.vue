@@ -4,8 +4,8 @@ import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 
-const props = defineProps({ orderId: { type: Number, required: true }, files: { type: Array, default: () => [] }, preOrder: { type: Boolean, default: false }, readOnly: { type: Boolean, default: false } });
-const emit = defineEmits(['busy']);
+const props = defineProps({ orderId: { type: Number, required: true }, files: { type: Array, default: () => [] }, preOrder: { type: Boolean, default: false }, refreshInPlace: Boolean, readOnly: { type: Boolean, default: false } });
+const emit = defineEmits(['busy', 'updated']);
 const routePrefix = props.preOrder ? 'pre-orders.files' : 'orders.files';
 const recordKey = props.preOrder ? 'preOrder' : 'order';
 const queue = ref([]);
@@ -90,7 +90,8 @@ const upload = async () => {
             queue.value = queue.value.filter(entry => entry.status !== 'Uploaded');
             if (uploaded) {
                 message.value = `${uploaded} file(s) uploaded.`;
-                router.reload({ only: [props.preOrder ? 'preOrders' : 'order'], onFinish: () => { busy.value = false; } });
+                if (props.refreshInPlace) { emit('updated'); busy.value = false; }
+                else router.reload({ only: [props.preOrder ? 'preOrders' : 'order'], onFinish: () => { busy.value = false; } });
             } else busy.value = false;
         }
     }

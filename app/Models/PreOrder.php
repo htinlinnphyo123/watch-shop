@@ -10,6 +10,11 @@ class PreOrder extends Model
 
     protected $casts = ['amount_paid' => 'decimal:2', 'price' => 'decimal:2', 'discount_amount' => 'decimal:2', 'deposit_amount' => 'decimal:2', 'delivery_fees' => 'decimal:2', 'money_transfer_amount' => 'decimal:2', 'order_date' => 'date:Y-m-d'];
 
+    public function convertedOrder()
+    {
+        return $this->belongsTo(Order::class, 'converted_order_id');
+    }
+
     public function customer()
     {
         return $this->belongsTo(Customer::class)->withTrashed();
