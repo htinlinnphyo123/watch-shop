@@ -17,6 +17,8 @@ class Order extends Model
         'stock_reserved_at' => 'datetime',
         'edit_version' => 'integer',
         'payments' => 'array',
+        'overall_discount_percentage' => 'decimal:2',
+        'overall_discount_amount' => 'decimal:2',
         'discount_percentage' => 'decimal:2',
         'amount_paid' => 'decimal:2',
         'money_transfer_amount' => 'decimal:2',

@@ -11,7 +11,7 @@ class OrderItem extends Model
 
     protected $guarded = [];
 
-    protected $casts = ['shop_price' => 'decimal:2', 'web_price' => 'decimal:2', 'discount_percentage' => 'decimal:2'];
+    protected $casts = ['overall_discount_amount' => 'decimal:2', 'rounding_adjustment' => 'decimal:2', 'net_total' => 'decimal:2', 'shop_price' => 'decimal:2', 'web_price' => 'decimal:2', 'discount_percentage' => 'decimal:2'];
 
     public function order()
     {

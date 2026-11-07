@@ -46,6 +46,8 @@ class OrderAuditService
             ...collect($order->only([...\App\Support\SalesRecordFields::COMMON, ...\App\Support\SalesRecordFields::SALES]))
                 ->map(fn ($value) => $value instanceof \DateTimeInterface ? $value->format('Y-m-d') : $value)->all(),
             'customer' => ['id' => $order->customer_id, 'name' => $order->customer?->name ?? ($order->customer_id ? 'Deleted customer' : 'Walk-in Customer')],
+            'overall_discount_percentage' => $order->overall_discount_percentage,
+            'overall_discount_amount' => $order->overall_discount_amount,
             'discount_percentage' => number_format((float) $order->discount_percentage, 2, '.', ''),
             'total_amount' => number_format((float) $order->total_amount, 2, '.', ''),
             'amount_paid' => $order->amount_paid,
@@ -99,7 +101,7 @@ class OrderAuditService
                 $changes[] = ['section' => 'Order', 'label' => $label, 'before' => $this->display($before[$key] ?? null), 'after' => $this->display($after[$key] ?? null)];
             }
         }
-        foreach (['order_number' => 'Order number', 'status' => 'Status', 'customer' => 'Customer', 'discount_percentage' => 'Discount (%)', 'total_amount' => 'Total (Ks)', 'amount_paid' => 'Amount received (Ks)', 'change' => 'Change (Ks)'] as $key => $label) {
+        foreach (['overall_discount_percentage' => 'Overall Discount (%)', 'overall_discount_amount' => 'Overall Discount (Ks)', 'order_number' => 'Order number', 'status' => 'Status', 'customer' => 'Customer', 'discount_percentage' => 'Discount (%)', 'total_amount' => 'Total (Ks)', 'amount_paid' => 'Amount received (Ks)', 'change' => 'Change (Ks)'] as $key => $label) {
             if (($before[$key] ?? null) !== ($after[$key] ?? null)) {
                 $changes[] = ['section' => 'Order', 'label' => $label, 'before' => $this->display($before[$key] ?? null), 'after' => $this->display($after[$key] ?? null)];
             }

@@ -5,6 +5,8 @@ import { paymentMethodLabel } from '@/utils/payments';
 
 const props = defineProps({ order: { type: Object, required: true } });
 const money = value => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Number(value) || 0);
+// Presentation only: preserve saved amounts and the voucher calculation.
+const roundedRowTotal = value => money(Math.round(Number(value) / 1000) * 1000);
 const lineTotal = item => Number(item.price) * Number(item.quantity);
 const subtotal = computed(() => (props.order.items || []).reduce((sum, item) => sum + lineTotal(item), 0));
 const hasLineDiscounts = computed(() => (props.order.items || []).some(item => item.discount_percentage != null));
@@ -70,7 +72,7 @@ const serials = item => (item.sold_items || []).filter(unit => unit.serial_numbe
                     <tr v-for="(item, index) in order.items" :key="item.id">
                         <td>{{ String(index + 1).padStart(2, '0') }}.</td>
                         <td class="invoice-description"><p class="invoice-item-name">{{ item.product?.name || item.product?.model_number || '—' }}</p><p v-if="item.product?.warranty_period" class="invoice-item-detail">{{ item.product.warranty_period }}-month warranty</p><p v-for="unit in serials(item)" :key="unit.id" class="invoice-item-detail">S/N: {{ unit.serial_number }}</p></td>
-                        <td class="invoice-numeric">{{ money(item.price) }}</td><td>{{ item.quantity }}</td><td v-if="hasLineDiscounts" class="invoice-numeric">{{ itemPercentage(item) }}%<br /><small>−{{ money(itemDiscount(item)) }}</small></td><td class="invoice-numeric">{{ money(hasLineDiscounts ? itemNet(item) : lineTotal(item)) }}</td>
+                        <td class="invoice-numeric">{{ money(item.price) }}</td><td>{{ item.quantity }}</td><td v-if="hasLineDiscounts" class="invoice-numeric">{{ itemPercentage(item) }}%<br /><small>−{{ money(itemDiscount(item)) }}</small></td><td class="invoice-numeric">{{ roundedRowTotal(hasLineDiscounts ? itemNet(item) : lineTotal(item)) }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -85,6 +87,7 @@ const serials = item => (item.sold_items || []).filter(unit => unit.serial_numbe
             <dl class="invoice-totals">
                 <div><dt>Subtotal:</dt><dd>{{ money(subtotal) }}</dd></div>
                 <div v-if="discount > 0"><dt>Discount<span v-if="!hasLineDiscounts && Number(order.discount_percentage)"> ({{ Number(order.discount_percentage) }}%)</span>:</dt><dd>−{{ money(discount) }}</dd></div>
+                <div v-if="Number(order.overall_discount_amount) > 0"><dt>Overall Discount ({{ Number(order.overall_discount_percentage) }}%):</dt><dd>−{{ money(order.overall_discount_amount) }}</dd></div>
                 <div><dt>Total After Discount:</dt><dd>{{ money(order.total_amount) }}</dd></div>
                 <div v-if="moneyTransferAmount > 0"><dt>Deposit:</dt><dd>−{{ money(moneyTransferAmount) }}</dd></div>
                 <div><dt>Delivery Fee:</dt><dd>{{ money(order.delivery_fees) }}</dd></div>

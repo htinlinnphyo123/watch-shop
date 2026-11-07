@@ -89,3 +89,10 @@ test('automatic discount includes the shop discount and uses converted or saved 
     setPosLinePriceSource(saved, 'web');
     assert.equal(posLineDiscountPercentage(saved), 16.67);
 });
+
+
+test('overall voucher discount follows watch discounts and precedes final rounding', () => {
+    const net = 2263000 - 2263000 * 0.08 + 178000 - 178000 * 0.173;
+    assert.equal(posOrderTotal(net, 2), 2185000);
+    assert.equal(posOrderTotal(net, 100), 0);
+});

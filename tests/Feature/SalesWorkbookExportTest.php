@@ -57,7 +57,7 @@ class SalesWorkbookExportTest extends TestCase
         $this->assertCount(6, $rows);
         $row = $rows[0];
         $this->assertSame(SalesWorkbookExport::SALES_HEADERS, array_keys($row));
-        $this->assertCount(30, $row);
+        $this->assertCount(count(SalesWorkbookExport::SALES_HEADERS), $row);
         $this->assertSame('Customer', $row['Customer Name']);
         $this->assertSame('Profile', $row['Fb Acc']);
         $this->assertSame('', $row['Marketing Channel']);

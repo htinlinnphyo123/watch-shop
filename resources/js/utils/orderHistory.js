@@ -52,6 +52,8 @@ export function orderChangeGroups(before, after) {
         ['remark', 'Remark changed', value => value || 'Not recorded'],
         ['money_transfer_amount', 'Money transfer amount changed', value => value == null ? 'Not recorded' : money(value)],
         ['customer', 'Customer changed', value => value?.name || 'Walk-in Customer'],
+        ['overall_discount_percentage', 'Overall discount changed', value => `${Number(value || 0)}%`],
+        ['overall_discount_amount', 'Overall discount amount changed', value => money(value || 0)],
         ['discount_percentage', 'Discount changed', value => `${Number(value || 0)}%`],
         ['total_amount', 'Order total changed', money],
         ['amount_paid', 'Amount received changed', money],

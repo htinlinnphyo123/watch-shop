@@ -16,7 +16,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import axios from 'axios';
 import { paymentMethods, paymentCents } from '@/utils/payments';
-import { posPriceMmk, posOrderTotal, posLinePriceSource, posLinePrices, posLinePrice, posLineDiscountPercentage, posLineAutoDiscountPercentage, setPosLinePriceSource, lineDiscountAmount } from '@/utils/posPricing';
+import { posPriceMmk, posOrderTotal, orderDiscountAmount, posLinePriceSource, posLinePrices, posLinePrice, posLineDiscountPercentage, posLineAutoDiscountPercentage, setPosLinePriceSource, lineDiscountAmount } from '@/utils/posPricing';
 import { createCheckoutRequestId } from '@/utils/checkoutRequest';
 
 const props = defineProps({
@@ -119,6 +119,7 @@ const checkoutForm = useForm({
     customer_id: props.editingOrder?.customer_id || props.sourcePreOrder?.customer_id || '',
     payments: props.editingOrder?.payments.map(payment => ({ ...payment })) || [{ method: 'cash', amount: 0 }],
     edit_version: props.editingOrder?.edit_version ?? null,
+    overall_discount_percentage: props.editingOrder?.overall_discount_percentage ?? 0,
     cart: [],
 });
 
@@ -198,13 +199,19 @@ const splitCartLine = index => {
 };
 const subTotal = computed(() => cart.value.reduce((sum, item) => sum + linePrice(item) * item.qty, 0));
 const discount = computed(() => cart.value.reduce((sum, item) => sum + lineDiscount(item), 0));
-const merchandiseTotal = computed(() => posOrderTotal(subTotal.value - discount.value, 0));
+const invalidOverallDiscount = computed(() => {
+    const value = Number(checkoutForm.overall_discount_percentage);
+    return !Number.isFinite(value) || value < 0 || value > 100 || Math.abs(value * 100 - Math.round(value * 100)) > 0.000001;
+});
+const overallPercentage = computed(() => invalidOverallDiscount.value ? 0 : Number(checkoutForm.overall_discount_percentage || 0));
+const overallDiscount = computed(() => orderDiscountAmount(Math.round((subTotal.value - discount.value) * 100) / 100, overallPercentage.value));
+const merchandiseTotal = computed(() => posOrderTotal(subTotal.value - discount.value, overallPercentage.value));
 const deliveryFee = computed(() => Math.max(0, Number(checkoutForm.delivery_fees) || 0));
 const total = computed(() => merchandiseTotal.value + deliveryFee.value);
 const moneyTransferAmount = computed(() => Math.max(0, Number(checkoutForm.money_transfer_amount) || 0));
 const paymentDue = computed(() => Math.max(0, paymentCents(total.value - moneyTransferAmount.value)) / 100);
 const allowZeroPayment = computed(() => checkoutForm.status === 'pending' || moneyTransferAmount.value > 0);
-const roundingAdjustment = computed(() => (paymentCents(merchandiseTotal.value) - paymentCents(subTotal.value - discount.value)) / 100);
+const roundingAdjustment = computed(() => (paymentCents(merchandiseTotal.value) - paymentCents(subTotal.value - discount.value - overallDiscount.value)) / 100);
 const amountPaid = computed(() => checkoutForm.payments.reduce((sum, payment) => sum + paymentCents(payment.amount), 0) / 100);
 const amountShort = computed(() => Math.max(0, paymentCents(paymentDue.value) - paymentCents(amountPaid.value)) / 100);
 const changeDue = computed(() => Math.max(0, paymentCents(amountPaid.value) - paymentCents(paymentDue.value)) / 100);
@@ -403,7 +410,7 @@ const handleCameraScan = (code) => {
 const removeFromCart = (index) => { cart.value.splice(index, 1); };
 
 const openCheckout = () => {
-    if (cart.value.length === 0 || pendingScans.value > 0 || invalidLinePricing.value) return;
+    if (cart.value.length === 0 || pendingScans.value > 0 || invalidLinePricing.value || invalidOverallDiscount.value) return;
     if (!props.editingOrder) checkoutForm.payments = [{ method: 'cash', amount: checkoutForm.order_type === 'reserved' ? 0 : paymentDue.value }];
     checkoutForm.clearErrors();
     checkoutForm.cart = cart.value.map(c => ({
@@ -418,7 +425,7 @@ const openCheckout = () => {
 };
 
 const submitCheckout = () => {
-    if (nonCashOverpaid.value || invalidPayment.value || checkoutForm.processing) return;
+    if (nonCashOverpaid.value || invalidPayment.value || invalidOverallDiscount.value || checkoutForm.processing) return;
     checkoutForm.submit(props.editingOrder ? 'put' : 'post', props.editingOrder ? route('pos.orders.update', props.editingOrder.id) : route('pos.checkout'), {
         onSuccess: () => {
             cart.value = [];
@@ -675,6 +682,16 @@ onBeforeUnmount(() => {
                             <span>Total watch discounts</span>
                             <span>-{{ discount.toLocaleString() }} Ks</span>
                         </div>
+                        <div class="py-2">
+                            <InputLabel for="overall-discount" value="Overall Discount (%)" />
+                            <TextInput id="overall-discount" v-model="checkoutForm.overall_discount_percentage" type="number" min="0" max="100" step="0.01" @blur="checkoutForm.overall_discount_percentage = checkoutForm.overall_discount_percentage || 0" class="mt-1 w-full" />
+                            <p class="mt-1 text-xs text-gray-500">Additional discount after watch discounts, excluding delivery.</p>
+                            <p v-if="invalidOverallDiscount" role="alert" class="text-sm text-red-600">Enter 0–100 with at most two decimal places.</p>
+                            <InputError :message="checkoutForm.errors.overall_discount_percentage" />
+                        </div>
+                        <div v-if="overallDiscount > 0" class="flex justify-between text-sm text-green-600">
+                            <span>Overall discount ({{ overallPercentage }}%)</span><span>−{{ overallDiscount.toLocaleString() }} Ks</span>
+                        </div>
                         <div v-if="roundingAdjustment" class="flex justify-between text-sm text-gray-500">
                             <span>Rounding</span>
                             <span>{{ roundingAdjustment > 0 ? '+' : '−' }}{{ Math.abs(roundingAdjustment).toLocaleString() }} Ks</span>
@@ -691,7 +708,7 @@ onBeforeUnmount(() => {
                     <PrimaryButton
                         @click="openCheckout"
                         class="pos-panel-checkout w-full justify-center py-3 bg-gold-500 hover:bg-gold-600 text-dark-900 font-bold text-base shadow-md"
-                        :disabled="cart.length === 0 || pendingScans > 0"
+                        :disabled="cart.length === 0 || pendingScans > 0 || invalidOverallDiscount"
                     >
                         {{ editingOrder ? 'Review Changes' : 'Checkout' }}
                     </PrimaryButton>
@@ -701,7 +718,7 @@ onBeforeUnmount(() => {
 
         <div class="pos-mobile-dock" aria-label="Cart summary">
             <div class="min-w-0"><p class="text-xs text-gray-500" aria-live="polite">{{ cart.length }} line(s) in order</p><p class="break-words text-lg font-bold text-gray-900">{{ total.toLocaleString() }} <span class="text-xs font-normal">Ks</span></p></div>
-            <button type="button" class="min-h-12 rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40" :disabled="cart.length === 0 || pendingScans > 0" @click="compactPane === 'products' ? showCompactPane('order') : openCheckout()">{{ pendingScans ? 'Scanning…' : compactPane === 'products' ? 'Review order →' : editingOrder ? 'Review changes →' : 'Checkout →' }}</button>
+            <button type="button" class="min-h-12 rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40" :disabled="cart.length === 0 || pendingScans > 0 || invalidOverallDiscount" @click="compactPane === 'products' ? showCompactPane('order') : openCheckout()">{{ pendingScans ? 'Scanning…' : compactPane === 'products' ? 'Review order →' : editingOrder ? 'Review changes →' : 'Checkout →' }}</button>
         </div>
 
         <!-- ══════════════════════════════════════════════════════════════════
@@ -932,6 +949,7 @@ onBeforeUnmount(() => {
                     </div>
                     <p v-for="(message, key) in Object.fromEntries(Object.entries(checkoutForm.errors).filter(([key]) => key.startsWith('cart') || key === 'edit_version' || key === 'customer_id'))" :key="key" role="alert" class="text-sm text-red-600">{{ message }}</p>
                     <InputError :message="checkoutForm.errors.checkout_request_id" />
+                    <InputError :message="checkoutForm.errors.overall_discount_percentage" />
                     <InputError :message="checkoutForm.errors.pre_order_id" />
                     <InputError :message="checkoutForm.errors.pre_order_version" />
                     <div
@@ -961,6 +979,7 @@ onBeforeUnmount(() => {
                         </div>
                     </div>
 
+                    <p v-if="overallDiscount > 0" class="text-sm font-semibold text-green-700">Overall Discount ({{ overallPercentage }}%): −{{ overallDiscount.toLocaleString() }} Ks</p>
                     <div class="space-y-3">
                         <div class="flex items-center justify-between gap-3">
                             <h3 class="font-semibold text-gray-900">Payments</h3>

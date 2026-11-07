@@ -12,7 +12,7 @@ use OpenSpout\Writer\XLSX\Entity\SheetView;
 
 class SalesWorkbookExport
 {
-    public const SALES_HEADERS = ['No', 'Fb Acc', 'Customer Name', 'Customer Gender', 'Address', 'Phone', 'Seller', 'Brand', 'Model No.', 'Watch Gender', 'Order Date', 'Order Type', 'Buying Type', 'Paid by', 'Payment Type', 'Pre-Order Payment', 'Price', 'Discount', 'Opening', 'Total Payment', 'Delivery Type', 'Delivery ID', 'Delivery Status', 'Delivery Fees', 'Received Money', 'Marketing Channel', 'Remark', 'Order Number', 'Order Status', 'Money Transfer Amount'];
+    public const SALES_HEADERS = ['No', 'Fb Acc', 'Customer Name', 'Customer Gender', 'Address', 'Phone', 'Seller', 'Brand', 'Model No.', 'Watch Gender', 'Order Date', 'Order Type', 'Buying Type', 'Paid by', 'Payment Type', 'Pre-Order Payment', 'Price', 'Discount', 'Opening', 'Total Payment', 'Delivery Type', 'Delivery ID', 'Delivery Status', 'Delivery Fees', 'Received Money', 'Marketing Channel', 'Remark', 'Order Number', 'Order Status', 'Money Transfer Amount', 'Overall Discount', 'Rounding Adjustment', 'Net Sales'];
     public const PRE_ORDER_HEADERS = ['No', 'Fb Acc', 'Customer Name', 'Address', 'Phone', 'Brand', 'Model No.', 'Order Date', 'Order type', 'Buying Type', 'Paid by', 'Payment Type', 'Price', 'Discount', 'Deposit', 'Opening', 'Total Payment', 'Delivery Type', 'Delivery ID', 'Delivery Status', 'Delivery Fees', 'Received Money'];
 
     public function saleRow(Order $order): array
@@ -44,6 +44,7 @@ class SalesWorkbookExport
             (float) $order->total_amount, $order->delivery_type, $order->delivery_code, $order->delivery_status,
             $this->money($order->delivery_fees), $received, $order->marketing_channel, $order->remark,
             $order->order_number, $this->label($order->status), $this->money($order->money_transfer_amount),
+            null, null, null,
         ]);
     }
 
@@ -53,6 +54,10 @@ class SalesWorkbookExport
         $base = $this->saleRow($order);
         $first = true;
         foreach ($order->items as $line) {
+            $allocated = $line->net_total === null ? null : \App\Support\VoucherPricing::units(
+                (float) $line->price, (int) $line->quantity, (float) ($line->discount_percentage ?? $order->discount_percentage),
+                (float) $line->overall_discount_amount, (float) $line->rounding_adjustment,
+            );
             for ($unit = 0; $unit < $line->quantity; $unit++) {
                 $row = $base;
                 $row['Brand'] = $line->product?->brand?->name;
@@ -61,6 +66,10 @@ class SalesWorkbookExport
                 $row['Price'] = (float) $line->price;
                 $discount = $line->discount_percentage ?? $order->discount_percentage;
                 $row['Discount'] = $discount === null ? null : (float) $discount / 100;
+                // Persisted allocations include final order rounding and reconcile to Total Payment.
+                foreach (['Overall Discount', 'Rounding Adjustment', 'Net Sales'] as $header) {
+                    $row[$header] = $allocated[$unit][$header] ?? null;
+                }
                 if (! $first) {
                     foreach (['Opening', 'Total Payment', 'Delivery Fees', 'Received Money', 'Money Transfer Amount'] as $header) {
                         $row[$header] = null;

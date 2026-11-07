@@ -157,6 +157,7 @@ class POSController extends Controller
             'remark' => 'nullable|string|max:5000',
             'money_transfer_amount' => 'nullable|numeric|min:0|max:999999999999|decimal:0,2',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
+            'overall_discount_percentage' => 'nullable|numeric|min:0|max:100|decimal:0,2',
             'payment_method' => 'required_without:payments|nullable|in:cash,kbz_pay,card,transfer,cb_pay,aya_pay,other,cod',
             'amount_paid' => 'required_without:payments|nullable|numeric|min:0|max:999999999999|decimal:0,2',
             'payments' => 'sometimes|required|array|list|min:1|max:7',
@@ -338,7 +339,13 @@ class POSController extends Controller
             // This blended percentage is retained for legacy reports only.
             // The amount is calculated from each watch's own discount, without rounding the blend.
             $discountPercentage = round($subtotal > 0 ? ($watchDiscountAmount / $subtotal) * 100 : 0, 2);
-            $totalAmount = \App\Support\PosPrice::orderTotal($subtotal - $watchDiscountAmount, 0);
+            $overallPercentage = (float) ($request->input('overall_discount_percentage') ?? $editingOrder?->overall_discount_percentage ?? 0);
+            $voucher = \App\Support\VoucherPricing::calculate($orderItemsData, $overallPercentage);
+            $totalAmount = $voucher['total'];
+            foreach ($orderItemsData as $index => &$lineData) {
+                $lineData = [...$lineData, ...$voucher['lines'][$index]];
+            }
+            unset($lineData);
             $grossPaymentTotal = $totalAmount + (float) ($recordDetails['delivery_fees'] ?? 0);
             $moneyTransferAmount = (float) ($request->input('money_transfer_amount') ?? 0);
             if ($moneyTransferAmount > $grossPaymentTotal) {
@@ -367,6 +374,8 @@ class POSController extends Controller
                 'remark' => $request->input('remark', $editingOrder?->remark),
                 'money_transfer_amount' => $request->input('money_transfer_amount', $editingOrder?->money_transfer_amount),
                 'discount_percentage' => round($discountPercentage, 2),
+                'overall_discount_percentage' => $overallPercentage,
+                'overall_discount_amount' => $voucher['discount'],
                 ...$paymentDetails,
                 'total_amount' => $totalAmount,
                 'edit_version' => $editingOrder ? $editingOrder->edit_version + 1 : 0,
@@ -396,6 +405,9 @@ class POSController extends Controller
                     'price_source' => $lineData['price_source'],
                     'shop_price' => $lineData['shop_price'], 'web_price' => $lineData['web_price'],
                     'discount_percentage' => $lineData['discount_percentage'],
+                    'overall_discount_amount' => $lineData['overall_discount_amount'],
+                    'rounding_adjustment' => $lineData['rounding_adjustment'],
+                    'net_total' => $lineData['net_total'],
                 ]);
 
                 // Pending POS orders hold the exact same units until approval/cancellation.
@@ -501,6 +513,7 @@ class POSController extends Controller
             'edit_version' => $order->edit_version, 'customer_id' => $order->customer_id,
             'delivery_code' => $order->delivery_code, 'remark' => $order->remark,
             'money_transfer_amount' => $order->money_transfer_amount,
+            'overall_discount_percentage' => $order->overall_discount_percentage,
             'discount_percentage' => $order->discount_percentage, 'cart' => $cart,
             'payments' => $order->payments ?: [['method' => $order->payment_method ?: 'cash', 'amount' => $order->amount_paid ?? $order->total_amount]],
         ];
